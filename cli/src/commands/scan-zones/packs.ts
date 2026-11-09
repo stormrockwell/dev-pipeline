@@ -29,25 +29,6 @@ function removedOnly(group: Group, zone: Zone, pattern: string): Signal {
   return { group, zone, pattern, only: "removed" };
 }
 
-const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
-
-/** The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`. */
-const operator = "(?:===?|!==?)(?!=)\\s*(?=\\S)";
-
-/** A comparison against null, undefined or an empty string is a presence check, not a signature check. */
-const notAbsent = "(?!null\\b|undefined\\b|['\"]{2})";
-
-/** Either side of a loose or strict comparison names a signature. */
-const signatureComparison = [
-  `\\b${signatureName}\\s*${operator}${notAbsent}\\S`,
-  `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,
-  `${operator}${notAbsent}(?:\\w+\\.)*sig\\b`,
-].join("|");
-
-/** A header set call, or an object property whose value is a literal or a call, so a TypeScript type is not a match. */
-const authorizationHeaderBuilt =
-  "\\bheaders\\.(set|append)\\(\\s*['\"]authorization['\"]|['\"]?\\bauthorization['\"]?\\s*:\\s*(?:`|['\"]|[\\w$.]+\\()";
-
 /** Browser sinks, third-party loads and suppressions apply to both stacks, so each pack carries them. */
 const shared: Signal[] = [
   ...signals("js", "input", "innerHTML|insertAdjacentHTML|dangerouslySetInnerHTML", "postMessage|new Function"),
@@ -107,6 +88,25 @@ export const wordpress: Pack = {
     ...shared,
   ],
 };
+
+const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
+
+/** The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`. */
+const operator = "(?:===?|!==?)(?!=)\\s*(?=\\S)";
+
+/** A comparison against null, undefined or an empty string is a presence check, not a signature check. */
+const notAbsent = "(?!null\\b|undefined\\b|['\"]{2})";
+
+/** Either side of a loose or strict comparison names a signature. */
+const signatureComparison = [
+  `\\b${signatureName}\\s*${operator}${notAbsent}\\S`,
+  `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,
+  `${operator}${notAbsent}(?:\\w+\\.)*sig\\b`,
+].join("|");
+
+/** A header set call, or an object property whose value is a literal or a call, so a TypeScript type is not a match. */
+const authorizationHeaderBuilt =
+  "\\bheaders\\.(set|append)\\(\\s*['\"]authorization['\"]|['\"]?\\bauthorization['\"]?\\s*:\\s*(?:`|['\"]|[\\w$.]+\\()";
 
 export const node: Pack = {
   name: "node",
