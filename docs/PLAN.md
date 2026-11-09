@@ -60,7 +60,7 @@ Tasks 0.4, 0.5, 0.7 and 0.8 share nothing and run in parallel.
 | 1.6 | Zone scan and classifier: `sensitive.yml` schema, WordPress and Node signal packs, removed-signal detection, tier per diff | Sonnet | 0.6 | spike recall matched or beaten |
 | 1.7 | Comment linter | Haiku | 1.2 | the temporal comment fixtures get flagged |
 | 1.8 | PR template and body checker: sections, 250-word ceiling, auditor list | Haiku | 1.2 | good fixtures pass, padded ones fail |
-| 1.9 | GitHub layer: reusable workflow, ruleset template with path-based required reviewers, labels, `risk-gate` | Sonnet; you create the GitHub App, and you are the zone approver until the pipeline is shared | 1.6, 1.8 | a zone PR cannot merge without a zone approver |
+| 1.9 | GitHub layer: reusable workflow, ruleset template, labels, `risk-gate` | Sonnet; you review as the peer until the pipeline is shared | 1.6, 1.8 | a zone PR cannot merge without a peer approval |
 | 1.10 | `pipeline docs`, with watch mode | Haiku | 1.2 | edits show on refresh |
 | 1.11 | Pilot the floor on Media on Autopilot and the MCP server: baseline old violations, tune false positives | You and Sonnet | 1.3 to 1.9 | 20 consecutive PRs with no false-positive blocks |
 
@@ -74,7 +74,7 @@ After 1.2, tasks 1.3, 1.4, 1.5, 1.7, 1.8 and 1.10 share nothing and run in paral
 |---|---|---|---|---|
 | 2.1 | Plugin skeleton: manifest, router skill, SessionStart pointer, optional `/work`, `/review` and `/compound` | Opus for the router, Sonnet for wiring | Phase 1 | routing eval cases pass |
 | 2.2 | Init and bootstrap: profile detection and questions, and new-project setup of the suite, linters, CI, hooks and profile | Sonnet; Opus for the questions | 1.1, 1.3, 1.4 | scenario 1 passes its bootstrap checks |
-| 2.3 | Work order: shaping with owned files and interfaces, per-task classification, approver-only lowering, schedule script, one-screen render, involvement levels | Opus for shaping, Haiku for the schedule script | 1.6, decisions 9, 10, 11 | judgment eval cases pass |
+| 2.3 | Work order: shaping with owned files and interfaces, per-task classification, peer-only lowering, schedule script, one-screen render, involvement levels | Opus for shaping, Haiku for the schedule script | 1.6, decisions 9, 10, 11 | judgment eval cases pass |
 | 2.4 | Implementer: task brief script, report contract with TDD evidence, Stop hook fast checks | Sonnet, adapting Superpowers' implementer prompt | 2.3 | a task ships with red and green evidence |
 | 2.5 | Worktree isolation: per-worktree test database, APFS dependency clones, ports, merge serializer | Sonnet | 0.4 | two zero-overlap tasks run in parallel without collisions |
 | 2.6 | Reviewers v1: spec with the test checklist, standards in the mode 0.8 picked, simplifier, findings schema, merge by precedence, routed three-round fix loop | Opus for reviewer prompts, Sonnet for plumbing | 2.4, decision 12 | precedence and routing eval cases pass |
@@ -132,6 +132,6 @@ Tasks 3.4, 3.5, 3.6 and 3.7 share nothing and run in parallel.
 | Plan limits at 100 to 250 PRs a week | the 0.7 baseline and the run logs | security per push, model tiering, fewer review rounds |
 | False positives slow developers down | the pilot and the skip rate | tune before rollout, because the floor must stay quiet on clean code |
 | Playground PHPUnit falls short | spike 0.4 | per-worktree SQLite |
-| A personal account lacks org features, such as Secret Protection and teams for path-based required reviewers | decision 13 and 0.1 | CODEOWNERS naming you, `risk-gate`, and CI scans, until the pipeline moves to a team org |
+| A personal account lacks features such as Secret Protection and rulesets | decision 13 and 0.1 | the local hooks, the `.claude/settings.json` denials and CI scans, until the pipeline goes public |
 | The standards repo is slow to accept PRs | task 1.1 | fork it under the pipeline's org |
 | Claude Code changes underneath the pipeline | the eval suite on each release | pin versions, and rerun evals on every model and CLI release |
