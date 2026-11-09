@@ -6,8 +6,12 @@ import { parseUnifiedDiff, type ChangedFile } from "./diff.ts";
 import { isScanned, sparseContent } from "./scan.ts";
 import type { FileInput } from "./types.ts";
 
-/** Directories that hold code the repo does not own. */
-const SKIP_DIRS = new Set(["vendor", "node_modules", ".git"]);
+/**
+ * Directories a tree scan skips, because the repo does not own their code or they repeat the source
+ * they were built from. Diff modes still scan them, since a plugin ships its build output and a change
+ * made only there must reach a reviewer.
+ */
+const SKIP_DIRS = new Set(["vendor", "node_modules", ".git", "dist", "build"]);
 
 /** Files above this size are generated bundles or data, which no reviewer reads line by line. */
 const MAX_BYTES = 5 * 1024 * 1024;

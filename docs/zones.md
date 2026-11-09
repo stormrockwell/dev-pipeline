@@ -16,7 +16,7 @@ A file is in a zone when its path matches a path rule or when a line matches a c
 
 Removed lines that matched a signal are reported separately and printed first. A deleted capability check or nonce check weakens a control, so the review guide lists it before anything that was added. A removed line is matched against the signal alone, so a signal that depends on its neighbours (`near`) is skipped for removals.
 
-Tree mode skips `vendor/`, `node_modules/` and `.git/`, and reads content only from files of a scanned type. Every file still gets the path rules. Scanned types:
+Tree mode skips `vendor/`, `node_modules/`, `.git/` and the build output folders `dist/` and `build/`, which repeat their source. Diff modes still scan build output, because a plugin ships it. Tree mode reads content only from files of a scanned type. Every file still gets the path rules. Scanned types:
 
 | Type | Extensions | Signal groups |
 |---|---|---|
@@ -158,7 +158,7 @@ The security reviewer's zone call is the second layer for the cases the heuristi
 ## Other limits
 
 - Signals are one line at a time, so a statement split over lines can miss a pattern that spans the break.
-- Test files and `dist/` copies are scanned like any other file. Fixtures that plant a vulnerability will show up as zones.
+- Test files are scanned like any other file, and so are `dist/` copies in a diff. Fixtures that plant a vulnerability will show up as zones.
 - A new minified or vendored file is not yet detected as `third-party`, and the reach check for callers of changed functions is a separate task.
 
 ## Classifying a change

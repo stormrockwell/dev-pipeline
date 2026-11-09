@@ -45,6 +45,14 @@ describe("tree mode", () => {
     expect(scan(dir).report!.summary.matches).toBe(0);
   });
 
+  it("skips build output, which repeats the source it was built from", () => {
+    const dir = tempDir();
+    write(dir, "dist/app.js", "el.innerHTML = html;\n");
+    write(dir, "build/app.js", "el.innerHTML = html;\n");
+    write(dir, "src/app.js", "el.innerHTML = html;\n");
+    expect(scan(dir).report!.files.map((file) => file.file)).toEqual(["src/app.js"]);
+  });
+
   it("scans the directory named by --path and reads sensitive.yml from there", () => {
     const dir = tempDir();
     write(dir, ".pipeline/sensitive.yml", "paths:\n  - path: 'billing/**'\n    zone: privacy\n");
@@ -76,6 +84,13 @@ describe("--staged", () => {
     const { report } = scan(repo, ["--staged"]);
     expect(report!.mode).toBe("staged");
     expect(report!.files.map((file) => [file.file, file.matches.map((match) => match.line)])).toEqual([["a.php", [3]]]);
+  });
+
+  it("still scans a change to build output", () => {
+    const repo = makeRepo();
+    stage(repo, "dist/app.js", "el.innerHTML = html;\n");
+    const { report } = scan(repo, ["--staged"]);
+    expect(report!.files.map((file) => [file.file, file.zones])).toEqual([["dist/app.js", ["input"]]]);
   });
 
   it("lists a removed nonce check first, before the added matches", () => {
