@@ -89,6 +89,31 @@ export const wordpress: Pack = {
   ],
 };
 
+const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
+
+/** The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`. */
+const operator = "(?:===?|!==?)(?!=)\\s*(?=\\S)";
+
+/** A comparison against null, undefined or an empty string is a presence check, not a signature check. */
+const notAbsent = "(?!null\\b|undefined\\b|['\"]{2})";
+
+/** Either side of a loose or strict comparison names a signature. */
+const signatureComparison = [
+  `\\b${signatureName}\\s*${operator}${notAbsent}\\S`,
+  `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,
+  `${operator}${notAbsent}(?:\\w+\\.)*sig\\b`,
+].join("|");
+
+/**
+ * A header set call, or an object property whose value is a template, a call, a scheme such as Bearer, or a
+ * variable. A bare string, as in a name map, and a TypeScript type are not matches.
+ */
+const authorizationHeaderBuilt = [
+  "\\bheaders\\.(set|append)\\(\\s*['\"]authorization['\"]",
+  "['\"]?\\bauthorization['\"]?\\s*:\\s*(?:`|['\"](?:Bearer|Basic|Digest|Token|Hmac|Signature|AWS4)|[\\w$.]+\\()",
+  "['\"]?\\bauthorization['\"]?\\s*:\\s*(?!(?:string|number|boolean|any|unknown|undefined|null)\\b)[A-Za-z_$][\\w$.]*\\s*[,}]",
+].join("|");
+
 export const node: Pack = {
   name: "node",
   paths: [
@@ -145,6 +170,13 @@ export const node: Pack = {
       "require\\(['\"](node:)?crypto['\"]\\)|from ['\"](node:)?crypto['\"]",
       "createHash\\(['\"](md5|sha1)['\"]\\)",
     ),
+    // WebCrypto is what Cloudflare Workers and browsers use, and it has no `require('crypto')` line to catch.
+    ...signals("js", "crypto", "\\bcrypto\\.(subtle\\b|getRandomValues\\()"),
+    // Request signing, such as SigV4: the algorithm names, and a comparison that decides whether a signature is valid.
+    { group: "js", zone: "crypto", pattern: "AWS4-HMAC-SHA256|\\bX-Amz-(Signature|Credential|SignedHeaders)\\b|\\baws4_request\\b", flags: "i" },
+    { group: "js", zone: "crypto", pattern: signatureComparison, flags: "i" },
+    // Building an Authorization header is the outbound half of authentication, which a read of `req.headers` does not cover.
+    { group: "js", zone: "auth", pattern: authorizationHeaderBuilt, flags: "i" },
     ...signals("js", "secrets", "\\bprocess\\.env\\.\\w*(SECRET|KEY|TOKEN|PASSWORD|PASSWD|CREDENTIAL)\\w*"),
     ...signals("js", "privacy", "\\b(console\\.(log|info|debug)|logger\\.\\w+)\\(.*\\b(email|password|phone|ssn|dob)\\b"),
     ...signals("js", "data-loss", "\\b(DROP\\s+TABLE|TRUNCATE\\s+TABLE|deleteMany|dropDatabase|dropCollection)\\b", "\\.(destroy|drop)\\(\\{?\\s*(truncate|where:\\s*\\{\\s*\\})"),
