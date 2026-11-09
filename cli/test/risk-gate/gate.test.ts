@@ -210,3 +210,37 @@ describe("approvals", () => {
     expect(result.approvals).toEqual({ required: 1, have: 1 });
   });
 });
+
+describe("enforce-approvals off", () => {
+  const solo = { reviews: [] as Review[], headSha: HEAD, author: "dev" };
+
+  it("passes a zone PR that has no peer approval", () => {
+    const result = evaluate(zonePr({ approvals: solo, enforceApprovals: false }));
+    expect(result.ok).toBe(true);
+    expect(result.approvals).toBeNull();
+    expect(result.approvalsSkipped).toBe(true);
+  });
+
+  it("still computes and applies the labels", () => {
+    const result = evaluate(zonePr({ approvals: solo, enforceApprovals: false }));
+    expect(result.risk).toBe("high");
+    expect(result.labels.add).toEqual(["risk:high", "zone:auth"]);
+  });
+
+  it("still fails a Human review line that omits a found zone", () => {
+    const result = evaluate(zonePr({ approvals: solo, enforceApprovals: false, body: body("Human review: none.") }));
+    expect(result.ok).toBe(false);
+    expect(result.failures).toEqual([expect.stringContaining("none")]);
+  });
+
+  it("does not mark the check as skipped when there is no review data", () => {
+    expect(evaluate(zonePr({ enforceApprovals: false })).approvalsSkipped).toBe(false);
+  });
+
+  it("defaults to enforcing", () => {
+    const result = evaluate(zonePr({ approvals: solo }));
+    expect(result.ok).toBe(false);
+    expect(result.approvalsSkipped).toBe(false);
+  });
+});
+

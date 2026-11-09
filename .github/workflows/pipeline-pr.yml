@@ -14,6 +14,16 @@ on:
         required: false
         default: stormrockwell/dev-pipeline
         type: string
+      php-version:
+        description: The PHP version for the floor's PHP tools. Match the target repo's own CI.
+        required: false
+        default: '8.3'
+        type: string
+      enforce-approvals:
+        description: Count peer approvals in risk-gate. Set false for a repo with one developer, because the author never counts as a peer.
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -23,13 +33,41 @@ jobs:
     name: floor
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ inputs.php-version }}
+          tools: composer
+          coverage: none
+      - name: Install Composer dependencies
+        if: ${{ hashFiles('composer.json') != '' }}
+        run: composer install --no-interaction --prefer-dist
+      - name: Install Node dependencies
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+      - name: Install semgrep
+        run: |
+          # A venv keeps pip clear of the runner's externally managed system Python.
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet semgrep==1.184.0
+          echo "$RUNNER_TEMP/semgrep-venv/bin" >> "$GITHUB_PATH"
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$archive"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
       - name: Fetch the pipeline CLI
         env:
           CLI_REPO: ${{ inputs.cli-repo }}
@@ -67,11 +105,11 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - name: Fetch the pipeline CLI
@@ -89,6 +127,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ENFORCE_APPROVALS: ${{ inputs.enforce-approvals }}
         run: |
           range="$(git merge-base "$BASE_SHA" "$HEAD_SHA")..$HEAD_SHA"
-          "$PIPELINE" risk-gate --range "$range" --event "$GITHUB_EVENT_PATH" --apply
+          "$PIPELINE" risk-gate --range "$range" --event "$GITHUB_EVENT_PATH" --enforce-approvals "$ENFORCE_APPROVALS" --apply
