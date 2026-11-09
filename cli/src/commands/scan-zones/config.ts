@@ -7,10 +7,15 @@ import { parseYaml, type YamlValue } from "./yaml.ts";
 
 export const CONFIG_PATH = ".pipeline/sensitive.yml";
 
-const TOP_KEYS = ["packs", "paths", "signals", "critical"];
+const TOP_KEYS = ["packs", "paths", "signals", "critical", "test_paths"];
 
 /** The guardrail paths that STRATEGY names as designated, used when a sensitive.yml omits `critical`. */
 export const DEFAULT_CRITICAL = [".github/**", ".pipeline/**", ".claude/**"];
+/**
+ * Test files hold attack strings and mocks on purpose, so content signals skip them. The list is explicit
+ * and never read from a distribution ignore file, because those also exclude shipped code such as workers.
+ */
+export const DEFAULT_TEST_PATHS = ["**/test/**", "**/tests/**", "**/__tests__/**", "*.test.*", "*.spec.*", "*Test.php"];
 const SIGNAL_KEYS = ["pattern", "zone", "near", "only", "flags"];
 const PATH_KEYS = ["path", "zone"];
 
@@ -123,16 +128,16 @@ function parsePacks(value: YamlValue | undefined): string[] {
   });
 }
 
-function parseCritical(value: YamlValue | undefined): string[] {
-  if (value === undefined) return DEFAULT_CRITICAL;
+function parseGlobList(key: string, value: YamlValue | undefined, fallback: string[]): string[] {
+  if (value === undefined) return fallback;
   if (value === null) return [];
-  if (!Array.isArray(value)) return fail("critical", "must be a list of globs.");
+  if (!Array.isArray(value)) return fail(key, "must be a list of globs.");
   return value.map((item, index) => {
-    const glob = asString(`critical[${index}]`, "glob", item);
+    const glob = asString(`${key}[${index}]`, "glob", item);
     try {
       globToRegExp(glob);
     } catch (error) {
-      fail(`critical[${index}]`, error instanceof Error ? error.message : String(error));
+      fail(`${key}[${index}]`, error instanceof Error ? error.message : String(error));
     }
     return glob;
   });
@@ -148,11 +153,17 @@ function unique<T>(items: T[], key: (item: T) => string): T[] {
   });
 }
 
-function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[], signals: Signal[], critical: string[]): ZoneConfig {
+interface Lists {
+  critical: string[];
+  testPaths: string[];
+}
+
+function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[], signals: Signal[], lists: Lists): ZoneConfig {
   const chosen = names.map((name) => packs[name]!);
   return {
     source,
-    critical,
+    critical: lists.critical,
+    testPaths: lists.testPaths,
     packs: names,
     paths: unique([...paths, ...chosen.flatMap((pack) => pack.paths)], (rule) => `${rule.glob}\0${rule.zone}`),
     signals: unique(
@@ -164,7 +175,7 @@ function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[
 
 /** Every built-in pack, which is what a repo without a sensitive.yml gets. */
 export function builtinConfig(): ZoneConfig {
-  return combine("builtin", Object.keys(packs), [], [], DEFAULT_CRITICAL);
+  return combine("builtin", Object.keys(packs), [], [], { critical: DEFAULT_CRITICAL, testPaths: DEFAULT_TEST_PATHS });
 }
 
 export function parseConfig(text: string): ZoneConfig {
@@ -176,7 +187,10 @@ export function parseConfig(text: string): ZoneConfig {
   }
   if (!isMap(doc)) return fail("document", "must be a mapping with packs, paths and signals.");
   checkKeys("document", doc, TOP_KEYS);
-  return combine("file", parsePacks(doc.packs), parsePaths(doc.paths), parseSignals(doc.signals), parseCritical(doc.critical));
+  return combine("file", parsePacks(doc.packs), parsePaths(doc.paths), parseSignals(doc.signals), {
+    critical: parseGlobList("critical", doc.critical, DEFAULT_CRITICAL),
+    testPaths: parseGlobList("test_paths", doc.test_paths, DEFAULT_TEST_PATHS),
+  });
 }
 
 export function loadConfig(root: string): ZoneConfig {
