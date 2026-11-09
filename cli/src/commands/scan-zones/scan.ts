@@ -63,6 +63,18 @@ function compiled(config: ZoneConfig): Compiled[] {
   return list;
 }
 
+const testPathCache = new WeakMap<ZoneConfig, RegExp[]>();
+
+/** Test globs match case sensitively, so `*Test.php` finds FooTest.php and leaves latest.php alone. */
+function isTestFile(config: ZoneConfig, path: string): boolean {
+  let list = testPathCache.get(config);
+  if (!list) {
+    list = config.testPaths.map((glob) => globToRegExp(glob, false));
+    testPathCache.set(config, list);
+  }
+  return list.some((regex) => regex.test(path));
+}
+
 function pathRules(config: ZoneConfig) {
   let list = pathCache.get(config);
   if (!list) {
@@ -133,7 +145,9 @@ export function scanFile(config: ZoneConfig, input: FileInput): FileScan {
 
   const groups = groupsFor(input.path);
   if (groups.length > 0) {
-    const signals = compiled(config).filter(({ signal }) => groups.includes(signal.group));
+    // A test file keeps the secrets zone, because a real credential committed as a fixture still leaks.
+    const inTest = isTestFile(config, input.path);
+    const signals = compiled(config).filter(({ signal }) => groups.includes(signal.group) && (!inTest || signal.zone === "secrets"));
 
     if (input.content !== null && !input.deleted) {
       const lines = splitLines(input.content);

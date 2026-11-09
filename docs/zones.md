@@ -82,6 +82,7 @@ signals:
 | `paths` | list | Path rules, each a glob string or a map with `path` and `zone`. |
 | `signals` | map of group to list | Content signals. Groups are `php`, `js`, `markup`, `css`, `sql` and `suppressions`. |
 | `critical` | list of globs | Designated paths, where a T3 change is `risk:critical` and needs two approvals. Omit the key for `.github/**`, `.pipeline/**` and `.claude/**`, and leave it empty for none. |
+| `test_paths` | list of globs | Test files, where content signals do not run. Omit the key for the default list in [Test files](#test-files), and leave it empty to scan every file. |
 
 Any other key is an error, so a typo does not silently disable a rule.
 
@@ -116,6 +117,18 @@ Patterns are JavaScript regular expressions, so lookbehind works and PCRE-only s
 ### YAML subset
 
 The CLI has no runtime dependencies, so it reads only the YAML that the schema needs. It supports block mappings, block sequences of scalars or maps, flow sequences of scalars such as `[a, b]`, plain and quoted scalars, and `#` comments. Single-quoted strings take `''` for a quote, which keeps regular expressions with backslashes readable. It rejects anchors, tags, block scalars (`|` and `>`), flow mappings, tabs and multiple documents, and every error names the line.
+
+## Test files
+
+Test files hold attack strings, mocks and setup SQL on purpose, so content signals do not run on them. A file is a test file when its path matches one of these globs, which are the default for `test_paths`:
+
+```
+**/test/**   **/tests/**   **/__tests__/**   *.test.*   *.spec.*   *Test.php
+```
+
+Two things still apply to a test file. Path rules apply, so a manifest, workflow or `auth/` directory under a test path stays in its zone. Signals in the `secrets` zone also apply, because a real credential committed as a fixture still leaks. Test files still classify as T2, and the floor still runs gitleaks and semgrep over them.
+
+Test globs match case sensitively, unlike path rules, so `*Test.php` finds `FooTest.php` and leaves `latest.php` alone. The list is explicit and is never read from `.distignore` or a similar file, because those also exclude code that ships, such as Workers under `cloudflare/`. Setting `test_paths` replaces the default list, so a repo that ships a `tests/` directory lists only the patterns it wants, and a repo with an `e2e/` directory lists the defaults plus `**/e2e/**`.
 
 ## Built-in packs
 
@@ -159,7 +172,7 @@ The security reviewer's zone call is the second layer for the cases the heuristi
 ## Other limits
 
 - Signals are one line at a time, so a statement split over lines can miss a pattern that spans the break.
-- Test files are scanned like any other file, and so are `dist/` copies in a diff. Fixtures that plant a vulnerability will show up as zones.
+- Fixtures outside the test paths that plant a vulnerability show up as zones, and so do `dist/` copies in a diff.
 - A new minified or vendored file is not yet detected as `third-party`, and the reach check for callers of changed functions is a separate task.
 
 ## Classifying a change

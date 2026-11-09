@@ -42,6 +42,8 @@ export interface ZoneConfig {
   signals: Signal[];
   /** Globs of designated paths, where a T3 change needs two approvals. */
   critical: string[];
+  /** Globs of test files, where only path rules and the secrets zone apply. */
+  testPaths: string[];
 }
 
 export interface RemovedLine {

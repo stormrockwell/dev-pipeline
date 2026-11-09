@@ -6,9 +6,10 @@ function escape(char: string): string {
 /**
  * Translates a glob into a regular expression. A glob matches from any directory boundary, so a bare
  * `package.json` finds the manifest in a monorepo package, and matching ignores case because a class
- * named PermissionPolicy is the file the rule `*permission*` exists to catch.
+ * named PermissionPolicy is the file the rule `*permission*` exists to catch. A caller that needs
+ * exact case, such as the test path list where `*Test.php` must not match `latest.php`, passes false.
  */
-export function globToRegExp(glob: string): RegExp {
+export function globToRegExp(glob: string, ignoreCase = true): RegExp {
   let source = "";
   let depth = 0;
   for (let i = 0; i < glob.length; i++) {
@@ -38,7 +39,7 @@ export function globToRegExp(glob: string): RegExp {
     }
   }
   if (depth > 0) throw new Error(`unbalanced "{" in glob "${glob}"`);
-  return new RegExp(`(?:^|/)${source}$`, "i");
+  return new RegExp(`(?:^|/)${source}$`, ignoreCase ? "i" : "");
 }
 
 export function matchesGlob(glob: string, path: string): boolean {
