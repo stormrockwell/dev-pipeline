@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { git, repoTop } from "../secrets/git.ts";
 import { parseUnifiedDiff, type ChangedFile } from "./diff.ts";
@@ -12,6 +12,9 @@ import type { FileInput } from "./types.ts";
  * made only there must reach a reviewer.
  */
 const SKIP_DIRS = new Set(["vendor", "node_modules", ".git", "dist", "build"]);
+
+/** Third party code stays skipped in a git repo, but committed build output counts as the repo's own. */
+const THIRD_PARTY_DIRS = new Set(["vendor", "node_modules", ".git"]);
 
 /** Files above this size are generated bundles or data, which no reviewer reads line by line. */
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -28,21 +31,43 @@ function asText(buffer: Buffer): string | null {
   return buffer.includes(0) ? null : buffer.toString("utf8");
 }
 
-export function collectTree(dir: string): Collected {
-  const inputs: FileInput[] = [];
+/**
+ * The files git would commit, relative to `dir`, or null outside a git repo. A tree scan of ignored
+ * output (`.claude/`, `public/build`, `.next`) reports code that no change can ever carry.
+ */
+function committableFiles(dir: string): string[] | null {
+  const listing = git(dir, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
+  if (!listing.ok) return null;
+  // A path can appear twice while a merge is unresolved, and a deleted or linked entry is not a file.
+  const paths = new Set(listing.stdout.split("\0").filter(Boolean));
+  return [...paths].filter((path) => {
+    if (path.split("/").some((part) => THIRD_PARTY_DIRS.has(part))) return false;
+    return lstatSync(join(dir, path), { throwIfNoEntry: false })?.isFile() === true;
+  });
+}
+
+function walkFiles(dir: string): string[] {
+  const found: string[] = [];
   const walk = (current: string): void => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const full = join(current, entry.name);
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) walk(full);
       } else if (entry.isFile()) {
-        const path = relative(dir, full).split("\\").join("/");
-        const readable = isScanned(path) && statSync(full).size <= MAX_BYTES;
-        inputs.push({ path, content: readable ? asText(readFileSync(full)) : null, added: null, removed: [], deleted: false });
+        found.push(relative(dir, full).split("\\").join("/"));
       }
     }
   };
   walk(dir);
+  return found;
+}
+
+export function collectTree(dir: string): Collected {
+  const paths = committableFiles(dir) ?? walkFiles(dir);
+  const inputs = paths.map((path): FileInput => {
+    const readable = isScanned(path) && statSync(join(dir, path)).size <= MAX_BYTES;
+    return { path, content: readable ? asText(readFileSync(join(dir, path))) : null, added: null, removed: [], deleted: false };
+  });
   inputs.sort((a, b) => a.path.localeCompare(b.path));
   return { root: dir, inputs };
 }
