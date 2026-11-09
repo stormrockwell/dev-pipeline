@@ -420,7 +420,7 @@ When a developer asks to skip a pushed gate, the orchestrator states the recomme
 | Orchestrator | Opus | classification calls, rulings, adjudication, escalation |
 | Explorer | Sonnet | reads code and docs into a notes file |
 | Implementer | Sonnet; Haiku when the brief contains the complete code; Opus on fix rounds 4 and 5 | turn count beats token price |
-| Standards reviewer | Sonnet with OCR, in the mode Phase 0 picks | OCR's deterministic file selection and rules |
+| Standards reviewer | Sonnet with OCR delegation | OCR's deterministic file selection and rules |
 | Spec reviewer | Sonnet | compares the diff with the work order |
 | Simplifier | Sonnet, Opus if evals show the site-wide view needs it | understanding the larger codebase is judgment |
 | Performance reviewer | Sonnet with measured query counts | numbers decide, the agent explains |
@@ -503,7 +503,7 @@ The project is healthy. It has had 382 commits since August, its latest release 
 - Vendor its rule docs, so a fork or a removal loses little, and turn its telemetry off.
 - Keep our own standards reviewer working with borrowed rules, as the fallback and the comparison baseline.
 
-Phase 0 decides between the two with numbers instead of preference.
+Spike 0.8 picked delegation. Its file selection reviewed a SQL file the borrowed arm skipped, giving 4 valid findings to 0 at the same cost.
 
 ### Spec reviewer
 
@@ -772,11 +772,13 @@ New projects skip discovery and the ratchet. Bootstrap installs a test suite and
 
 | Cause | Fix |
 |---|---|
-| One machine-global SQLite test database | derive the database directory from the worktree path, or run PHPUnit in Playground CLI, which starts a fresh WordPress per run |
+| One machine-global SQLite test database | derive the database directory from the worktree path; in spike 0.4, 4 parallel runs passed at solo speed this way, while Playground CLI could not run wp-phpunit |
 | Worktrees lack `vendor/` and `node_modules/` | clone them from the main checkout with APFS copy-on-write (`cp -cR`), which is instant and costs no disk, or install from the Composer and npm caches |
 | Concurrent commits race one index | each implementer commits in its own worktree, and the orchestrator merges into an integration branch in order |
 | Tasks that overlap | serial is the default; only tasks with zero overlap run in parallel, as described below |
 | E2E servers on the same port | one port per worktree |
+
+Every test run and agent dispatch carries a hard timeout, because spike 0.4 showed a shared database can hang a run instead of failing it.
 
 Serial is the default. Tasks run in parallel only when they have zero overlap: no shared files, no interface one creates for another, and no shared state such as the same option, table or hook. Parallel runs cap at two or three implementers for plan headroom. Merges stay one at a time, with the full suite after each, so a conflict that file ownership missed surfaces at once. The work order shows the schedule, and the developer can force serial.
 
@@ -864,7 +866,7 @@ Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR 
 
 **Phase 2, the orchestrator.** Build the router and its routes, init, the classifier, the work order, involvement levels, the implementer, the standards and spec reviewers, the ledger and the fix loop. The phase ends when the judgment eval cases pass.
 
-**Phase 3, security and design.** Build the WordPress companion, the adversarial verifier, required security tests, the review guide, the planted vulnerability suite and the design reviewer. The phase ends at an agreed recall on planted cases and an agreed false positive rate on clean controls.
+**Phase 3, security and design.** Build the WordPress companion, the adversarial verifier, required security tests, the review guide, the planted vulnerability suite and the design reviewer. The phase ends when full review catches at least 90% of planted vulnerabilities and raises false alarms on at most 10% of clean controls.
 
 **Phase 4, the compounder.** Build the hidden JSON gate records in PRs, the weekly analysis, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs merge.
 

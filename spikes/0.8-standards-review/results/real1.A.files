@@ -1,0 +1,11 @@
+bin/backfill-selfhosted-r2.php
+src/Features/Cdn/CdnModule.php
+src/Features/Cdn/Providers/SelfHosted/R2Client.php
+src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloadTool.php
+src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloader.php
+src/Features/Cdn/Providers/SelfHosted/SelfHostedUploader.php
+src/Support/Settings/SettingsStatus.php
+tests/Integration/Cdn/SelfHosted/SelfHostedOffloadToolTest.php
+tests/Integration/Cdn/SelfHosted/SelfHostedOffloaderTest.php
+tests/Integration/Cdn/SelfHosted/SelfHostedUploaderTest.php
+tests/Integration/Support/SettingsStatusTest.php

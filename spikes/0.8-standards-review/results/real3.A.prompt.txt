@@ -1,0 +1,234 @@
+You are a code reviewer enforcing coding standards on one commit. Read-only: do not edit files. Use Read, Grep and Glob for context only when needed.
+Commit message:
+fix(cdn): reject hostnames already claimed by another tenant
+
+attachHostname validated a hostname's format but never checked
+whether it was already in use, and resolveTenant's lookup takes
+.first() with no ORDER BY. A hostname collision (e.g. attaching one
+tenant's own subdomain as another tenant's custom hostname) could
+therefore resolve non-deterministically, bleeding one tenant's
+immutable-cached images to another's visitors.
+
+- attachHostname now checks for a row already using the hostname as
+  subdomain or custom_hostname (excluding the tenant's own row) before
+  calling addCustomHostname, returning 409 on conflict.
+- The delivery worker's tenant lookup adds ORDER BY id, so a
+  collision that does slip through resolves deterministically instead
+  of varying per isolate/colo.
+- Added partial unique indices (subdomain; custom_hostname WHERE != '')
+  to schema.sql and a new migrations/0002-add-hostname-uniqueness.sql,
+  as defense in depth at the database level.
+
+Review rules:
+
+## JS/TS rules
+#### Obvious Typos or Spelling Errors
+- Spelling errors in variable names, function names, component names, or Props property names
+- Strings in log or error messages containing spelling errors that affect readability
+
+#### Dead Code
+- Code blocks that will never be executed (e.g., branches where the condition is always false, code after a return statement)
+- Variables that are declared but never read or referenced
+- Large blocks of commented-out code (with no apparent intent to retain)
+
+#### Code Quality Checks
+- **Duplicate Code**: Check for common logic that can be extracted
+- **Code Comments**: Complex business logic should have clear explanatory comments (avoid commenting obvious code)
+- **Hardcoding**: Business-related hardcoded strings are prohibited, especially URL paths and business numbers; simple UI text may be relaxed
+- **Variable Declarations**: Using `var` is strictly prohibited; use `let` or `const`
+- **Equality Comparisons**: Using `==` and `!=` is prohibited; use strict equality `===` and `!==`
+- **TypeScript Types**: Avoid using `any` type; if necessary, provide a comment explaining the reason
+- **Null Checks**: Perform null checks when accessing values or destructuring to avoid null pointer exceptions
+- **Ternary Expressions**: Nested ternary expressions are not allowed
+
+#### React Best Practices
+- **Hooks Usage**: Verify compliance with Hooks rules (only call at the top level, only call in React functions)
+- **State Management**: Ensure state is placed at the appropriate level; avoid unnecessary state lifting
+- **Side Effect Handling**: Verify useEffect correctly handles dependencies and cleanup functions
+- **Performance Optimization**: Verify proper use of React.memo, useMemo, useCallback (based on performance analysis; avoid over-optimization)
+- **Render Side Effects**: Side effects in React component render methods are strictly prohibited (e.g., API calls, DOM manipulation)
+- **Inline Styles**: Avoid using inline `style` attributes, except for dynamic styles
+- **Inner Components**: Declaring new components inside a component is prohibited; use render methods instead (e.g., `renderItem`, not `<Item/>`)
+
+#### Async Handling Standards
+- **Error Handling**: Async functions must include proper error handling with user-friendly error messages
+- **Prefer async/await**: Prefer async/await over Promises; callback hell is prohibited
+- **Async in Loops**: Distinguish between independent async operations (use `Promise.all` for parallelism) and dependent async operations (use sequential execution); prefer `Promise.all` for performance
+
+#### Code Security Checks
+- **XSS Protection**: Verify that user input is properly escaped
+- **innerHTML Safety**: Using innerHTML to directly insert user input is prohibited; use textContent or apply XSS protection
+- **Code Injection Protection**: Using eval(), Function() constructor, and string argument forms of setTimeout/setInterval is strictly prohibited
+- **Dangerous Methods**: Using document.write() is prohibited as it causes page reflow and security issues
+- **Sensitive Information**: Check whether API keys or sensitive data are exposed
+- **Prototype Chain Safety**: Modifying native object prototypes (e.g., Array.prototype, Object.prototype) is prohibited
+
+Diff to review:
+
+diff --git a/cloudflare/control-plane/src/index.js b/cloudflare/control-plane/src/index.js
+index 58f5db3..3555507 100644
+--- a/cloudflare/control-plane/src/index.js
++++ b/cloudflare/control-plane/src/index.js
+@@ -25,10 +25,14 @@ function badRequest( message ) {
+ 
+ function notFound( message ) {
+   return new Response( message, { status: 404 } );
+ }
+ 
++function conflict( message ) {
++  return new Response( message, { status: 409 } );
++}
++
+ function timingSafeEqual( a, b ) {
+   // Length mismatch returns early (this can reveal the expected length via
+   // timing, an accepted tradeoff matching Node's crypto.timingSafeEqual, which
+   // also requires equal-length inputs). Length alone does not help forge the
+   // token. For equal-length inputs the loop below is constant-time.
+@@ -132,10 +136,24 @@ async function attachHostname( req, env, id ) {
+   const tenant = await env.DB.prepare( 'SELECT id FROM tenants WHERE id = ?' ).bind( id ).first();
+   if ( ! tenant ) {
+     return notFound( 'tenant not found' );
+   }
+ 
++  // A hostname already claimed by another tenant (as either its subdomain or
++  // its custom_hostname) must never be attached here: resolveTenant's lookup
++  // has no ORDER BY guarantee, so a collision would non-deterministically
++  // bleed one tenant's images to another. Check before the external
++  // addCustomHostname call, so a rejected request has no side effect.
++  const collision = await env.DB.prepare(
++    'SELECT id FROM tenants WHERE (subdomain = ?1 OR custom_hostname = ?1) AND id != ?2'
++  )
++    .bind( hostname, id )
++    .first();
++  if ( collision ) {
++    return conflict( 'hostname already in use' );
++  }
++
+   await addCustomHostname( env, hostname );
+ 
+   const now = new Date().toISOString();
+   await env.DB.prepare( 'UPDATE tenants SET custom_hostname = ?, updated_at = ? WHERE id = ?' )
+     .bind( hostname, now, id )
+diff --git a/cloudflare/control-plane/test/hostname.test.js b/cloudflare/control-plane/test/hostname.test.js
+index 3c40910..6418d16 100644
+--- a/cloudflare/control-plane/test/hostname.test.js
++++ b/cloudflare/control-plane/test/hostname.test.js
+@@ -24,16 +24,16 @@ beforeAll( async () => {
+   for ( const statement of statements ) {
+     await env.DB.prepare( statement ).run();
+   }
+ } );
+ 
+-async function insertTenant( id ) {
++async function insertTenant( id, customHostname = '' ) {
+   const now = new Date().toISOString();
+   await env.DB.prepare(
+     'INSERT INTO tenants (id, bucket, key_id, subdomain, custom_hostname, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+   )
+-    .bind( id, `tenant-${ id }`, 'AKIA', `${ id }.yourcdn.com`, '', 'active', now, now )
++    .bind( id, `tenant-${ id }`, `AKIA-${ id }`, `${ id }.yourcdn.com`, customHostname, 'active', now, now )
+     .run();
+ }
+ 
+ describe( 'POST /tenants/:id/hostname', () => {
+   it( 'attaches a custom hostname and returns the cname target', async () => {
+@@ -160,6 +160,80 @@ describe( 'POST /tenants/:id/hostname', () => {
+     await waitOnExecutionContext( ctx );
+ 
+     expect( res.status ).toBe( 400 );
+     expect( addCustomHostname ).not.toHaveBeenCalled();
+   } );
++
++  it( 'rejects a hostname already used as another tenant\'s subdomain, with 409, and does not call addCustomHostname', async () => {
++    await insertTenant( 'zeta' );
++    await insertTenant( 'eta' );
++    addCustomHostname.mockClear();
++
++    const { default: worker } = await import( '../src/index.js' );
++    const req = new Request( 'https://cp.internal/tenants/eta/hostname', {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${ env.ADMIN_TOKEN }`, 'content-type': 'application/json' },
++      body: JSON.stringify( { hostname: 'zeta.yourcdn.com' } ),
++    } );
++    const ctx = createExecutionContext();
++    const res = await worker.fetch( req, env, ctx );
++    await waitOnExecutionContext( ctx );
++
++    expect( res.status ).toBe( 409 );
++    expect( addCustomHostname ).not.toHaveBeenCalled();
++  } );
++
++  it( 'rejects a hostname already used as another tenant\'s custom_hostname, with 409', async () => {
++    await insertTenant( 'theta', 'cdn.sharedsite.com' );
++    await insertTenant( 'iota' );
++    addCustomHostname.mockClear();
++
++    const { default: worker } = await import( '../src/index.js' );
++    const req = new Request( 'https://cp.internal/tenants/iota/hostname', {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${ env.ADMIN_TOKEN }`, 'content-type': 'application/json' },
++      body: JSON.stringify( { hostname: 'cdn.sharedsite.com' } ),
++    } );
++    const ctx = createExecutionContext();
++    const res = await worker.fetch( req, env, ctx );
++    await waitOnExecutionContext( ctx );
++
++    expect( res.status ).toBe( 409 );
++    expect( addCustomHostname ).not.toHaveBeenCalled();
++  } );
++
++  it( 're-attaching a tenant\'s own existing custom hostname to itself still succeeds', async () => {
++    await insertTenant( 'kappa', 'cdn.kappasite.com' );
++    addCustomHostname.mockClear();
++
++    const { default: worker } = await import( '../src/index.js' );
++    const req = new Request( 'https://cp.internal/tenants/kappa/hostname', {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${ env.ADMIN_TOKEN }`, 'content-type': 'application/json' },
++      body: JSON.stringify( { hostname: 'cdn.kappasite.com' } ),
++    } );
++    const ctx = createExecutionContext();
++    const res = await worker.fetch( req, env, ctx );
++    await waitOnExecutionContext( ctx );
++
++    expect( res.status ).toBe( 200 );
++    expect( addCustomHostname ).toHaveBeenCalledWith( env, 'cdn.kappasite.com' );
++  } );
++
++  it( 'attaches a normal, unclaimed hostname successfully', async () => {
++    await insertTenant( 'lambda' );
++    addCustomHostname.mockClear();
++
++    const { default: worker } = await import( '../src/index.js' );
++    const req = new Request( 'https://cp.internal/tenants/lambda/hostname', {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${ env.ADMIN_TOKEN }`, 'content-type': 'application/json' },
++      body: JSON.stringify( { hostname: 'cdn.freshsite.com' } ),
++    } );
++    const ctx = createExecutionContext();
++    const res = await worker.fetch( req, env, ctx );
++    await waitOnExecutionContext( ctx );
++
++    expect( res.status ).toBe( 200 );
++    expect( addCustomHostname ).toHaveBeenCalledWith( env, 'cdn.freshsite.com' );
++  } );
+ } );
+diff --git a/cloudflare/delivery-worker/src/tenant.js b/cloudflare/delivery-worker/src/tenant.js
+index 24fa8c5..094c84e 100644
+--- a/cloudflare/delivery-worker/src/tenant.js
++++ b/cloudflare/delivery-worker/src/tenant.js
+@@ -4,11 +4,11 @@ export const TENANT_CACHE_TTL_MS = 60_000;
+ // tenant then serves from memory. Misses are cached too, so an unknown-host
+ // flood cannot hammer D1.
+ const cache = new Map();
+ 
+ const LOOKUP =
+-  "SELECT bucket, signing_secret FROM tenants WHERE (subdomain = ?1 OR custom_hostname = ?1) AND status = 'active'";
++  "SELECT bucket, signing_secret FROM tenants WHERE (subdomain = ?1 OR custom_hostname = ?1) AND status = 'active' ORDER BY id";
+ 
+ export function _resetTenantCache() {
+   cache.clear();
+ }
+ 
+
+Report only defects that violate the rules above in the changed lines. Output ONLY JSON lines, one object per finding, with keys file, line, rule, severity (high|medium|low), message. Output nothing if there are no findings.

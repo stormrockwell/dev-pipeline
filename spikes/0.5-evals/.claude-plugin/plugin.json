@@ -1,0 +1,5 @@
+{
+  "name": "wp-eval-spike",
+  "version": "0.0.1",
+  "description": "Spike plugin for testing claude plugin eval with planted WordPress defects."
+}
