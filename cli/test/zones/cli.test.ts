@@ -169,6 +169,41 @@ describe("--range", () => {
     expect(report!.removed).toEqual([expect.objectContaining({ file: "a.php", zone: "authz", line: 2 })]);
   });
 
+  it("scans a root commit through a range that starts at its missing parent", () => {
+    const repo = tempDir();
+    git(repo, "init", "-q", "-b", "main");
+    stage(repo, "a.php", "<?php\n$x = $_POST['a'];\n");
+    const root = commit(repo, "feat: a");
+    const { status, report } = scan(repo, ["--range", `${root}^..${root}`]);
+    expect(status).toBe(0);
+    expect(report!.files.map((file) => file.file)).toEqual(["a.php"]);
+    expect(report!.summary.filesScanned).toBe(1);
+  });
+
+  it("scans both commits from a root parent and only the second from the root itself", () => {
+    const repo = tempDir();
+    git(repo, "init", "-q", "-b", "main");
+    stage(repo, "a.php", "<?php\n$x = $_POST['a'];\n");
+    const root = commit(repo, "feat: a");
+    stage(repo, "b.php", "<?php\n$y = $_GET['b'];\n");
+    const tip = commit(repo, "feat: b");
+    const all = scan(repo, ["--range", `${root}^..${tip}`]).report!;
+    expect(all.files.map((file) => file.file)).toEqual(["a.php", "b.php"]);
+    const after = scan(repo, ["--range", `${root}..${tip}`]).report!;
+    expect(after.files.map((file) => file.file)).toEqual(["b.php"]);
+    expect(scan(repo, ["--range", `${tip}^..${tip}`]).report!.files.map((file) => file.file)).toEqual(["b.php"]);
+    expect(scan(repo, ["--range", `${root}~1..${tip}`]).report!.files.map((file) => file.file)).toEqual(["a.php", "b.php"]);
+  });
+
+  it("still rejects a missing parent of a commit that has parents, and an unknown base", () => {
+    const repo = makeRepo();
+    const root = git(repo, "rev-parse", "HEAD").stdout.trim();
+    stage(repo, "a.php", "<?php\n");
+    const tip = commit(repo, "feat: a");
+    expect(pipeline(repo, ["scan-zones", "--range", `${root}^^..${tip}`]).stderr).toContain("is not a commit");
+    expect(pipeline(repo, ["scan-zones", "--range", `nope^..${tip}`]).stderr).toContain("is not a commit");
+  });
+
   it("rejects a malformed or unknown range", () => {
     const repo = makeRepo();
     expect(pipeline(repo, ["scan-zones", "--range", "main"]).status).toBe(2);
