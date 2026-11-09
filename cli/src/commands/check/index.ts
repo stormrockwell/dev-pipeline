@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { resolveBinary, run } from "./exec.ts";
+import { committableScope } from "./scope.ts";
 import { detectTools } from "./tools.ts";
 import type { ToolSpec } from "./tools.ts";
 
@@ -48,8 +49,10 @@ async function runTool(tool: ToolSpec, dir: string, timeoutSeconds: number): Pro
     };
   }
 
-  const args = tool.resolveArgs ? tool.resolveArgs(exe, dir) : tool.args(dir);
-  const outcome = await run(exe, args, dir, timeoutSeconds * 1000);
+  const scope = tool.committableOnly ? committableScope(dir) : undefined;
+  const cwd = scope?.dir ?? dir;
+  const args = tool.resolveArgs ? tool.resolveArgs(exe, cwd) : tool.args(cwd);
+  const outcome = await run(exe, args, cwd, timeoutSeconds * 1000).finally(() => scope?.cleanup());
 
   if (outcome.spawnError) {
     return { tool: tool.id, status: "failed", exitCode: null, summary: `could not start: ${outcome.spawnError}` };
