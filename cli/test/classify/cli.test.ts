@@ -82,6 +82,29 @@ describe("--staged and --range", () => {
   });
 });
 
+describe("--range from a root commit", () => {
+  it("classifies a root commit through the range that starts at its missing parent", () => {
+    const repo = tempDir();
+    git(repo, "init", "-q", "-b", "main");
+    stage(repo, "src/a.php", "<?php\n$v = $_GET['v'];\n");
+    const root = commit(repo, "feat: a");
+    const { json, status } = classify(repo, ["--range", `${root}^..${root}`]);
+    expect(status).toBe(0);
+    expect(json).toMatchObject({ tier: "T3", zones: ["input"] });
+  });
+
+  it("leaves the root commit out when the range starts at it", () => {
+    const repo = tempDir();
+    git(repo, "init", "-q", "-b", "main");
+    stage(repo, "src/a.php", "<?php\n$v = $_GET['v'];\n");
+    const root = commit(repo, "feat: a");
+    stage(repo, "docs/b.md", "text\n");
+    const tip = commit(repo, "docs: b");
+    expect(classify(repo, ["--range", `${root}..${tip}`]).json).toMatchObject({ tier: "T0" });
+    expect(classify(repo, ["--range", `${root}^..${tip}`]).json).toMatchObject({ tier: "T3" });
+  });
+});
+
 describe("usage errors", () => {
   it("needs files, --staged or --range", () => {
     const result = pipeline(tempDir(), ["classify"]);

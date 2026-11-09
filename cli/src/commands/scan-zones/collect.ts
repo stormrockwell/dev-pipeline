@@ -124,6 +124,21 @@ export function collectStaged(dir: string): DiffResult {
   return { ok: true, collected: { root: top, inputs } };
 }
 
+/**
+ * Resolves the start of a range to something git can diff from. A root commit has no parent, so
+ * `<root>^` does not resolve, and the empty tree stands in for it because that is what the root commit
+ * was written against.
+ */
+function rangeStart(top: string, rev: string): string | null {
+  if (git(top, ["rev-parse", "--verify", "-q", `${rev}^{commit}`]).ok) return rev;
+  const child = /^(.+?)(?:\^1?|~1)$/.exec(rev)?.[1];
+  if (!child || !git(top, ["rev-parse", "--verify", "-q", `${child}^{commit}`]).ok) return null;
+  // The line holds the commit followed by its parents, so more than one word means it is not a root.
+  if (git(top, ["rev-list", "--parents", "-n", "1", child]).stdout.trim().includes(" ")) return null;
+  const tree = git(top, ["hash-object", "-t", "tree", "/dev/null"]);
+  return tree.ok ? tree.stdout.trim() : null;
+}
+
 export function collectRange(dir: string, spec: string): DiffResult {
   const top = repoTop(dir);
   if (top === null) return { ok: false, error: "--range must run inside a git repository." };
@@ -131,10 +146,10 @@ export function collectRange(dir: string, spec: string): DiffResult {
   if (parts.length !== 2 || !parts[0] || !parts[1] || parts[1].startsWith(".") || parts[0].endsWith(".")) {
     return { ok: false, error: `--range needs <from>..<to>, got "${spec}".` };
   }
-  const [from, to] = parts as [string, string];
-  for (const rev of [from, to]) {
-    if (!git(top, ["rev-parse", "--verify", "-q", `${rev}^{commit}`]).ok) return { ok: false, error: `"${rev}" is not a commit in this repository.` };
-  }
+  const [fromRev, to] = parts as [string, string];
+  const from = rangeStart(top, fromRev);
+  if (from === null) return { ok: false, error: `"${fromRev}" is not a commit in this repository.` };
+  if (!git(top, ["rev-parse", "--verify", "-q", `${to}^{commit}`]).ok) return { ok: false, error: `"${to}" is not a commit in this repository.` };
   const diff = git(top, ["diff", ...diffFlags, from, to, "--"]);
   if (!diff.ok) return { ok: false, error: `git diff failed: ${diff.stderr.trim()}` };
   const inputs = parseUnifiedDiff(diff.stdout).map((file) => toInput(file, isScanned(file.path) && !file.deleted ? blob(top, `${to}:${file.path}`) : null));
