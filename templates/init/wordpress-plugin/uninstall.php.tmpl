@@ -1,0 +1,12 @@
+<?php
+/**
+ * Removes the plugin's data when the plugin is deleted from a site.
+ *
+ * @package {{Prefix}}
+ */
+
+if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+	exit;
+}
+
+delete_option( '{{prefix}}_settings' );

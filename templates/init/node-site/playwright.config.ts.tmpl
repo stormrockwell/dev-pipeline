@@ -1,0 +1,15 @@
+import { defineConfig } from "@playwright/test";
+
+// Each worktree sets its own PORT, so parallel runs never share a server.
+const port = Number(process.env.PORT ?? 3000);
+
+export default defineConfig({
+	testDir: "e2e",
+	use: { baseURL: `http://localhost:${port}` },
+	webServer: {
+		command: "npm run start",
+		env: { PORT: String(port) },
+		url: `http://localhost:${port}`,
+		reuseExistingServer: !process.env.CI,
+	},
+});

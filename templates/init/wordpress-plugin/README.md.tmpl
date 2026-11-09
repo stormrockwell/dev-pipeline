@@ -1,0 +1,7 @@
+# {{name}}
+
+Run `composer install` and `npm install` once. They install PHPUnit, PHPCS with the DemandDrive standard, the JS and CSS linters and the git hooks that scan for secrets.
+
+- `composer test` runs the PHPUnit unit suite, which needs no WordPress install.
+- `composer lint` runs PHPCS, and `npm run lint` runs ESLint and Stylelint with the WordPress layer.
+- `pipeline check` runs the same floor as CI.

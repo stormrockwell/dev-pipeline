@@ -1,0 +1,11 @@
+<?php
+use PHPUnit\Framework\TestCase;
+
+require_once dirname( __DIR__, 2 ) . '/includes/class-{{slug}}-greeting.php';
+
+final class GreetingTest extends TestCase {
+
+	public function test_it_greets_by_name(): void {
+		$this->assertSame( 'Hello, Ada.', ( new {{Prefix}}_Greeting() )->for_name( 'Ada' ) );
+	}
+}

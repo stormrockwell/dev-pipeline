@@ -1,0 +1,1 @@
+module.exports = require('@digitalimpulse/coding-standards/prettier');
