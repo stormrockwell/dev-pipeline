@@ -121,6 +121,10 @@ The CLI has no runtime dependencies, so it reads only the YAML that the schema n
 
 The `wordpress` pack holds the spike's signals, renamed to the strategy's zones, and adds crypto, secrets, privacy and more data-loss patterns. The `node` pack covers Express middleware and routes, Next.js API routes and route handlers, auth libraries, cookies and sessions, `crypto`, `child_process`, SQL strings built from variables, and `fetch` to user-supplied URLs. Both packs carry the shared browser sink, third-party load and suppression signals, and a signal that both packs carry is listed once.
 
+The `node` pack also covers WebCrypto, which Cloudflare Workers and browsers use in place of the Node module. `crypto.subtle.*` and `crypto.getRandomValues` are `crypto` signals. Request signing is covered two ways. The SigV4 names (`AWS4-HMAC-SHA256`, `X-Amz-Signature`, `X-Amz-Credential`, `aws4_request`) and a comparison where either side is named like a signature, HMAC or digest are `crypto` signals, and building an `Authorization` header with `headers.set`, `headers.append` or an object property is an `auth` signal. A comparison against `null`, `undefined` or an empty string is a presence check and does not count.
+
+Helpers that belong to one repo are not in the pack. A Worker's `isAuthorized( req, env )` or `isSignatureValid` is that repo's own authorization logic, so the repo names it in its `sensitive.yml`, for example `authz` signals under `js:` with the helper names, or a path rule such as `cloudflare/**/src/**`.
+
 Escaping and sanitizing calls (`esc_html`, `wp_kses`, `sanitize_*`, `DOMPurify`) are `only: removed` signals. Adding an escape is the safe direction, and removing one in a template is a zone signal as the strategy says.
 
 ## Data writes from untrusted input
