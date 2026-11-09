@@ -7,7 +7,7 @@ import type { Command } from "../../command.ts";
 const __dirname = dirname(new URL(import.meta.url).pathname);
 const viewerDir = resolve(join(__dirname, "../../../..", "tools", "docs"));
 
-function parseDocsArgs(argv: string[]): { subcommand: string; path: string; port?: number; error?: string } {
+export function parseDocsArgs(argv: string[]): { subcommand: string; path: string; port?: number; error?: string } {
   const { values, positionals } = parseArgs({
     args: argv,
     options: {
