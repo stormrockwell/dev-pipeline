@@ -393,4 +393,124 @@ describe("comment-lint", () => {
       expect(result.stdout).toBe("");
     });
   });
+
+  describe("trailing comments", () => {
+    it("flags trailing temporal comment", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const x = 1; // Changed now to handle this");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).toContain("temporal");
+      expect(result.stdout).toContain("Changed now");
+    });
+
+    it("flags trailing restating comment", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const userData = initializeUserData(); // initialize user data");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).toContain("restates");
+    });
+
+    it("does not flag // inside double-quoted string", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const url = \"http://example.com\"; // This is a good trailing comment");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("http");
+      expect(result.status).toBe(0);
+    });
+
+    it("does not flag // inside single-quoted string", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const url = 'http://example.com'; // This is a good trailing comment");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("http");
+      expect(result.status).toBe(0);
+    });
+
+    it("does not flag # inside double-quoted string", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const color = \"#fff\"; // white background");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("#fff");
+      expect(result.status).toBe(0);
+    });
+
+    it("does not flag # inside single-quoted string", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const color = '#fff'; // white background");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("#fff");
+      expect(result.status).toBe(0);
+    });
+
+    it("allows trailing why-comment", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const total = 0; // Initialize accumulator to zero");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe("");
+    });
+
+    it("flags trailing TODO without issue", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const x = 1; // TODO: fix this later");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).toContain("todo-no-issue");
+    });
+
+    it("does not flag trailing comment with URL", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const x = 1; // See https://example.com/foo-bar for details");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("dash");
+      expect(result.status).toBe(0);
+    });
+
+    it("flags trailing commented-code", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const x = 1; // const y = 2;");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).toContain("commented-code");
+    });
+
+    it("does not flag hash in backtick string", () => {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, "test.js", "const x = 1;", "initial");
+      createFile(tmpdir, "test.js", "const color = `#fff`; // white background");
+      stageFile(tmpdir, "test.js");
+
+      const result = pipeline(tmpdir, "comment-lint", "--staged");
+      expect(result.stdout).not.toContain("#fff");
+      expect(result.status).toBe(0);
+    });
+  });
 });

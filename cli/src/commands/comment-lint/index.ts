@@ -17,6 +17,39 @@ const commentPatterns = {
   "<!--": /^(\s*)<!--(.*)$/,
 };
 
+function findTrailingCommentIndex(line: string): number {
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inBacktick = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === "\\" && (next === '"' || next === "'" || next === "`")) {
+      i++;
+      continue;
+    }
+
+    if (char === "'" && !inDoubleQuote && !inBacktick) {
+      inSingleQuote = !inSingleQuote;
+    } else if (char === '"' && !inSingleQuote && !inBacktick) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (char === "`" && !inSingleQuote && !inDoubleQuote) {
+      inBacktick = !inBacktick;
+    } else if (!inSingleQuote && !inDoubleQuote && !inBacktick) {
+      if (char === "/" && next === "/") {
+        return i;
+      }
+      if (char === "#") {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+}
+
 const temporalWords = [
   "now",
   "previously",
@@ -50,6 +83,26 @@ function extractCommentText(line: string): string | null {
     }
   }
   return null;
+}
+
+function extractTrailingCommentText(line: string): string | null {
+  const index = findTrailingCommentIndex(line);
+  if (index === -1) return null;
+
+  let text = "";
+  if (line[index] === "/" && line[index + 1] === "/") {
+    text = line.slice(index + 2);
+  } else if (line[index] === "#") {
+    text = line.slice(index + 1);
+  }
+
+  return text.trim() || null;
+}
+
+function extractCodeBeforeTrailingComment(line: string): string {
+  const index = findTrailingCommentIndex(line);
+  if (index === -1) return line;
+  return line.slice(0, index).trim();
 }
 
 function checkTemporal(text: string): boolean {
@@ -174,32 +227,60 @@ function checkLine(
   nextLine: string,
 ): { rule: string; text: string } | null {
   const comment = extractCommentText(line);
-  if (!comment) return null;
+  if (comment) {
+    if (!isCommentLine(line)) {
+      if (checkTemporal(comment)) {
+        return { rule: "temporal", text: comment };
+      }
 
-  if (isCommentLine(line)) return null;
+      if (checkReviewer(comment)) {
+        return { rule: "reviewer", text: comment };
+      }
 
-  if (checkTemporal(comment)) {
-    return { rule: "temporal", text: comment };
+      if (checkTodoNoIssue(comment)) {
+        return { rule: "todo-no-issue", text: comment };
+      }
+
+      if (checkCommentedCode(comment)) {
+        return { rule: "commented-code", text: comment };
+      }
+
+      if (checkDash(comment)) {
+        return { rule: "dash", text: comment };
+      }
+
+      if (nextLine && checkRestates(comment, nextLine)) {
+        return { rule: "restates", text: comment };
+      }
+    }
   }
 
-  if (checkReviewer(comment)) {
-    return { rule: "reviewer", text: comment };
-  }
+  const trailingComment = extractTrailingCommentText(line);
+  if (trailingComment) {
+    if (checkTemporal(trailingComment)) {
+      return { rule: "temporal", text: trailingComment };
+    }
 
-  if (checkTodoNoIssue(comment)) {
-    return { rule: "todo-no-issue", text: comment };
-  }
+    if (checkReviewer(trailingComment)) {
+      return { rule: "reviewer", text: trailingComment };
+    }
 
-  if (checkCommentedCode(comment)) {
-    return { rule: "commented-code", text: comment };
-  }
+    if (checkTodoNoIssue(trailingComment)) {
+      return { rule: "todo-no-issue", text: trailingComment };
+    }
 
-  if (checkDash(comment)) {
-    return { rule: "dash", text: comment };
-  }
+    if (checkCommentedCode(trailingComment)) {
+      return { rule: "commented-code", text: trailingComment };
+    }
 
-  if (nextLine && checkRestates(comment, nextLine)) {
-    return { rule: "restates", text: comment };
+    if (checkDash(trailingComment)) {
+      return { rule: "dash", text: trailingComment };
+    }
+
+    const codeBefore = extractCodeBeforeTrailingComment(line);
+    if (codeBefore && checkRestates(trailingComment, codeBefore)) {
+      return { rule: "restates", text: trailingComment };
+    }
   }
 
   return null;
