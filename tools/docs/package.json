@@ -3,11 +3,12 @@
   "type": "module",
   "scripts": {
     "sync": "node sync.mjs",
-    "dev": "npm run sync && vitepress dev",
+    "dev": "concurrently \"node sync.mjs --watch\" \"vitepress dev\"",
     "build": "npm run sync && vitepress build",
     "preview": "vitepress preview"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "vitepress": "1.6.4"
   }
 }
