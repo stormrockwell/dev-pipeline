@@ -1,0 +1,6 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "Dev pipeline: before acting on a request to build, change, fix, debug, prototype, start a project, or review code, invoke the dev-pipeline:router skill to pick its route. Answer plain questions directly."
+  }
+}
