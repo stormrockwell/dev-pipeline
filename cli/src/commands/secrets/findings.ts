@@ -2,7 +2,7 @@ export interface Finding {
   file: string;
   line: number | null;
   rule: string;
-  /** Prefix and asterisks, never the full value. Null for findings about a path. */
+  // Prefix and asterisks, never the full value. Null for findings about a path.
   masked: string | null;
   detail: string | null;
   commit: string | null;

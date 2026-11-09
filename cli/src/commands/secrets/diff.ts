@@ -12,7 +12,7 @@ export interface FileChange {
   added: AddedLine[];
 }
 
-/** Parses `git diff` and `git log -p` output made with -U0 into the added lines of each file. */
+// Parses `git diff` and `git log -p` output made with -U0 into the added lines of each file.
 export function parseDiff(text: string): FileChange[] {
   const changes: FileChange[] = [];
   let commit: string | null = null;

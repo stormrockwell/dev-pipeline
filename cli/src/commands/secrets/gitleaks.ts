@@ -28,7 +28,7 @@ export interface GitleaksOutcome {
   error: string | null;
 }
 
-/** Gitleaks 8.19 replaced `protect` and `detect` with `git` and `stdin`. */
+// Gitleaks 8.19 replaced `protect` and `detect` with `git` and `stdin`.
 function isModern(binary: string): boolean {
   const output = spawnSync(binary, ["version"], { encoding: "utf8" }).stdout ?? "";
   const version = /(\d+)\.(\d+)\.(\d+)/.exec(output);

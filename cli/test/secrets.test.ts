@@ -17,7 +17,7 @@ import {
 
 afterAll(removeTemps);
 
-/** Runs `pipeline secrets` and asserts that no full planted secret reached the output. */
+// Runs `pipeline secrets` and asserts that no full planted secret reached the output.
 function secrets(cwd: string, args: string[], input?: string) {
   const result = pipeline(cwd, ["secrets", ...args], { input });
   for (const value of Object.values(planted)) {

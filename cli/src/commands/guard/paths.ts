@@ -44,7 +44,7 @@ function segmentPattern(segment: string): RegExp {
   return new RegExp(`^${source}$`);
 }
 
-/** Expands a shell glob against the real directory tree, so only files that exist count. */
+// Expands a shell glob against the real directory tree, so only files that exist count.
 function expandGlob(word: string, cwd: string): string[] {
   const absolute = isAbsolute(word) ? normalize(word) : resolve(cwd, word);
   const segments = absolute.split("/").filter(Boolean);
@@ -95,7 +95,7 @@ export function wordIsSensitive(word: string, cwd: string): boolean {
   return false;
 }
 
-/** Checks a path or glob, following symlinks when the target exists. */
+// Checks a path or glob, following symlinks when the target exists.
 export function pathIsSensitive(raw: string, cwd: string): boolean {
   for (const variant of expandBraces(expandHome(raw))) {
     const absolute = isAbsolute(variant) ? normalize(variant) : resolve(cwd, variant);
@@ -115,7 +115,7 @@ export interface ToolInput {
   cwd?: string;
 }
 
-/** The input fields that hold a path or a glob, for each tool the guard covers. */
+// The input fields that hold a path or a glob, for each tool the guard covers.
 const PATH_FIELDS: Record<string, string[]> = {
   Read: ["file_path"],
   Edit: ["file_path"],
@@ -126,7 +126,7 @@ const PATH_FIELDS: Record<string, string[]> = {
   Glob: ["path", "pattern"],
 };
 
-/** Returns a deny verdict when a file tool targets a secret, and undefined otherwise. */
+// Returns a deny verdict when a file tool targets a secret, and undefined otherwise.
 export function checkToolPaths(input: ToolInput, cwd: string): Verdict | undefined {
   const fields = PATH_FIELDS[input.tool_name ?? ""];
   if (!fields) return undefined;

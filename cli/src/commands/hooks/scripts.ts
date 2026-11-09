@@ -3,7 +3,7 @@ export const MARKER = "# pipeline-hook:";
 export const hookNames = ["pre-commit", "pre-push"] as const;
 export type HookName = (typeof hookNames)[number];
 
-/** Single quotes keep the install path literal in the shell, whatever characters it holds. */
+// Single quotes keep the install path literal in the shell, whatever characters it holds.
 function quote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }

@@ -13,9 +13,9 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
 const EXPORTERS = new Set(["export", "declare", "typeset", "readonly", "local"]);
 
 interface Wrapper {
-  /** Flags that take the next word as a value. */
+  // Flags that take the next word as a value.
   valueFlags: string[];
-  /** Plain words to skip before the wrapped command, such as the duration for `timeout`. */
+  // Plain words to skip before the wrapped command, such as the duration for `timeout`.
   positionals?: number;
 }
 
@@ -38,9 +38,9 @@ const WRAPPERS: Record<string, Wrapper> = {
 };
 
 export interface TraceEntry {
-  /** The words of the simple command as the tokenizer produced them. */
+  // The words of the simple command as the tokenizer produced them.
   words: string[];
-  /** The command left after wrappers and assignments are removed. */
+  // The command left after wrappers and assignments are removed.
   command: string[];
   assignments: string[];
   verdicts: Verdict[];
@@ -55,11 +55,11 @@ interface Walk {
   dir: string;
   trace: TraceEntry[];
   verdicts: Verdict[];
-  /** Variables set by a bare `name=value` command earlier in the line. */
+  // Variables set by a bare `name=value` command earlier in the line.
   vars: Map<string, string>;
 }
 
-/** Substitutes `$name` and `${name}` for variables the command line set itself. */
+// Substitutes `$name` and `${name}` for variables the command line set itself.
 function expandVars(word: string, vars: Map<string, string>): string {
   if (vars.size === 0 || !word.includes("$")) return word;
   return word.replace(/\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))/g, (match, braced?: string, bare?: string) => {
@@ -71,7 +71,7 @@ function isAssignment(word: string): boolean {
   return ASSIGNMENT.test(word);
 }
 
-/** Removes keywords, assignments and wrappers from the front, returning the real command. */
+// Removes keywords, assignments and wrappers from the front, returning the real command.
 function unwrap(words: string[], assignments: string[]): string[] {
   let argv = words;
   for (let guard = 0; guard < 32 && argv.length > 0; guard++) {
@@ -134,7 +134,7 @@ function unwrapEnv(args: string[], assignments: string[]): string[] {
   return args.slice(i);
 }
 
-/** Finds the script a shell would run: the `-c` string, or the text piped or redirected into it. */
+// Finds the script a shell would run: the `-c` string, or the text piped or redirected into it.
 function shellScripts(command: SimpleCommand, argv: string[]): string[] {
   const args = argv.slice(1);
   for (let i = 0; i < args.length; i++) {
@@ -157,7 +157,7 @@ function shellScripts(command: SimpleCommand, argv: string[]): string[] {
   return scripts;
 }
 
-/** Collects the commands that `find -exec` runs. */
+// Collects the commands that `find -exec` runs.
 function findExecs(argv: string[]): string[][] {
   const commands: string[][] = [];
   for (let i = 1; i < argv.length; i++) {
@@ -229,7 +229,7 @@ function walkSource(source: string, walk: Walk, depth: number): void {
   for (const command of parseShell(source)) inspect(command, walk, depth);
 }
 
-/** Decides a Bash command. The strictest verdict across every simple command in it wins. */
+// Decides a Bash command. The strictest verdict across every simple command in it wins.
 export function decideBash(source: string, cwd: string): BashResult {
   const walk: Walk = { repo: new RepoState(), dir: cwd, trace: [], verdicts: [], vars: new Map() };
   walkSource(source, walk, 0);

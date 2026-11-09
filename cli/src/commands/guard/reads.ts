@@ -5,7 +5,7 @@ import { wordIsSensitive } from "./paths.ts";
 import type { SimpleCommand } from "./shell.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
-/** Programs that read, copy, move, print, encode, open or send the files named in their arguments. */
+// Programs that read, copy, move, print, encode, open or send the files named in their arguments.
 const READERS = new Set([
   ...["cat", "tac", "head", "tail", "less", "more", "bat", "nl", "od", "hexdump", "xxd", "strings"],
   ...["grep", "egrep", "fgrep", "zgrep", "rg", "ag", "awk", "gawk", "sed", "cut", "sort", "uniq"],
@@ -15,11 +15,11 @@ const READERS = new Set([
   ...["curl", "wget", "openssl", "ssh-add", "ssh-keygen", "gpg", "pbcopy", "xclip"],
 ]);
 
-/** Search and edit tools take a pattern or script first, unless -e or -f supplies it. */
+// Search and edit tools take a pattern or script first, unless -e or -f supplies it.
 const PATTERN_FIRST = new Set(["grep", "egrep", "fgrep", "zgrep", "rg", "ag", "sed", "awk", "gawk"]);
 const SUPPLIES_PATTERN = /^(?:-[a-zA-Z]*[ef][a-zA-Z]*|--regexp(?:=.*)?|--file(?:=.*)?|--expression(?:=.*)?)$/;
 
-/** Git subcommands that print, stage or copy file contents. `status`, `check-ignore` and `ls-files` stay out. */
+// Git subcommands that print, stage or copy file contents. `status`, `check-ignore` and `ls-files` stay out.
 const GIT_READERS = new Set([
   ...["add", "show", "diff", "log", "blame", "annotate", "cat-file", "archive", "checkout"],
   ...["restore", "stash", "difftool", "format-patch", "apply", "mv", "whatchanged"],
@@ -37,7 +37,7 @@ function fileWords(path: string, dir: string): string[] {
   }
 }
 
-/** The names `xargs` would receive on stdin, as far as the command line shows them. */
+// The names `xargs` would receive on stdin, as far as the command line shows them.
 function xargsInput(command: SimpleCommand, dir: string, unwrap: (words: string[]) => string[]): string[] {
   const words = command.inputs.flatMap((file) => fileWords(file, dir));
   const source = command.pipedFrom;

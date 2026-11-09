@@ -13,7 +13,7 @@ function riskSection(body: string): string[] {
   return end === -1 ? rest : rest.slice(0, end);
 }
 
-/** Reads the `Human review:` line of the Risk section. Full format validation belongs to pr-check. */
+// Reads the `Human review:` line of the Risk section. Full format validation belongs to pr-check.
 export function parseHumanReview(body: string): HumanReview {
   const line = riskSection(body)
     .map((candidate) => candidate.trim())

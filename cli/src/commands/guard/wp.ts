@@ -1,6 +1,6 @@
 import { verdict, type Verdict } from "./verdict.ts";
 
-/** Returns the verdicts for one `wp` invocation, with the program name already removed. */
+// Returns the verdicts for one `wp` invocation, with the program name already removed.
 export function checkWp(args: string[]): Verdict[] {
   const verdicts: Verdict[] = [];
   if (args.some((arg) => /^@\S+$/.test(arg))) {

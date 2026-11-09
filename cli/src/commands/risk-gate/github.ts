@@ -15,7 +15,7 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-/** Reads the fields the gate needs from a `pull_request` or `pull_request_review` event payload. */
+// Reads the fields the gate needs from a `pull_request` or `pull_request_review` event payload.
 export function parseEvent(payload: unknown): PullRequestEvent {
   const root = record(payload);
   const pr = record(root?.pull_request);
@@ -38,7 +38,7 @@ export function parseEvent(payload: unknown): PullRequestEvent {
   };
 }
 
-/** Reads reviews as a JSON array, or as one JSON object per line, which is what `gh api --jq '.[]'` prints. */
+// Reads reviews as a JSON array, or as one JSON object per line, which is what `gh api --jq '.[]'` prints.
 export function parseReviews(text: string): Review[] {
   const trimmed = text.trim();
   if (trimmed === "") return [];
@@ -47,14 +47,14 @@ export function parseReviews(text: string): Review[] {
   return parsed as Review[];
 }
 
-/** Reviews are not in the event payload, so the workflow reads them with its own token. */
+// Reviews are not in the event payload, so the workflow reads them with its own token.
 export function fetchReviews(repo: string, number: number): Review[] {
   const result = spawnSync("gh", ["api", "--paginate", `repos/${repo}/pulls/${number}/reviews`, "--jq", ".[]"], { encoding: "utf8" });
   if (result.status !== 0) throw new Error(`could not read the reviews of ${repo}#${number}: ${(result.stderr || String(result.error ?? "")).trim()}`);
   return parseReviews(result.stdout);
 }
 
-/** Arguments for `gh pr edit`, or null when the labels already match. */
+// Arguments for `gh pr edit`, or null when the labels already match.
 export function labelEditArgs(repo: string, number: number, labels: { add: string[]; remove: string[] }): string[] | null {
   if (labels.add.length === 0 && labels.remove.length === 0) return null;
   const args = ["pr", "edit", String(number), "--repo", repo];
