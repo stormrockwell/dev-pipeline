@@ -704,7 +704,9 @@ Up to three sentences on why we like it and what it trades off.
 Exact steps or commands, with evidence (test output, screenshots).
 
 ## Risk
-Door: one-way or two-way. Blast radius: one phrase.
+Door: one-way or two-way.
+Blast radius: one phrase.
+Human review: none, or required, zone:<name> (<paths>).
 
 ## Human review required
 Only for zone changes. Links to files and line ranges, and the review guide.
@@ -715,7 +717,7 @@ Only for zone changes. Links to files and line ranges, and the review guide.
 - Accepted: only when a finding was dismissed instead of fixed, one line each with the reason
 ```
 
-The auditor list is generated from the gate record. Findings fixed before the PR opened never appear, because they no longer bear on the merge, and the Accepted line appears only when something was dismissed. A script enforces the sections and a ceiling of 250 words outside the generated parts, and the ceiling is a limit, not a target. The body never describes abandoned approaches or the process. The title is a conventional commit, because a squash merge turns it into the commit on the default branch.
+The auditor list is generated from the gate record. Findings fixed before the PR opened never appear, because they no longer bear on the merge, and the Accepted line appears only when something was dismissed. The Risk section always says whether a human review is required and names each zone with its paths, so the reader never guesses. A script enforces the sections and a ceiling of 250 words outside the generated parts, and the ceiling is a limit, not a target. The body never describes abandoned approaches or the process. The title is a conventional commit, because a squash merge turns it into the commit on the default branch.
 
 ### Branches and commits
 
