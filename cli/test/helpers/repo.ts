@@ -27,7 +27,7 @@ export function removeTemps(): void {
   for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
 }
 
-function findOnPath(name: string): string {
+export function findOnPath(name: string): string {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     const candidate = join(dir, name);
     if (existsSync(candidate)) return candidate;
