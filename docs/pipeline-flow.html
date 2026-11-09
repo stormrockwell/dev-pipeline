@@ -390,8 +390,8 @@ h1 {
   border: 1px solid color-mix(in srgb, var(--human) 30%, var(--line));
   border-radius: 8px;
   padding: 10px 12px;
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Shape */
@@ -608,7 +608,6 @@ h1 {
 }
 
 .table-wrap {
-  overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -617,7 +616,6 @@ h1 {
 table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 820px;
   font-size: 13.5px;
 }
 
@@ -651,6 +649,18 @@ tbody tr:last-child td { border-bottom: 0; }
 td.off { color: var(--muted); opacity: 0.5; }
 td.sec { color: var(--security); font-weight: 500; }
 td.hum { color: var(--human); font-family: var(--font-mono); font-size: 12.5px; }
+
+/* Nine columns cannot fit a narrow screen, so each tier becomes a card with labeled rows instead of a table that scrolls sideways. */
+@media (max-width: 900px) {
+  table, tbody, tr, th, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  tbody tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody th { padding: 8px 12px 4px; border-bottom: 0; }
+  td { display: grid; grid-template-columns: minmax(0, 10rem) minmax(0, 1fr); gap: 12px; padding: 4px 12px; border-bottom: 0; }
+  td::before { content: attr(data-label); color: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 2px; }
+  td.off { display: none; }
+}
 
 .pair {
   display: grid;
@@ -977,58 +987,58 @@ Plan     serial, each task builds on the last; about 14 runs</pre>
         <tbody>
           <tr>
             <th scope="row">T0 Docs</th>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td>comment and PR standard</td>
-            <td class="off">·</td>
-            <td class="sec">light pass</td>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td class="hum">1, target 0</td>
+            <td data-label="Tests" class="off">·</td>
+            <td data-label="Simplifier" class="off">·</td>
+            <td data-label="Spec and standards">comment and PR standard</td>
+            <td data-label="Performance" class="off">·</td>
+            <td data-label="Security" class="sec">light pass</td>
+            <td data-label="Design" class="off">·</td>
+            <td data-label="Accessibility" class="off">·</td>
+            <td data-label="Humans" class="hum">1, target 0</td>
           </tr>
           <tr>
             <th scope="row">T1 Presentation</th>
-            <td>visual regression</td>
-            <td class="off">·</td>
-            <td>standards</td>
-            <td class="off">·</td>
-            <td class="sec">light pass</td>
-            <td>when a frame is linked</td>
-            <td>axe and agent pass</td>
-            <td class="hum">1, target 0</td>
+            <td data-label="Tests">visual regression</td>
+            <td data-label="Simplifier" class="off">·</td>
+            <td data-label="Spec and standards">standards</td>
+            <td data-label="Performance" class="off">·</td>
+            <td data-label="Security" class="sec">light pass</td>
+            <td data-label="Design">when a frame is linked</td>
+            <td data-label="Accessibility">axe and agent pass</td>
+            <td data-label="Humans" class="hum">1, target 0</td>
           </tr>
           <tr>
             <th scope="row">T2 Logic</th>
-            <td>TDD at agreed seams</td>
-            <td>edits</td>
-            <td>both</td>
-            <td>on data or request-path signals</td>
-            <td class="sec">quick pass, every commit</td>
-            <td class="off">·</td>
-            <td>when markup or front-end JS changes</td>
-            <td class="hum">1</td>
+            <td data-label="Tests">TDD at agreed seams</td>
+            <td data-label="Simplifier">edits</td>
+            <td data-label="Spec and standards">both</td>
+            <td data-label="Performance">on data or request-path signals</td>
+            <td data-label="Security" class="sec">quick pass, every commit</td>
+            <td data-label="Design" class="off">·</td>
+            <td data-label="Accessibility">when markup or front-end JS changes</td>
+            <td data-label="Humans" class="hum">1</td>
           </tr>
           <tr>
             <th scope="row">T3 Sensitive</th>
-            <td>TDD plus security tests</td>
-            <td>proposals only in zone code</td>
-            <td>both</td>
-            <td>on signals</td>
-            <td class="sec">full review with verifier vote, every commit</td>
-            <td class="off">·</td>
-            <td>when markup or front-end JS changes</td>
-            <td class="hum">1 or 2</td>
+            <td data-label="Tests">TDD plus security tests</td>
+            <td data-label="Simplifier">proposals only in zone code</td>
+            <td data-label="Spec and standards">both</td>
+            <td data-label="Performance">on signals</td>
+            <td data-label="Security" class="sec">full review with verifier vote, every commit</td>
+            <td data-label="Design" class="off">·</td>
+            <td data-label="Accessibility">when markup or front-end JS changes</td>
+            <td data-label="Humans" class="hum">1 or 2</td>
           </tr>
           <tr>
             <th scope="row">Spike</th>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td>floor</td>
-            <td class="off">·</td>
-            <td class="off">·</td>
-            <td class="hum">cannot merge</td>
+            <td data-label="Tests" class="off">·</td>
+            <td data-label="Simplifier" class="off">·</td>
+            <td data-label="Spec and standards" class="off">·</td>
+            <td data-label="Performance" class="off">·</td>
+            <td data-label="Security">floor</td>
+            <td data-label="Design" class="off">·</td>
+            <td data-label="Accessibility" class="off">·</td>
+            <td data-label="Humans" class="hum">cannot merge</td>
           </tr>
         </tbody>
       </table>
