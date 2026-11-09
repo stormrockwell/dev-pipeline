@@ -358,7 +358,9 @@ Plugins require PHP 8.0 and read docs/STRATEGY.md first. The config lives in .gi
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: two-way.
+Blast radius: none.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
