@@ -953,7 +953,7 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 10. Should T0 and T1 start at one human approval and earn zero through metrics, as this strategy proposes, or start at zero?
 11. Is the reviewer precedence right: security, then correctness, then readability and simplicity, then performance, then style? Your brief says readability trumps all in the coding standards and security trumps all reviewers, and this order reconciles the two.
 12. What scale should the performance reviewer assume when the profile declares none? This strategy assumes about 500.
-13. **Decided.** The pipeline repo is private under a personal account, where server-side push protection and rulesets are unavailable. The local hooks and CI scans carry secret protection, and the `.claude/settings.json` denials carry merge protection, until the repo goes public. Repos that install the pipeline run on GitHub Pro or in public, so the ruleset enforcement test runs on the first of those.
+13. **Decided.** The pipeline repo is public, so it gets push protection and a ruleset at no cost. The ruleset blocks force pushes and deletion on `main`, allows squash merges only and requires CI, and it leaves `risk-gate` out while the repo has one developer, because the author can never approve their own PR. The `.claude/settings.json` denials stay as the local layer. The peer rule enforcement test runs on the first team repo that installs the pipeline.
 14. **Decided.** Data writes from untrusted input, such as `update_option` or `wp_insert_post` fed by request data, are a signal in the `input` zone rather than a zone of their own. A repo whose input arrives another way, such as MCP ability `$input`, adds a `near` rule to its own `sensitive.yml`.
 
 ## Sources
