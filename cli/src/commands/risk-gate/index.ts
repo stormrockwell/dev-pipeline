@@ -32,7 +32,8 @@ Input:
                             approval check, which reads reviews with "gh api" and the ambient GH_TOKEN.
   --reviews <file>          Read reviews from this file (a JSON array) instead of calling "gh api".
   --zone-approvers <list>   Comma separated logins of zone approvers. Defaults to $PIPELINE_ZONE_APPROVERS.
-  --trusted <list>          Comma separated logins whose own attestation counts as one approval.
+  --trusted <list>          Comma separated logins whose own attestation counts as one approval. Defaults
+                            to $PIPELINE_TRUSTED.
   --labels <list>           Labels the PR carries, for a run without --event.
   --path <dir>              Repo to diff. Defaults to the current directory.
 
@@ -94,7 +95,7 @@ async function run(argv: string[]): Promise<number> {
   if (values.event === undefined && values["body-file"] === undefined) return fail("give --body-file or --event.");
 
   let event: PullRequestEvent | null = null;
-  let body = "";
+  let body: string;
   let reviewText: string | null = null;
   try {
     if (values.event !== undefined) event = parseEvent(JSON.parse(readFileSync(values.event, "utf8")));
@@ -127,7 +128,7 @@ async function run(argv: string[]): Promise<number> {
         headSha: event.headSha,
         author: event.author,
         zoneApprovers: list(values["zone-approvers"] ?? process.env.PIPELINE_ZONE_APPROVERS),
-        trusted: list(values.trusted),
+        trusted: list(values.trusted ?? process.env.PIPELINE_TRUSTED),
       };
     } catch (error) {
       // The gate closes when it cannot read the reviews, because a pass without them proves nothing.

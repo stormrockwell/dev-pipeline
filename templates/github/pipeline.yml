@@ -1,0 +1,27 @@
+# Copy this file to .github/workflows/pipeline.yml in the target repo.
+# The job id must stay "pipeline", because the ruleset requires the checks "pipeline / floor"
+# and "pipeline / risk-gate".
+name: Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+concurrency:
+  group: pipeline-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  pipeline:
+    uses: stormrockwell/dev-pipeline/.github/workflows/pipeline-pr.yml@REPLACE_WITH_SHA
+    with:
+      cli-ref: REPLACE_WITH_SHA
+      zone-approvers: "your-github-login"
+    secrets:
+      CLI_TOKEN: ${{ secrets.PIPELINE_CLI_TOKEN }}

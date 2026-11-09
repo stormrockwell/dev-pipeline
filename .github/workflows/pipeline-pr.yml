@@ -1,0 +1,114 @@
+# Reusable workflow that a target repo calls on pull_request and pull_request_review events.
+# templates/github/pipeline.yml is the caller, and docs/github.md explains the install.
+name: Pipeline PR
+
+on:
+  workflow_call:
+    inputs:
+      cli-ref:
+        description: A commit sha, tag or branch of the CLI repo. Pin it to a sha.
+        required: true
+        type: string
+      cli-repo:
+        description: The repo that holds the pipeline CLI.
+        required: false
+        default: stormrockwell/dev-pipeline
+        type: string
+      zone-approvers:
+        description: Comma separated logins of the people whose approval satisfies a zone.
+        required: false
+        default: ""
+        type: string
+      trusted-authors:
+        description: Comma separated logins whose own attestation counts as one approval.
+        required: false
+        default: ""
+        type: string
+    secrets:
+      CLI_TOKEN:
+        description: A token that can read cli-repo. Needed while that repo is private.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  floor:
+    name: floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Fetch the pipeline CLI
+        env:
+          CLI_REPO: ${{ inputs.cli-repo }}
+          CLI_REF: ${{ inputs.cli-ref }}
+          CLI_TOKEN: ${{ secrets.CLI_TOKEN || github.token }}
+        run: |
+          # The CLI lives outside the workspace so the floor never scans it as part of the target repo.
+          dir="$RUNNER_TEMP/pipeline-cli"
+          auth="$(printf 'x-access-token:%s' "$CLI_TOKEN" | base64 | tr -d '\n')"
+          git init -q "$dir"
+          git -C "$dir" -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
+          git -C "$dir" checkout -q FETCH_HEAD
+          echo "PIPELINE=$dir/cli/bin/pipeline" >> "$GITHUB_ENV"
+      - name: Find the changed range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo "RANGE=$(git merge-base "$BASE_SHA" "$HEAD_SHA")..$HEAD_SHA" >> "$GITHUB_ENV"
+      - name: pipeline check
+        run: '"$PIPELINE" check --ci'
+      - name: pipeline pr-check
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          "$PIPELINE" pr-check --file "$RUNNER_TEMP/pr-body.md" --title "$PR_TITLE"
+      - name: pipeline classify
+        run: '"$PIPELINE" classify --range "$RANGE" --json'
+      - name: pipeline scan-zones
+        run: '"$PIPELINE" scan-zones --range "$RANGE"'
+
+  risk-gate:
+    name: risk-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Fetch the pipeline CLI
+        env:
+          CLI_REPO: ${{ inputs.cli-repo }}
+          CLI_REF: ${{ inputs.cli-ref }}
+          CLI_TOKEN: ${{ secrets.CLI_TOKEN || github.token }}
+        run: |
+          dir="$RUNNER_TEMP/pipeline-cli"
+          auth="$(printf 'x-access-token:%s' "$CLI_TOKEN" | base64 | tr -d '\n')"
+          git init -q "$dir"
+          git -C "$dir" -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
+          git -C "$dir" checkout -q FETCH_HEAD
+          echo "PIPELINE=$dir/cli/bin/pipeline" >> "$GITHUB_ENV"
+      - name: Gate the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PIPELINE_ZONE_APPROVERS: ${{ inputs.zone-approvers }}
+          PIPELINE_TRUSTED: ${{ inputs.trusted-authors }}
+        run: |
+          range="$(git merge-base "$BASE_SHA" "$HEAD_SHA")..$HEAD_SHA"
+          "$PIPELINE" risk-gate --range "$range" --event "$GITHUB_EVENT_PATH" --apply

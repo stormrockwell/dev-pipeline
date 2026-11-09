@@ -12,8 +12,16 @@ critical:
   - "**/auth/**"
 `);
 
-type Rule = { type: string; parameters?: Record<string, any> };
-const rule = (ruleset: ReturnType<typeof renderRuleset>, type: string) => (ruleset.rules as Rule[]).find((candidate) => candidate.type === type);
+interface Reviewer {
+  file_patterns: string[];
+  minimum_approvals: number;
+  reviewer: { id: number; type: string };
+}
+interface Rule {
+  type: string;
+  parameters?: { required_reviewers?: Reviewer[]; required_status_checks?: { context: string }[] } & Record<string, unknown>;
+}
+const rule = (ruleset: ReturnType<typeof renderRuleset>, type: string) => (ruleset.rules as unknown as Rule[]).find((candidate) => candidate.type === type);
 
 describe("renderRuleset", () => {
   const ruleset = renderRuleset(sample, { teamId: 123 });
@@ -43,15 +51,15 @@ describe("renderRuleset", () => {
   });
 
   it("requires the floor and risk-gate status checks", () => {
-    const contexts = rule(ruleset, "required_status_checks")?.parameters?.required_status_checks.map((check: { context: string }) => check.context);
+    const contexts = rule(ruleset, "required_status_checks")?.parameters?.required_status_checks?.map((check) => check.context);
     expect(contexts).toEqual(["pipeline / floor", "pipeline / risk-gate"]);
   });
 
   it("requires the zone team for every sensitive path, and two approvals on designated paths", () => {
-    const reviewers = rule(ruleset, "pull_request")?.parameters?.required_reviewers;
+    const reviewers = rule(ruleset, "pull_request")?.parameters?.required_reviewers ?? [];
     expect(reviewers).toHaveLength(2);
     expect(reviewers[0]).toMatchObject({ minimum_approvals: 1, reviewer: { id: 123, type: "Team" } });
-    expect(reviewers[0].file_patterns).toEqual([
+    expect(reviewers[0]?.file_patterns).toEqual([
       "**/auth/**", "composer.json", "**/composer.json", "composer.lock", "**/composer.lock", "**/billing/**",
     ]);
     expect(reviewers[1]).toMatchObject({ minimum_approvals: 2, file_patterns: ["**/auth/**"], reviewer: { id: 123, type: "Team" } });
@@ -64,7 +72,7 @@ describe("renderRuleset", () => {
 
   it("uses the default designated paths when sensitive.yml omits critical", () => {
     const defaults = renderRuleset(parseConfig("paths:\n  - '**/auth/**'\n"), { teamId: 1 });
-    expect(rule(defaults, "pull_request")?.parameters?.required_reviewers[1].file_patterns).toEqual([
+    expect(rule(defaults, "pull_request")?.parameters?.required_reviewers?.[1]?.file_patterns).toEqual([
       ".github/**", "**/.github/**", ".pipeline/**", "**/.pipeline/**", ".claude/**", "**/.claude/**",
     ]);
   });
