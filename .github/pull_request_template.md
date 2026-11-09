@@ -9,7 +9,9 @@ Brief explanation of the approach.
 Steps to verify the change.
 
 ## Risk
-Door: one-way or two-way. Blast radius: one phrase.
+Door: one-way or two-way.
+Blast radius: one phrase.
+Human review: none, or required, zone:<name> (<paths>).
 
 ## Auditors
 - Ran: security (quick), standards, spec

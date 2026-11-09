@@ -22,6 +22,24 @@ function writeTestFile(name: string, content: string) {
   return path;
 }
 
+function bodyWithRisk(risk: string) {
+  return `## What changed
+- Added feature
+
+## Why this approach
+Approach.
+
+## How to verify
+Test.
+
+## Risk
+${risk}
+
+## Auditors
+- Ran: security (quick)
+`;
+}
+
 describe("pr-check", () => {
   describe("good PR body", () => {
     it("passes a complete valid PR body", () => {
@@ -37,7 +55,9 @@ We use a CSV format because it is widely supported. The export runs on demand to
 Visit /orders, click Export, choose CSV format. Check the file contains all columns and rows.
 
 ## Risk
-Door: two-way. Blast radius: Orders page, download endpoint.
+Door: two-way.
+Blast radius: Orders page, download endpoint.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick), standards, spec
@@ -60,7 +80,9 @@ Door: two-way. Blast radius: Orders page, download endpoint.
 We chose this approach for simplicity.
 
 ## Risk
-Door: one-way. Blast radius: Orders page.
+Door: one-way.
+Blast radius: Orders page.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -83,7 +105,9 @@ We chose this approach for simplicity.
 Click the button.
 
 ## Risk
-Door: one-way. Blast radius: Orders.
+Door: one-way.
+Blast radius: Orders.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -106,7 +130,9 @@ Simple approach.
 Test it.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Human review required
 See /auth/login.php lines 50-60 for the permission check.
@@ -134,7 +160,9 @@ Approach here.
 Test it.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -147,7 +175,7 @@ Door: one-way. Blast radius: local.
     });
 
     it("passes with exactly 250 words", () => {
-      const longBody = "word ".repeat(240) + "more";
+      const longBody = "word ".repeat(237) + "more";
       const body = `## What changed
 ${longBody}
 
@@ -158,7 +186,9 @@ Approach here.
 Test it.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -170,7 +200,7 @@ Door: one-way. Blast radius: local.
     });
 
     it("excludes Auditors section from word count", () => {
-      const longBody = "word ".repeat(240);
+      const longBody = "word ".repeat(237);
       const body = `## What changed
 ${longBody}done
 
@@ -181,7 +211,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: ${" ".repeat(500)}
@@ -203,7 +235,9 @@ Approach here.
 Test it.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 <details>
 <summary>Details</summary>
@@ -220,7 +254,7 @@ ${"word ".repeat(500)}
     });
 
     it("excludes Co-Authored using AI line from word count", () => {
-      const longBody = "word ".repeat(240);
+      const longBody = "word ".repeat(237);
       const body = `## What changed
 ${longBody}done
 
@@ -231,7 +265,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -262,7 +298,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -289,7 +327,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -313,7 +353,9 @@ First sentence. Second sentence. Third sentence. Fourth sentence.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -336,7 +378,9 @@ First sentence. Second sentence. Third sentence.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -406,7 +450,9 @@ Approach.
 Test.
 
 ## Risk
-Door: both-ways. Blast radius: local.
+Door: both-ways.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -429,7 +475,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -451,7 +499,9 @@ Approach.
 Test.
 
 ## Risk
-Door: two-way. Blast radius: local.
+Door: two-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -459,6 +509,72 @@ Door: two-way. Blast radius: local.
       const file = writeTestFile("two-way.md", body);
       const result = pipeline("pr-check", "--file", file);
       expect(result.status).toBe(0);
+      cleanup();
+    });
+  });
+
+  describe("human review line", () => {
+    const doorAndBlast = "Door: two-way.\nBlast radius: none.";
+
+    it("passes with Human review none", () => {
+      const file = writeTestFile("hr-none.md", bodyWithRisk(`${doorAndBlast}\nHuman review: none.`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe("");
+      cleanup();
+    });
+
+    it("passes with a single zone", () => {
+      const line = "Human review: required, zone:guardrails (.github/pull_request_template.md).";
+      const file = writeTestFile("hr-single.md", bodyWithRisk(`${doorAndBlast}\n${line}`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe("");
+      cleanup();
+    });
+
+    it("passes with several zones and several paths", () => {
+      const line =
+        "Human review: required, zone:secrets (cli/src/commands/secrets/), zone:guardrails (.github/, .claude/).";
+      const file = writeTestFile("hr-multi.md", bodyWithRisk(`${doorAndBlast}\n${line}`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe("");
+      cleanup();
+    });
+
+    it("fails when the Human review line is missing", () => {
+      const file = writeTestFile("hr-missing.md", bodyWithRisk(doorAndBlast));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("risk");
+      expect(result.stdout).toContain("Human review:");
+      cleanup();
+    });
+
+    it("fails with an unknown zone name", () => {
+      const line = "Human review: required, zone:secrets (cli/), zone:network (infra/).";
+      const file = writeTestFile("hr-unknown.md", bodyWithRisk(`${doorAndBlast}\n${line}`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("Unknown zone");
+      expect(result.stdout).toContain("Unknown zone in Human review line: network.");
+      cleanup();
+    });
+
+    it("fails when required has no zone", () => {
+      const file = writeTestFile("hr-no-zone.md", bodyWithRisk(`${doorAndBlast}\nHuman review: required.`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("malformed");
+      cleanup();
+    });
+
+    it("fails when a zone has no path", () => {
+      const file = writeTestFile("hr-no-path.md", bodyWithRisk(`${doorAndBlast}\nHuman review: required, zone:auth.`));
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("malformed");
       cleanup();
     });
   });
@@ -475,7 +591,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Accepted: fix already applied
@@ -498,7 +616,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -522,7 +642,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -545,7 +667,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -569,7 +693,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -594,7 +720,9 @@ I first tried a different approach but it was too complex. We settled on this on
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -617,7 +745,9 @@ Initially we had a problem with this approach. Then we fixed it.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -640,7 +770,9 @@ After trying several approaches, we chose this one.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -663,7 +795,9 @@ We decided to change the approach because it makes the code simpler.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -688,7 +822,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -710,7 +846,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -732,7 +870,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -757,7 +897,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -788,7 +930,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
@@ -817,7 +961,9 @@ Approach.
 Test.
 
 ## Risk
-Door: one-way. Blast radius: local.
+Door: one-way.
+Blast radius: local.
+Human review: none.
 
 ## Auditors
 - Ran: security (quick)
