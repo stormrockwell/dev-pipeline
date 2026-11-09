@@ -85,7 +85,7 @@ After 1.2, tasks 1.3, 1.4, 1.5, 1.7, 1.8 and 1.10 share nothing and run in paral
 
 Decision 4 (environment profile) is needed before teammates join in Phase 5.
 
-**Exit.** All four scenarios pass as plugin evals, one real feature ships on Media on Autopilot through the change route, a risky change on the MCP server lands as a zone PR, and the first work orders record the plan usage baseline that 0.7 could not.
+**Exit.** All four scenarios pass as plugin evals, one real feature ships on Media on Autopilot through the change route, built in a separate clone so the working checkout stays untouched and opened as a PR the user decides on, a risky change on the MCP server lands as a zone PR, and the first work orders record the plan usage baseline that 0.7 could not.
 
 ## Phase 3: security, performance, accessibility and design
 
