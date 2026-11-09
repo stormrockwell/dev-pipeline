@@ -65,7 +65,7 @@ function gitignoreFinding(top: string): Finding[] {
   ];
 }
 
-/** Gitleaks hits win over a built-in hit at the same place, so each location is reported once. */
+// Gitleaks hits win over a built-in hit at the same place, so each location is reported once.
 function merge(external: Finding[], builtin: Finding[]): Finding[] {
   const key = (finding: Finding) => `${finding.commit}:${finding.file}:${finding.line}`;
   const seen = new Set(external.map(key));

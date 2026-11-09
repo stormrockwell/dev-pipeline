@@ -37,7 +37,7 @@ export function findOnPath(name: string): string {
 
 let stubDir: string | undefined;
 
-/** A PATH holding only node, git and the system dirs, so a developer's own gitleaks never leaks in. */
+// A PATH holding only node, git and the system dirs, so a developer's own gitleaks never leaks in.
 function isolatedPath(): string {
   if (!stubDir) {
     stubDir = tempDir("pipeline-path-");
@@ -106,14 +106,14 @@ export function stage(repo: string, path: string, content: string): void {
   if (result.status !== 0) throw new Error(result.stderr);
 }
 
-/** Commits whatever is staged and returns the new commit's full sha. */
+// Commits whatever is staged and returns the new commit's full sha.
 export function commit(repo: string, message = "change"): string {
   const result = git(repo, "commit", "--no-verify", "-q", "-m", message);
   if (result.status !== 0) throw new Error(result.stderr + result.stdout);
   return git(repo, "rev-parse", "HEAD").stdout.trim();
 }
 
-/** A repo with one clean commit and a .gitignore that ignores .env. */
+// A repo with one clean commit and a .gitignore that ignores .env.
 export function makeRepo(options: { gitignore?: string } = {}): string {
   const repo = tempDir("pipeline-repo-");
   const init = git(repo, "init", "-q", "-b", "main");
@@ -137,7 +137,7 @@ export function executable(path: string, content: string): void {
   chmodSync(path, 0o755);
 }
 
-/** Deterministic alphanumeric noise, built at runtime so no real-looking secret sits in this source file. */
+// Deterministic alphanumeric noise, built at runtime so no real-looking secret sits in this source file.
 export function fake(length: number, seed = 1, alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"): string {
   let state = seed * 2654435761;
   let out = "";

@@ -53,7 +53,7 @@ export interface ApplyOptions {
 
 const quote = (text: string) => `"${text.replace(/(["\\$`])/g, "\\$1")}"`;
 
-/** The commands a human runs to install the layer. The CLI prints them and never runs them. */
+// The commands a human runs to install the layer. The CLI prints them and never runs them.
 export function applyCommands(options: ApplyOptions): string[] {
   const labels = labelDefinitions().map(
     (label) => `gh label create ${quote(label.name)} --repo ${options.repo} --color ${label.color} --description ${quote(label.description)} --force`,

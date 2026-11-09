@@ -7,9 +7,9 @@ export interface Review {
 
 export interface ApprovalInput {
   reviews: Review[];
-  /** Approvals on any other commit are stale, because the ruleset requires approval of the latest push. */
+  // Approvals on any other commit are stale, because the ruleset requires approval of the latest push.
   headSha: string;
-  /** The developer who ran the agent. Agents push under this account, so it never counts as a peer. */
+  // The developer who ran the agent. Agents push under this account, so it never counts as a peer.
   author: string;
 }
 
@@ -20,7 +20,7 @@ export interface ApprovalCount {
 
 const lower = (login: string) => login.toLowerCase();
 
-/** Counts the people whose latest review of the head commit is an approval. */
+// Counts the people whose latest review of the head commit is an approval.
 export function countApprovals(input: ApprovalInput): ApprovalCount {
   const author = lower(input.author);
   const ordered = input.reviews

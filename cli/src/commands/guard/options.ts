@@ -1,18 +1,18 @@
 export interface ScanSpec {
-  /** Short flags that take a value, either attached (`-mfoo`) or as the next word. */
+  // Short flags that take a value, either attached (`-mfoo`) or as the next word.
   valueShort?: string;
-  /** Short flags whose value can only be attached, such as `-S<key>`. */
+  // Short flags whose value can only be attached, such as `-S<key>`.
   optionalShort?: string;
-  /** Long flags that take a value as the next word when written without `=`. */
+  // Long flags that take a value as the next word when written without `=`.
   valueLong?: string[];
 }
 
 export interface ScannedOptions {
-  /** Single letters from short flags, one entry per letter. */
+  // Single letters from short flags, one entry per letter.
   shorts: string[];
-  /** Long flags with any `=value` removed. */
+  // Long flags with any `=value` removed.
   longs: string[];
-  /** Words that are neither flags nor flag values, including everything after `--`. */
+  // Words that are neither flags nor flag values, including everything after `--`.
   positionals: string[];
 }
 

@@ -1,6 +1,6 @@
 import type { Command } from "./command.ts";
 
-/** Exit code 2 separates "not built yet" from a command that ran and failed with 1. */
+// Exit code 2 separates "not built yet" from a command that ran and failed with 1.
 export function stub(name: string, summary: string): Command {
   return {
     name,

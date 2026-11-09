@@ -15,7 +15,7 @@ const rules: [RegExp, string][] = [
   [/(?:^|\/)wp-content\/uploads\//i, "WordPress uploads"],
 ];
 
-/** Safe to commit because it documents variable names with placeholder values. */
+// Safe to commit because it documents variable names with placeholder values.
 const exempt = /(?:^|\/)\.env\.example$/i;
 
 export function sensitivePath(path: string): PathVerdict | null {
@@ -26,7 +26,7 @@ export function sensitivePath(path: string): PathVerdict | null {
   return null;
 }
 
-/** Lockfiles and bundles hold long hashes that would drown the entropy check in false alarms. */
+// Lockfiles and bundles hold long hashes that would drown the entropy check in false alarms.
 export function skipsEntropy(path: string): boolean {
   return /(?:-lock\.json|\.lock|-lock\.ya?ml|\.min\.[cm]?js|\.map|\.svg)$/i.test(path);
 }

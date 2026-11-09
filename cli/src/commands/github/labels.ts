@@ -3,7 +3,7 @@ import { ZONES, type Zone } from "../scan-zones/types.ts";
 
 export interface LabelDefinition {
   name: string;
-  /** Six hex digits without a leading hash, as the GitHub API takes it. */
+  // Six hex digits without a leading hash, as the GitHub API takes it.
   color: string;
   description: string;
 }
@@ -28,7 +28,7 @@ const zoneDescriptions: Record<Zone, string> = {
   guardrails: "Pipeline, CI, agent and linter config, dependency manifests and suppressions.",
 };
 
-/** Every label that the risk-gate applies, with the text a human sees in the label picker. */
+// Every label that the risk-gate applies, with the text a human sees in the label picker.
 export function labelDefinitions(): LabelDefinition[] {
   return [
     ...RISKS.map((risk) => ({ name: riskLabel(risk), ...riskStyle[risk] })),

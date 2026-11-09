@@ -20,7 +20,7 @@ export interface Reason {
   tier: Tier;
   rule: Rule;
   zone?: Zone;
-  /** Null for a path rule or a file-level reason. */
+  // Null for a path rule or a file-level reason.
   line?: number | null;
   detail: string;
 }
@@ -35,7 +35,7 @@ export interface Classification {
   tier: Tier;
   name: string;
   zones: Zone[];
-  /** The reasons that set the final tier. Weaker reasons sit in `files`. */
+  // The reasons that set the final tier. Weaker reasons sit in `files`.
   reasons: Reason[];
   files: FileTier[];
 }
@@ -46,10 +46,10 @@ const styleExtensions = new Set([".css", ".scss", ".sass", ".less"]);
 const markupExtensions = new Set([".html", ".htm"]);
 const assetExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".ico", ".woff", ".woff2", ".ttf", ".otf"]);
 
-/** Template engines whose files print variables, so a change to one can open an output hole. */
+// Template engines whose files print variables, so a change to one can open an output hole.
 const templateExtensions = new Set([".twig", ".njk", ".liquid", ".hbs", ".handlebars", ".mustache", ".ejs", ".erb", ".phtml", ".vue", ".svelte"]);
 
-/** Markers that make an .html file a template instead of static markup. */
+// Markers that make an .html file a template instead of static markup.
 const echoMarkers = /<\?(?:php|=)|\{\{|\{%|<%|\{!!/;
 
 function higher(a: Tier, b: Tier): Tier {
@@ -73,7 +73,7 @@ function byType(input: FileInput): Reason {
   return reason("T2", "file-type", "code or configuration");
 }
 
-/** Assigns a tier from file types and zone matches. Rules only raise a tier, and lowering is a human action. */
+// Assigns a tier from file types and zone matches. Rules only raise a tier, and lowering is a human action.
 export function classifyInputs(config: ZoneConfig, inputs: FileInput[]): Classification {
   if (inputs.length === 0) {
     return {

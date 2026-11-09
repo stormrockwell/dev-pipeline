@@ -5,7 +5,7 @@ import { verdict, type Verdict } from "./verdict.ts";
 
 const ALWAYS_PROTECTED = ["main", "master"];
 
-/** Looks up branch facts with git itself, and remembers branch switches made earlier in one command. */
+// Looks up branch facts with git itself, and remembers branch switches made earlier in one command.
 export class RepoState {
   private readonly overrides = new Map<string, string>();
   private readonly cache = new Map<string, string | undefined>();
@@ -27,7 +27,7 @@ export class RepoState {
     return this.git(dir, ["rev-parse", "--show-toplevel"]) ?? dir;
   }
 
-  /** The checked-out branch, or undefined for a detached HEAD or a directory outside a repository. */
+  // The checked-out branch, or undefined for a detached HEAD or a directory outside a repository.
   currentBranch(dir: string): string | undefined {
     // Looking up the repository root costs a process, so skip it until a switch was recorded.
     const override = this.overrides.size > 0 ? this.overrides.get(this.repoKey(dir)) : undefined;
@@ -35,12 +35,12 @@ export class RepoState {
     return this.git(dir, ["symbolic-ref", "--short", "-q", "HEAD"]);
   }
 
-  /** Records a `git switch` or `git checkout` from earlier in the same command line. */
+  // Records a `git switch` or `git checkout` from earlier in the same command line.
   switchTo(dir: string, branch: string): void {
     this.overrides.set(this.repoKey(dir), branch);
   }
 
-  /** `main`, `master` and the branch that origin/HEAD points at. */
+  // `main`, `master` and the branch that origin/HEAD points at.
   protectedBranches(dir: string): Set<string> {
     const names = new Set(ALWAYS_PROTECTED);
     const head = this.git(dir, ["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"]);
@@ -65,7 +65,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
   "--attr-source",
 ]);
 
-/** Skips the options that go before the git subcommand, such as `-C dir` and `-c key=value`. */
+// Skips the options that go before the git subcommand, such as `-C dir` and `-c key=value`.
 export function parseGlobal(args: string[], startDir: string): GlobalOptions {
   let dir = startDir;
   const configs: string[] = [];
@@ -104,7 +104,7 @@ const COMMIT_VALUE_LONG = [
   "--pathspec-from-file",
 ];
 
-/** Returns the verdicts for one `git` invocation, with the program name already removed. */
+// Returns the verdicts for one `git` invocation, with the program name already removed.
 export function checkGit(args: string[], repo: RepoState, startDir: string): Verdict[] {
   const { dir, configs, subcommand, rest } = parseGlobal(args, startDir);
   const verdicts: Verdict[] = [];
@@ -197,7 +197,7 @@ export function checkGit(args: string[], repo: RepoState, startDir: string): Ver
   return verdicts;
 }
 
-/** Remembers a switch to a protected or newly created branch so a later commit in the same command is judged correctly. */
+// Remembers a switch to a protected or newly created branch so a later commit in the same command is judged correctly.
 function trackSwitch(args: string[], dir: string, repo: RepoState, isBranch: boolean): void {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;

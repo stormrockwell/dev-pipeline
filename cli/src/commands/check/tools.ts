@@ -4,18 +4,18 @@ import { probe } from "./exec.ts";
 import { committableFiles } from "./scope.ts";
 
 export interface ToolSpec {
-  /** Stable identifier used in output and in the JSON record. */
+  // Stable identifier used in output and in the JSON record.
   id: string;
-  /** Repo relative directory the tool runs in, for a tool that covers one lockfile of a nested project. */
+  // Repo relative directory the tool runs in, for a tool that covers one lockfile of a nested project.
   subdir?: string;
   binary: string;
-  /** Project directories searched before PATH. */
+  // Project directories searched before PATH.
   localDirs: string[];
   hint: string;
   args(dir: string): string[];
-  /** Replaces `args` when the right arguments depend on the installed version. */
+  // Replaces `args` when the right arguments depend on the installed version.
   resolveArgs?(exe: string, dir: string): string[];
-  /** Runs the tool on the files the repo would commit instead of everything under the directory. */
+  // Runs the tool on the files the repo would commit instead of everything under the directory.
   committableOnly?: boolean;
 }
 
@@ -154,7 +154,7 @@ const gitleaks: ToolSpec = {
       : ["detect", "--no-git", "--source", ".", "--no-banner", "--redact"],
 };
 
-/** Gives one lockfile its own row, so a nested project is named in the output and fails on its own. */
+// Gives one lockfile its own row, so a nested project is named in the output and fails on its own.
 function forSubdir(tool: ToolSpec, subdir: string): ToolSpec {
   return { ...tool, id: `${tool.id} ${subdir}`, subdir };
 }
@@ -171,7 +171,7 @@ function nestedLockfileDirs(files: string[], lockfile: string): string[] {
   return [...new Set(dirs)].sort();
 }
 
-/** Returns the tools that apply to a repo, in the order they run. */
+// Returns the tools that apply to a repo, in the order they run.
 export function detectTools(dir: string): ToolSpec[] {
   const manifest = packageJson(dir);
   const tools: ToolSpec[] = [];

@@ -8,7 +8,7 @@ afterAll(removeTemps);
 
 const config = builtinConfig();
 
-/** A diff of one file, where `content` is the new file and `added` are 1-based new line numbers. */
+// A diff of one file, where `content` is the new file and `added` are 1-based new line numbers.
 function edit(path: string, content: string, added: number[], removed: string[] = []): FileInput {
   return {
     path,

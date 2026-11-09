@@ -8,11 +8,11 @@ export interface Match {
 interface Rule {
   id: string;
   pattern: RegExp;
-  /** The capture group that holds the secret, 0 for the whole match. */
+  // The capture group that holds the secret, 0 for the whole match.
   group: number;
 }
 
-/** Lines longer than this are usually minified bundles, where only the precise token rules are reliable. */
+// Lines longer than this are usually minified bundles, where only the precise token rules are reliable.
 const LONG_LINE = 2000;
 
 const specificRules: Rule[] = [
@@ -69,7 +69,7 @@ export function isPlaceholder(value: string): boolean {
   return new Set(value).size < 5;
 }
 
-/** Keeps a short prefix so a reviewer can recognise the kind of secret, and hides the rest. */
+// Keeps a short prefix so a reviewer can recognise the kind of secret, and hides the rest.
 export function maskValue(value: string): string {
   if (value.length <= 8) return "*".repeat(value.length);
   return value.slice(0, 4) + "*".repeat(Math.min(value.length - 4, 12));
@@ -86,7 +86,7 @@ function acceptGeneric(value: string, line: string, end: number): boolean {
   return /\d/.test(value) && /[A-Za-z]/.test(value);
 }
 
-/** An alphabet or a keyboard row climbs by one code point, which random keys almost never do for long. */
+// An alphabet or a keyboard row climbs by one code point, which random keys almost never do for long.
 function hasSequentialRun(value: string, length: number): boolean {
   let run = 1;
   for (let i = 1; i < value.length; i++) {
@@ -118,7 +118,7 @@ function collect(line: string, rule: Rule, matches: Match[], accept: (value: str
   }
 }
 
-/** Finds secrets in one line. The first rule to claim a span wins, so each secret is reported once. */
+// Finds secrets in one line. The first rule to claim a span wins, so each secret is reported once.
 export function scanLine(line: string, options: { entropy?: boolean } = {}): Match[] {
   const matches: Match[] = [];
   for (const rule of specificRules) {

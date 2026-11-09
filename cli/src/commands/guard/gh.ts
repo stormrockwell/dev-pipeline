@@ -17,7 +17,7 @@ const API_VALUE_LONG = [
   "--preview",
 ];
 
-/** Returns the verdicts for one `gh` invocation, with the program name already removed. */
+// Returns the verdicts for one `gh` invocation, with the program name already removed.
 export function checkGh(args: string[]): Verdict[] {
   const verdicts: Verdict[] = [];
   const { positionals } = scanOptions(args, { valueShort: "R", valueLong: ["--repo", "--hostname"] });

@@ -19,12 +19,12 @@ export interface GateInput {
   tier: Tier;
   scanZones: string[];
   files: { file: string; tier: Tier }[];
-  /** Globs of designated paths from sensitive.yml. */
+  // Globs of designated paths from sensitive.yml.
   critical: string[];
   body: string;
-  /** Labels the PR carries now. */
+  // Labels the PR carries now.
   labels: string[];
-  /** Null when no review data was given, as in a local run. */
+  // Null when no review data was given, as in a local run.
   approvals: ApprovalInput | null;
 }
 
@@ -46,7 +46,7 @@ function unique(items: string[]): string[] {
   return [...new Set(items)].sort();
 }
 
-/** Compares the body's Human review line with the zones the scan found. */
+// Compares the body's Human review line with the zones the scan found.
 function compareBody(body: string, scanZones: string[]): { failures: string[]; warnings: string[]; raised: string[] } {
   const review = parseHumanReview(body);
   const failures: string[] = [];

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { git } from "../secrets/git.ts";
 
 export interface Scope {
-  /** A directory holding only the files the repo would commit. */
+  // A directory holding only the files the repo would commit.
   dir: string;
   cleanup(): void;
 }

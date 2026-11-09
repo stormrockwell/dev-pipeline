@@ -7,7 +7,7 @@ export interface RunOutcome {
   timedOut: boolean;
   stdout: string;
   stderr: string;
-  /** Set when the process could not be started at all. */
+  // Set when the process could not be started at all.
   spawnError?: string;
 }
 
@@ -24,14 +24,14 @@ function isExecutable(file: string): boolean {
   }
 }
 
-/** Looks in the project's own directories first, so a pinned project version wins over a global one. */
+// Looks in the project's own directories first, so a pinned project version wins over a global one.
 export function resolveBinary(name: string, cwd: string, localDirs: string[]): string | undefined {
   const pathDirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
   const candidates = [...localDirs.map((dir) => join(cwd, dir)), ...pathDirs];
   return candidates.map((dir) => join(dir, name)).find(isExecutable);
 }
 
-/** Reports whether a short probe command succeeds, with output discarded so no pipe can hold it open. */
+// Reports whether a short probe command succeeds, with output discarded so no pipe can hold it open.
 export function probe(file: string, args: string[], cwd: string): boolean {
   const result = spawnSync(file, args, { cwd, stdio: "ignore", timeout: 10_000 });
   return result.status === 0;

@@ -6,11 +6,11 @@
 
 export interface SimpleCommand {
   words: string[];
-  /** Heredoc and here-string bodies attached to this command, in order. */
+  // Heredoc and here-string bodies attached to this command, in order.
   heredocs: string[];
-  /** Files the command reads through `<` redirections. */
+  // Files the command reads through `<` redirections.
   inputs: string[];
-  /** The command whose output feeds this one through a pipe. */
+  // The command whose output feeds this one through a pipe.
   pipedFrom?: SimpleCommand;
 }
 
@@ -23,7 +23,7 @@ interface PendingHeredoc {
 
 const MAX_BRACE_RESULTS = 64;
 
-/** Placeholder text for a substitution, since the guard cannot know what it expands to. */
+// Placeholder text for a substitution, since the guard cannot know what it expands to.
 const SUBSTITUTION = "$(…)";
 const BACKTICK = "`…`";
 
@@ -255,7 +255,7 @@ class Parser {
     endCommand();
   }
 
-  /** Finds `$( )` and backtick commands inside text that the shell would expand. */
+  // Finds `$( )` and backtick commands inside text that the shell would expand.
   scanSubstitutions(text: string): void {
     const parser = new Parser(text);
     for (let i = 0; i < text.length; i++) {
@@ -302,7 +302,7 @@ class Parser {
     }
   }
 
-  /** Reads up to the closing backtick and parses what is inside as a nested script. */
+  // Reads up to the closing backtick and parses what is inside as a nested script.
   private readBacktick(): string {
     const src = this.src;
     let text = "";

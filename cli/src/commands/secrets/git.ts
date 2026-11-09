@@ -20,7 +20,7 @@ export function repoTop(cwd: string): string | null {
   return result.ok ? result.stdout.trim() : null;
 }
 
-/** Flags that pin the diff format against a user's git config. */
+// Flags that pin the diff format against a user's git config.
 const diffFlags = [
   "-U0",
   "--no-color",

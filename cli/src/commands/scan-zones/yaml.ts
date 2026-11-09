@@ -19,7 +19,7 @@ class YamlError extends Error {
   }
 }
 
-/** Cuts a trailing comment, leaving a hash inside quotes or inside a word alone. */
+// Cuts a trailing comment, leaving a hash inside quotes or inside a word alone.
 function stripComment(text: string, no: number): string {
   let quote: "'" | '"' | null = null;
   for (let i = 0; i < text.length; i++) {
@@ -74,7 +74,7 @@ function unquote(text: string, no: number): string {
   });
 }
 
-/** Index of the closing quote of a quoted scalar that starts at 0, or -1. */
+// Index of the closing quote of a quoted scalar that starts at 0, or -1.
 function closingQuote(text: string): number {
   const quote = text[0];
   for (let i = 1; i < text.length; i++) {
@@ -131,7 +131,7 @@ function parseFlowList(text: string, no: number): YamlValue[] {
   return items;
 }
 
-/** Splits `key: value` into its parts, or returns null when the text is a plain scalar. */
+// Splits `key: value` into its parts, or returns null when the text is a plain scalar.
 function splitEntry(text: string): { key: string; rest: string } | null {
   if (text[0] === "'" || text[0] === '"') {
     const end = closingQuote(text);
@@ -155,7 +155,7 @@ class Reader {
     return this.lines[this.pos];
   }
 
-  /** Replaces the dash line with the item's own content so a mapping can continue on the next lines. */
+  // Replaces the dash line with the item's own content so a mapping can continue on the next lines.
   private inlineItem(line: Line): void {
     const after = line.text.slice(1);
     const spaces = after.length - after.trimStart().length;

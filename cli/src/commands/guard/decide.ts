@@ -4,7 +4,7 @@ import { ALLOW, type Verdict } from "./verdict.ts";
 
 export type HookInput = ToolInput;
 
-/** Decides one PreToolUse hook call. */
+// Decides one PreToolUse hook call.
 export function decideTool(input: HookInput): Verdict {
   const cwd = input.cwd ?? process.cwd();
   if (input.tool_name === "Bash") {

@@ -25,7 +25,7 @@ export interface Report {
     removed: number;
     zones: Partial<Record<Zone, number>>;
   };
-  /** Removed lines that matched a signal, which the reviewer reads first. */
+  // Removed lines that matched a signal, which the reviewer reads first.
   removed: ReportMatch[];
   files: FileReport[];
 }

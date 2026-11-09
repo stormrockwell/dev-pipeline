@@ -7,7 +7,7 @@ export interface ChangedFile {
   removed: RemovedLine[];
 }
 
-/** Parses `git diff -U0` output into the added and removed lines of each file. */
+// Parses `git diff -U0` output into the added and removed lines of each file.
 export function parseUnifiedDiff(text: string): ChangedFile[] {
   const files: ChangedFile[] = [];
   let current: ChangedFile | undefined;
