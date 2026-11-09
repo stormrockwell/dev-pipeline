@@ -1,0 +1,1101 @@
+<title>Dev Pipeline Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a git-graph spine. Stages sit on the main line like commits, and the floor and the compounder run beside it as parallel lanes. */
+:root {
+  --paper: #f1f3f7;
+  --surface: #ffffff;
+  --ink: #17202d;
+  --muted: #566073;
+  --line: #cbd1dc;
+  --agent: #2a47cc;
+  --agent-tint: #e6eafb;
+  --human: #8f4f00;
+  --human-tint: #fbeedb;
+  --script: #0a6c5f;
+  --script-tint: #dff1ee;
+  --security: #ad1f38;
+  --security-tint: #fbe4e8;
+  --font-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 10px;
+  --gap: 14px;
+  --node: 32px;
+  --lane: 28px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1218;
+    --surface: #161b24;
+    --ink: #e5e8ee;
+    --muted: #9aa4b5;
+    --line: #2b3341;
+    --agent: #93a6ff;
+    --agent-tint: #1c2347;
+    --human: #f0ab4a;
+    --human-tint: #31240f;
+    --script: #48c9b4;
+    --script-tint: #0f2a26;
+    --security: #ff7d90;
+    --security-tint: #3a1820;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0e1218;
+  --surface: #161b24;
+  --ink: #e5e8ee;
+  --muted: #9aa4b5;
+  --line: #2b3341;
+  --agent: #93a6ff;
+  --agent-tint: #1c2347;
+  --human: #f0ab4a;
+  --human-tint: #31240f;
+  --script: #48c9b4;
+  --script-tint: #0f2a26;
+  --security: #ff7d90;
+  --security-tint: #3a1820;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: var(--paper); }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-inline: clamp(16px, 4vw, 48px);
+  padding-block: 40px 72px;
+}
+
+.wrap {
+  max-width: 1040px;
+  margin-inline: auto;
+  display: grid;
+  gap: 56px;
+}
+
+/* Header */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(34px, 5.2vw, 52px);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  margin: 10px 0 14px;
+  text-wrap: balance;
+}
+
+.lede {
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 16.5px;
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.mark {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+
+.mark.script { border-color: var(--script); border-radius: 3px; }
+.mark.agent { border-color: var(--agent); border-radius: 50%; }
+.mark.human { border-color: var(--human); border-radius: 3px; transform: rotate(45deg) scale(0.86); }
+.mark.security { border-color: var(--security); background: var(--security-tint); border-radius: 50%; }
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 18px;
+  border-radius: 5px;
+  flex: none;
+}
+
+.swatch.floor { background: var(--script-tint); border: 1px solid var(--script); }
+.swatch.comp { background: var(--agent-tint); border: 1px solid var(--agent); }
+
+/* Flow grid */
+.flow {
+  display: grid;
+  grid-template-columns: var(--lane) var(--node) minmax(0, 1fr) var(--lane);
+  column-gap: var(--gap);
+}
+
+.stage {
+  grid-column: 2 / 4;
+  display: grid;
+  grid-template-columns: var(--node) minmax(0, 1fr);
+  column-gap: var(--gap);
+  padding-bottom: 16px;
+}
+
+.node { position: relative; }
+
+.node::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  top: 0;
+  bottom: -16px;
+  background: var(--line);
+}
+
+.stage.first .node::before { top: 25px; }
+.stage.last .node::before { bottom: auto; height: 25px; }
+
+.dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 17px;
+  height: 17px;
+  margin: 17px auto 0;
+  background: var(--surface);
+  border: 3px solid var(--line);
+}
+
+.dot.script { border-color: var(--script); border-radius: 3px; }
+.dot.agent { border-color: var(--agent); border-radius: 50%; }
+.dot.human { border-color: var(--human); border-radius: 3px; transform: rotate(45deg) scale(0.9); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 18px 16px;
+  min-width: 0;
+}
+
+.card.human {
+  background: var(--human-tint);
+  border-color: color-mix(in srgb, var(--human) 35%, var(--line));
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.card h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.chip.script { color: var(--script); background: var(--script-tint); }
+.chip.agent { color: var(--agent); background: var(--agent-tint); }
+.chip.human { color: var(--human); background: var(--surface); border-color: color-mix(in srgb, var(--human) 40%, transparent); }
+.chip.security { color: var(--security); background: var(--security-tint); }
+.chip.shadow { color: var(--muted); background: transparent; border: 1px dashed var(--line); }
+
+.card p {
+  margin: 8px 0 0;
+  max-width: 70ch;
+}
+
+.out {
+  margin: 12px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.out b { font-weight: 500; color: var(--ink); }
+
+.cmd {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Lanes */
+.lane {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  padding-block: 18px;
+  margin-bottom: 16px;
+}
+
+.lane span {
+  writing-mode: vertical-rl;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lane.floor {
+  grid-column: 1;
+  grid-row: 5 / 9;
+  background: var(--script-tint);
+  color: var(--script);
+  border: 1px solid color-mix(in srgb, var(--script) 35%, transparent);
+}
+
+.lane.floor span { transform: rotate(180deg); }
+
+.lane.comp {
+  grid-column: 4;
+  grid-row: 1 / 10;
+  margin-top: 12px;
+  background: var(--agent-tint);
+  color: var(--agent);
+  border: 1px solid color-mix(in srgb, var(--agent) 35%, transparent);
+}
+
+.lane.comp::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  margin-left: -8px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 10px solid var(--agent);
+}
+
+/* Classify */
+.layers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 12px;
+}
+
+.layer {
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 9px;
+}
+
+.layer.script { border-color: color-mix(in srgb, var(--script) 45%, var(--line)); }
+.layer.agent { border-color: color-mix(in srgb, var(--agent) 45%, var(--line)); }
+.layer.human { border-color: color-mix(in srgb, var(--human) 45%, var(--line)); }
+
+.sep { color: var(--muted); font-family: var(--font-mono); }
+
+.phase { margin: 14px 0 0; }
+.phase + .layers { margin-top: 6px; }
+
+.tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.tier {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.tier.t3 {
+  color: var(--security);
+  background: var(--security-tint);
+  border-color: color-mix(in srgb, var(--security) 40%, transparent);
+}
+
+.tier.spike { border-style: dashed; color: var(--muted); }
+
+/* Work order */
+.wo {
+  margin: 12px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--human) 30%, var(--line));
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Shape */
+.sizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.size {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
+.size b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* Review round */
+.round {
+  display: grid;
+  margin-top: 14px;
+}
+
+.rstep,
+.rpar {
+  position: relative;
+}
+
+.rstep {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--surface);
+}
+
+.rstep b,
+.rbox b {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.rstep.sec,
+.rbox.sec {
+  background: var(--security-tint);
+  border-color: color-mix(in srgb, var(--security) 45%, var(--line));
+}
+
+.round > * + * { margin-top: 18px; }
+
+.round > * + *::before {
+  content: "";
+  position: absolute;
+  top: -19px;
+  left: 22px;
+  width: 2px;
+  height: 18px;
+  background: var(--line);
+}
+
+.rpar {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.rlabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.rgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.rbox {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--surface);
+}
+
+.rbox small {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.loops {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loops li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.loops svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  color: var(--agent);
+}
+
+.loops li.sec svg { color: var(--security); }
+
+.note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Finish */
+.prs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pr {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+}
+
+.pr b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.pr .label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1;
+  padding: 4px 7px;
+  margin: 4px 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.pr.zone .label {
+  color: var(--security);
+  border-color: color-mix(in srgb, var(--security) 45%, transparent);
+}
+
+.pr.zone {
+  background: var(--security-tint);
+  border-color: color-mix(in srgb, var(--security) 45%, var(--line));
+}
+
+/* Approve */
+.approvals {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 18px;
+  margin: 12px 0 0;
+  font-size: 13.5px;
+}
+
+.approvals dt {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--human);
+  padding-top: 1px;
+}
+
+.approvals dd { margin: 0; }
+
+/* Lower sections */
+.section h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.15;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+
+.section .sub {
+  color: var(--muted);
+  margin: 0 0 16px;
+  max-width: 62ch;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 820px;
+  font-size: 13.5px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+thead th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+tbody th {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+tbody tr:last-child th,
+tbody tr:last-child td { border-bottom: 0; }
+
+td.off { color: var(--muted); opacity: 0.5; }
+td.sec { color: var(--security); font-weight: 500; }
+td.hum { color: var(--human); font-family: var(--font-mono); font-size: 12.5px; }
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 32px;
+}
+
+.pair h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.pair .sub { margin-bottom: 10px; }
+
+.pair ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+}
+
+.pair code,
+.lessons code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.lessons {
+  display: grid;
+  grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.lessons dt,
+.lessons dd {
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lessons dt {
+  font-family: var(--font-display);
+  font-weight: 600;
+  padding-right: 16px;
+}
+
+.pair .lessons { grid-template-columns: 1fr; }
+.pair .lessons dt { border-bottom: 0; padding-bottom: 0; }
+.pair .lessons dd { padding-top: 2px; color: var(--muted); }
+
+footer {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gap: 8px;
+    --node: 22px;
+    --lane: 20px;
+  }
+
+  .card { padding: 12px 13px 14px; }
+  .chips { margin-left: 0; width: 100%; margin-top: 4px; }
+  .lane span { font-size: 10px; letter-spacing: 0.06em; }
+  .dot { width: 15px; height: 15px; margin-top: 16px; }
+  .lessons { grid-template-columns: 1fr; }
+  .lessons dt { border-bottom: 0; padding-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">dev-pipeline · STRATEGY.md</p>
+    <h1>Dev Pipeline Flow</h1>
+    <p class="lede">Developers describe what they want in plain words, and a router picks the lightest route: answer, report, quick change, change, debug, new project or spike. This chart is the change route, the full flow. Scripts make the calls that must not fail, agents judge, and humans approve. The floor runs on every change, and the compounder feeds what went wrong back into the rules.</p>
+    <ul class="legend" aria-label="Legend">
+      <li><span class="mark script"></span>Script, deterministic</li>
+      <li><span class="mark agent"></span>Agent</li>
+      <li><span class="mark human"></span>Human</li>
+      <li><span class="mark security"></span>Security, outranks every reviewer</li>
+      <li><span class="swatch floor"></span>Floor lane</li>
+      <li><span class="swatch comp"></span>Compounder lane</li>
+    </ul>
+  </header>
+
+  <main class="flow" aria-label="Pipeline stages">
+    <div class="lane floor"><span>Floor · hooks and CI on every change</span></div>
+    <div class="lane comp"><span>Compounder · what slipped and what slowed flows back into the pipeline</span></div>
+
+    <article class="stage first" style="grid-row: 1">
+      <div class="node"><span class="dot agent"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">01</span>
+          <h2>Intake</h2>
+          <div class="chips"><span class="chip agent">Orchestrator · Opus</span><span class="chip agent">Explorer · Sonnet</span></div>
+        </div>
+        <p>A developer describes the work, with no command to remember. The router names the route in one line and only this route runs the full flow; <span class="cmd">/work</span> stays as an optional shortcut. The orchestrator reads the repo profile, and an explorer writes what it finds to a notes file, so later agents start from pointers instead of pasted history. A quick triage decides whether this is a spike or real work, how much shaping it needs, and whether obvious zone words like login or payment call for a human from the start.</p>
+        <p class="out">Produces <b>notes file and triage</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 2">
+      <div class="node"><span class="dot agent"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">02</span>
+          <h2>Shape</h2>
+          <div class="chips"><span class="chip agent">Orchestrator · Opus</span></div>
+        </div>
+        <p>The orchestrator drafts the tasks and the files each one owns, so risk can be judged per task instead of guessed from the request. Paperwork matches the size of the work.</p>
+        <div class="sizes">
+          <div class="size"><b>Single task</b>The work order is the plan.</div>
+          <div class="size"><b>Medium</b>A task graph with file ownership.</div>
+          <div class="size"><b>Multi-session</b>A spec and tickets.</div>
+        </div>
+        <p class="out">Produces <b>draft tasks with owned files</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 3">
+      <div class="node"><span class="dot script"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">03</span>
+          <h2>Classify</h2>
+          <div class="chips"><span class="chip script">Rules</span><span class="chip agent">Orchestrator</span><span class="chip agent">Security reviewer</span></div>
+        </div>
+        <p>A tier belongs to a task, not the plan. Agent reviews follow each task, and tasks are grouped into PRs by human review path, so a person only reviews what needs a person. Every pass can only raise the risk.</p>
+        <p class="rlabel phase">Per task, at planning</p>
+        <div class="layers">
+          <span class="layer script">Rules on owned files and description</span>
+          <span class="sep">›</span>
+          <span class="layer agent">Orchestrator reads intent and can raise</span>
+        </div>
+        <p class="rlabel phase">Per commit, on the real diff</p>
+        <div class="layers">
+          <span class="layer script">Rules on the hunks and their callers</span>
+          <span class="sep">›</span>
+          <span class="layer agent">Security reviewer tags zones</span>
+        </div>
+        <p class="rlabel phase">At merge</p>
+        <div class="layers">
+          <span class="layer script">risk-gate recomputes in CI</span>
+          <span class="sep">›</span>
+          <span class="layer human">Peer approvals</span>
+        </div>
+        <p>The orchestrator catches vague requests at planning, such as "add an export button", which means data exposure and authorization even when no file name says so. Only a peer reviewer, never the author, can lower a tier or remove a zone, so a developer who misses the risk cannot talk the pipeline out of it.</p>
+        <div class="tiers" aria-label="Tiers">
+          <span class="tier">T0 Docs</span>
+          <span class="tier">T1 Presentation</span>
+          <span class="tier">T2 Logic</span>
+          <span class="tier t3">T3 Sensitive</span>
+          <span class="tier spike">Spike</span>
+        </div>
+        <p class="out">Produces <b>tier, gates and zones per task, and the PR split</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 4">
+      <div class="node"><span class="dot human"></span></div>
+      <div class="card human">
+        <div class="head">
+          <span class="num">04</span>
+          <h2>Work order</h2>
+          <div class="chips"><span class="chip human">Developer confirms</span></div>
+        </div>
+        <p>One screen lists the tasks, each task's tier, the gates beyond the defaults, the PR split and the estimated cost. In new projects and repos with a test suite, TDD is assumed and only appears when a task skips it. Only an existing codebase without a suite gets it as a question, with a recommendation. The developer replies "go" or edits a line. Autopilot skips this step below T3.</p>
+<pre class="wo">Task 1   CSV formatter              T2
+Task 2   REST route, permissions    T3   security tests, full review
+Task 3   Export button              T2   axe, a11y pass
+PR A     task 2, zone, 1 peer approval
+PR B     tasks 1 and 3, stacked on PR A, 1 approval
+Plan     serial, each task builds on the last; about 14 runs</pre>
+        <p class="out">Produces <b>approved tasks, gates and PR split</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 5">
+      <div class="node"><span class="dot agent"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">05</span>
+          <h2>Build</h2>
+          <div class="chips"><span class="chip agent">Implementer · Sonnet</span><span class="chip script">Stop hook</span></div>
+        </div>
+        <p>Each task gets a fresh implementer in its own worktree, with its own test database and cloned dependencies. Tasks run one at a time by default, and only tasks with zero overlap in files, interfaces or state run in parallel. Tests come first at the seams agreed in the work order. Only an existing codebase without a test suite gets asked first, with TDD recommended for large or sensitive work. A Stop hook runs the fast checks before an implementer can report done.</p>
+        <p class="out">Produces <b>green commits per task</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 6">
+      <div class="node"><span class="dot agent"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">06</span>
+          <h2>Review</h2>
+          <div class="chips"><span class="chip agent">Reviewers</span><span class="chip security">Security outranks all</span></div>
+        </div>
+        <p>Security wins every conflict, then correctness, then readability, then performance, then style.</p>
+        <div class="round">
+          <div class="rstep"><b>Simplifier edits.</b> Deletes, reuses and shrinks. Tests stay green, and zone code only gets proposals.</div>
+          <div class="rpar">
+            <p class="rlabel">Round 1, in parallel on the full diff</p>
+            <div class="rgrid">
+              <div class="rbox"><b>Spec</b><small>Matches the work order</small></div>
+              <div class="rbox"><b>Standards</b><small>OCR rules and REVIEW.md</small></div>
+              <div class="rbox"><b>Performance*</b><small>Waste always, scale on a yes</small></div>
+              <div class="rbox"><b>Design*</b><small>Tokens, boxes, then pixels</small></div>
+              <div class="rbox"><b>Accessibility*</b><small>axe plus a keyboard pass</small></div>
+              <div class="rbox sec"><b>Security</b><small>Every change, depth by tier</small></div>
+            </div>
+          </div>
+          <div class="rstep"><b>Merge findings.</b> The orchestrator drops duplicates and settles contradictions by precedence before anything is fixed, so reviewers never ping-pong.</div>
+          <div class="rstep"><b>One fix pass.</b> The implementer fixes the whole accepted list, and every finding gets an answer.</div>
+          <div class="rpar">
+            <p class="rlabel">Fix rounds, only the fix diff, routed by what it touches</p>
+            <div class="rgrid">
+              <div class="rbox"><b>Finding owners</b><small>Check their findings were addressed</small></div>
+              <div class="rbox"><b>Spec</b><small>When behavior changed</small></div>
+              <div class="rbox"><b>Simplifier, standards</b><small>When new code appeared</small></div>
+              <div class="rbox"><b>Performance</b><small>When queries or loops changed</small></div>
+              <div class="rbox"><b>Design, accessibility</b><small>When markup or CSS changed</small></div>
+              <div class="rbox sec"><b>Security</b><small>Every fix, depth by tier</small></div>
+            </div>
+          </div>
+        </div>
+        <ul class="loops">
+          <li><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13 2.5v3h-3"/></svg>Up to three rounds, then the orchestrator asks whether the approach needs rethinking. A fix larger than a third of the original diff gets a full round instead.</li>
+          <li class="sec"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8 13.2 4v4c0 3-2.3 5.3-5.2 6.2C5.1 13.3 2.8 11 2.8 8V4Z"/></svg>A security finding is never parked. Still open after three rounds, it blocks the PR and goes to a peer reviewer.</li>
+          <li class="sec"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13 2.5v3h-3"/></svg>Merging needs a security pass on the final commit, so any later change re-runs it, over the whole PR when zone code changed.</li>
+        </ul>
+        <p class="note">* when the tier or the diff calls for it</p>
+        <p class="out">Produces <b>verified findings, all answered</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 7">
+      <div class="node"><span class="dot agent"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">07</span>
+          <h2>Finish</h2>
+          <div class="chips"><span class="chip agent">Docs agent · Haiku, Sonnet</span><span class="chip human">Asks before push</span></div>
+        </div>
+        <p>The docs agent syncs versions and the changelog, then writes the PR body from the work order, the ledger and the diff, never from the chat. Every PR ends with an auditor list (which ran, which skipped and why), and findings fixed before the PR opened never appear, because human reading time is the bottleneck. The pipeline pushes the branch and opens a draft PR, and only humans merge. Secret scans check every commit being pushed, and on repos that have it, GitHub push protection blocks known secrets at the server, so sensitive data never leaves the laptop.</p>
+        <div class="prs">
+          <div class="pr zone"><b>Zone PR</b><span class="label">risk:high or risk:critical</span>T3 tasks with the component's whole security logic, a Human review required section and a review guide.</div>
+          <div class="pr"><b>Standard PR</b><span class="label">risk:medium</span>T2 tasks, plus T0 and T1 until they earn zero approvals.</div>
+          <div class="pr"><b>Low-risk PR</b><span class="label">risk:low</span>T0 and T1 tasks. Still a PR with the floor and agent review, and no human once revert rates earn it.</div>
+        </div>
+        <p>Independent PRs merge as soon as they pass. A PR that needs another stacks on it, so the peer reviewer of a zone PR reads only zone code.</p>
+        <p class="out">Produces <b>labeled draft PRs</b></p>
+      </div>
+    </article>
+
+    <article class="stage" style="grid-row: 8">
+      <div class="node"><span class="dot human"></span></div>
+      <div class="card human">
+        <div class="head">
+          <span class="num">08</span>
+          <h2>Approve</h2>
+          <div class="chips"><span class="chip human">Requester and reviewers</span></div>
+        </div>
+        <p>Humans approve on GitHub. Agents never fill a human slot, and an approval covers one commit.</p>
+        <dl class="approvals">
+          <dt>risk:low</dt><dd>T0, T1. 1 approval, dropping to 0 once revert rates stay flat</dd>
+          <dt>risk:medium</dt><dd>T2. 1 approval</dd>
+          <dt>risk:high</dt><dd>T3. 1 peer approval</dd>
+          <dt>risk:critical</dt><dd>Designated paths. 2 peer approvals</dd>
+        </dl>
+        <p>A required <span class="cmd">risk-gate</span> check enforces the label. It recomputes risk from the diff, so removing a label never lowers the bar, and it blocks merge until enough peers approve, because a ruleset cannot key approvals on a label.</p>
+        <p>A peer is any developer other than the author. The author never counts, bots never count, and only approvals of the latest commit count.</p>
+        <p class="out">Produces <b>merge</b></p>
+      </div>
+    </article>
+
+    <article class="stage last" style="grid-row: 9">
+      <div class="node"><span class="dot script"></span></div>
+      <div class="card">
+        <div class="head">
+          <span class="num">09</span>
+          <h2>Record</h2>
+          <div class="chips"><span class="chip script">Gate record</span></div>
+        </div>
+        <p>Gates run, gates skipped with reasons, findings and cost go into the PR as hidden JSON. A run log records every stage's timing, every dispatch's tokens and turns, every review round, every tool call and every wait on a human. The compounder reads both alongside human review comments, reverts and escaped bugs.</p>
+        <p class="out">Produces <b>evidence for the compounder</b></p>
+      </div>
+    </article>
+  </main>
+
+  <section class="section" aria-labelledby="tiers-title">
+    <h2 id="tiers-title">What each tier runs</h2>
+    <p class="sub">The classifier picks the tier from the diff, never from the author. New projects always get a suite and TDD, and TDD is assumed wherever a suite exists. Only an existing codebase without a suite gets asked, with TDD recommended for large or sensitive work and against it for a few low-risk functions.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Tier</th>
+            <th scope="col">Tests</th>
+            <th scope="col">Simplifier</th>
+            <th scope="col">Spec and standards</th>
+            <th scope="col">Performance</th>
+            <th scope="col">Security</th>
+            <th scope="col">Design</th>
+            <th scope="col">Accessibility</th>
+            <th scope="col">Humans</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">T0 Docs</th>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td>comment and PR standard</td>
+            <td class="off">·</td>
+            <td class="sec">light pass</td>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td class="hum">1, target 0</td>
+          </tr>
+          <tr>
+            <th scope="row">T1 Presentation</th>
+            <td>visual regression</td>
+            <td class="off">·</td>
+            <td>standards</td>
+            <td class="off">·</td>
+            <td class="sec">light pass</td>
+            <td>when a frame is linked</td>
+            <td>axe and agent pass</td>
+            <td class="hum">1, target 0</td>
+          </tr>
+          <tr>
+            <th scope="row">T2 Logic</th>
+            <td>TDD at agreed seams</td>
+            <td>edits</td>
+            <td>both</td>
+            <td>on data or request-path signals</td>
+            <td class="sec">quick pass, every commit</td>
+            <td class="off">·</td>
+            <td>when markup or front-end JS changes</td>
+            <td class="hum">1</td>
+          </tr>
+          <tr>
+            <th scope="row">T3 Sensitive</th>
+            <td>TDD plus security tests</td>
+            <td>proposals only in zone code</td>
+            <td>both</td>
+            <td>on signals</td>
+            <td class="sec">full review with verifier vote, every commit</td>
+            <td class="off">·</td>
+            <td>when markup or front-end JS changes</td>
+            <td class="hum">1 or 2</td>
+          </tr>
+          <tr>
+            <th scope="row">Spike</th>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td>floor</td>
+            <td class="off">·</td>
+            <td class="off">·</td>
+            <td class="hum">cannot merge</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section pair">
+    <div>
+      <h3><span class="mark script"></span>The floor</h3>
+      <p class="sub">Runs on every change through hooks and CI. Nobody can skip it, and it costs almost nothing.</p>
+      <ul>
+        <li>PHPCS with the WordPress security and prepared SQL sniffs</li>
+        <li>PHPStan, and Psalm taint analysis</li>
+        <li>Semgrep, and ESLint with <code>no-unsanitized</code></li>
+        <li>Secret scanning with gitleaks and an entropy check, before every commit and every push</li>
+        <li>Checks for external scripts, iframes, form targets and URLs in templates and CSS</li>
+        <li><code>composer audit</code> and <code>npm audit</code></li>
+        <li>axe accessibility check against WCAG 2.2 AA</li>
+      </ul>
+    </div>
+    <div>
+      <h3><span class="mark security"></span>Human review zones</h3>
+      <p class="sub">Code that always gets a human. It moves into its own PR labeled risk:high or risk:critical, while everything else still ships as a normal PR.</p>
+      <ul>
+        <li>Authentication, sessions and cookies</li>
+        <li>Authorization and capability checks</li>
+        <li>Nonces and CSRF protection</li>
+        <li>Input reaching queries, uploads, shell calls or redirects</li>
+        <li>Browser sinks such as <code>innerHTML</code></li>
+        <li>Third-party scripts, iframes, forms, fonts and CSS imports</li>
+        <li>New environment, credential or configuration files</li>
+        <li>Personal data being collected, logged or exported</li>
+        <li>Schema changes, bulk deletes and uninstall routines</li>
+        <li>Helpers that zone code calls, even harmless-looking ones</li>
+        <li>Cryptography, secrets and security suppressions</li>
+        <li>The guardrails: <code>.github</code>, <code>.claude</code>, <code>.pipeline</code>, linter configs and dependencies</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="comp-title">
+    <h2 id="comp-title">What the compounder changes</h2>
+    <p class="sub">It asks two questions of every run: what slipped through, and what slowed the pipeline down. Every lesson becomes a proposed change with an eval or a before and after measurement, and a human approves each one.</p>
+    <div class="pair">
+      <div>
+        <h3>What slipped through</h3>
+        <dl class="lessons">
+          <dt>Mechanical mistake</dt><dd>A lint rule, sniff, Semgrep rule or hook</dd>
+          <dt>Judgment call</dt><dd>A line in the reviewer's <code>REVIEW.md</code></dd>
+          <dt>Missed sensitive code</dt><dd>A rule in <code>sensitive.yml</code></dd>
+          <dt>Wrong tier</dt><dd>A classifier rule change</dd>
+          <dt>Instruction with no effect</dt><dd>A deletion</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>What slowed it down</h3>
+        <dl class="lessons">
+          <dt>A stage that waits</dt><dd>Parallel work, a cached setup, or a timely notification</dd>
+          <dt>A loop that repeats</dt><dd>A sharper brief, or a check moved into the Stop hook</dd>
+          <dt>A repeated tool sequence</dt><dd>A script in the pipeline CLI, at zero tokens</dd>
+          <dt>A file every agent reads</dt><dd>A line in the notes or the brief</dd>
+          <dt>A role a cheaper model handles</dt><dd>A model change, proven in evals</dd>
+          <dt>An expensive model on mechanical work</dt><dd>A routing rule, or a script</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <footer>From STRATEGY.md, sections 4 to 7 · 9 November 2026</footer>
+</div>
