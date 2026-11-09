@@ -35,13 +35,13 @@ dev-pipeline/
 
 | ID | Task | Executor | Needs | Done when |
 |---|---|---|---|---|
-| 0.1 | Set the recall and false-alarm targets for Phase 3; decisions 1, 3, 7 and 13 are settled | You | | targets recorded in `docs/STRATEGY.md` |
+| 0.1 | Done: decisions 1, 3, 7 and 13 settled; Phase 3 targets set at 90% recall and at most 10% false alarms | You | | recorded in `docs/STRATEGY.md` |
 | 0.2 | Create the pipeline repo under stormrockwell: protected `main` as the trunk, squash merges, conventional PR titles, a `.gitignore`, and no release workflow until ship | Claude | | the first PR merges through protection |
 | 0.3 | Baseline Media on Autopilot's history: changes per week, review comments, time to merge, reverts | Haiku writes a `gh api` script | 0.2 | numbers in `docs/SPIKES.md` |
 | 0.4 | Spike parallel WordPress tests: per-worktree SQLite against Playground CLI, four runs at once | Sonnet | | time, flakiness and a pick recorded |
 | 0.5 | Spike the eval harness: a minimal plugin with three planted-defect cases | Sonnet | | scaffold, regex graders and sandbox proven |
 | 0.6 | Spike the zone scan: a prototype scanner over Media on Autopilot's history and the MCP server's code, compared with your calls | Haiku builds it, you judge | 0.3 | recall and false alarms per zone category |
-| 0.7 | Measure plan usage of one real work order on Media on Autopilot with today's Superpowers flow | Sonnet, from transcripts | | usage per stage recorded as the headroom baseline |
+| 0.7 | Deferred: the BunnyCDN transcripts are gone, so the first instrumented work order in Phase 2 sets the plan usage baseline, using `spikes/0.7-usage/usage.mjs` | | | |
 | 0.8 | Spike standards review: borrowed OCR rules against OCR delegation | Sonnet | | precision, recall and usage per arm, pick recorded |
 
 Tasks 0.4, 0.5, 0.7 and 0.8 share nothing and run in parallel.
@@ -85,13 +85,13 @@ After 1.2, tasks 1.3, 1.4, 1.5, 1.7, 1.8 and 1.10 share nothing and run in paral
 
 Decision 4 (environment profile) is needed before teammates join in Phase 5.
 
-**Exit.** All four scenarios pass as plugin evals, one real feature ships on Media on Autopilot through the change route, a risky change on the MCP server lands as a zone PR, and plan usage per work order sits at or below the 0.7 baseline.
+**Exit.** All four scenarios pass as plugin evals, one real feature ships on Media on Autopilot through the change route, a risky change on the MCP server lands as a zone PR, and the first work orders record the plan usage baseline that 0.7 could not.
 
 ## Phase 3: security, performance, accessibility and design
 
 | ID | Task | Executor | Needs | Done when |
 |---|---|---|---|---|
-| 3.1 | Security reviewer: light, quick and full depths, WordPress companion, adversarial verifier, review guide, per-SHA status, never-parked rule | Opus for prompts and the companion, Sonnet for plumbing | 2.6 | the planted suite meets the 0.1 recall target |
+| 3.1 | Security reviewer: light, quick and full depths, WordPress companion, adversarial verifier, review guide, per-SHA status, never-parked rule | Opus for prompts and the companion, Sonnet for plumbing | 2.6 | the planted suite reaches 90% recall |
 | 3.2 | Mutation check on zone code | Sonnet | 3.1 | a tautological security test blocks the PR |
 | 3.3 | Planted vulnerability suite and clean controls | Sonnet writes the cases, Opus reviews them | 0.5 | at least two cases per zone category |
 | 3.4 | Reach check: the callers of changed functions | Sonnet | 1.6 | the helper gap case passes |

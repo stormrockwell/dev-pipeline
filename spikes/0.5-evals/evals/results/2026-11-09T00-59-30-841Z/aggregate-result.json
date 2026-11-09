@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.319",
+  "startedAt": "2026-11-09T00:59:30.841Z",
+  "durationSeconds": 75,
+  "costUsd": 0.2779305,
+  "partial": false,
+  "suite": {
+    "root": "/Users/storm/Documents/web/dev-pipeline/spikes/0.5-evals",
+    "ablation": "none",
+    "modelOverride": "sonnet",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "wp-eval-spike",
+        "version": "0.0.1",
+        "path": "/Users/storm/Documents/web/dev-pipeline/spikes/0.5-evals"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "clean-control",
+      "dir": "evals/clean-control",
+      "source": "mixed",
+      "promptMarkdown": "Please do a security review of the latest commit in this WordPress plugin repo and write what you find to findings.md.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 12,
+      "graders": [
+        {
+          "name": "findings-written",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "findings.md"
+            },
+            "pattern": "No findings|\\[(MEDIUM|LOW)\\]",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-high-severity",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "findings.md"
+            },
+            "pattern": "\\[(CRITICAL|HIGH)\\]",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?wp-security-review\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.0658035,
+            "judgeCostUsd": 0,
+            "durationSeconds": 20,
+            "startedAt": "2026-11-09T00:59:30.873Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-4FeWjE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "findings-written",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched No findings|\\[(MEDIUM|LOW)\\]",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "no-high-severity",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "missing-nonce-cap",
+      "dir": "evals/missing-nonce-cap",
+      "source": "mixed",
+      "promptMarkdown": "Please do a security review of the latest commit in this WordPress plugin repo and write what you find to findings.md.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 12,
+      "graders": [
+        {
+          "name": "reports-nonce-and-cap",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "findings.md"
+            },
+            "pattern": "(?=[\\s\\S]*nonce)(?=[\\s\\S]*(capabilit|current_user_can))",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?wp-security-review\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.07227460000000002,
+            "judgeCostUsd": 0,
+            "durationSeconds": 19,
+            "startedAt": "2026-11-09T00:59:51.192Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-03aRVE/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reports-nonce-and-cap",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched (?=[\\s\\S]*nonce)(?=[\\s\\S]*(capabilit|current_user_can))",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "sqli",
+      "dir": "evals/sqli",
+      "source": "mixed",
+      "promptMarkdown": "Please do a security review of the latest commit in this WordPress plugin repo and write what you find to findings.md.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 12,
+      "graders": [
+        {
+          "name": "reports-sqli",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "findings.md"
+            },
+            "pattern": "sql.?injection|prepare",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?wp-security-review\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.07299919999999999,
+            "judgeCostUsd": 0,
+            "durationSeconds": 18,
+            "startedAt": "2026-11-09T01:00:10.666Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-8qaLzn/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reports-sqli",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched sql.?injection|prepare",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    },
+    {
+      "name": "unescaped-output",
+      "dir": "evals/unescaped-output",
+      "source": "mixed",
+      "promptMarkdown": "Please do a security review of the latest commit in this WordPress plugin repo and write what you find to findings.md.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 12,
+      "graders": [
+        {
+          "name": "reports-xss",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "findings.md"
+            },
+            "pattern": "xss|cross.?site|unescaped|esc_html|esc_attr|escap",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "skill-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?wp-security-review\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 9,
+            "costUsd": 0.0668532,
+            "judgeCostUsd": 0,
+            "durationSeconds": 17,
+            "startedAt": "2026-11-09T01:00:28.490Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-jKLCDt/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reports-xss",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched xss|cross.?site|unescaped|esc_html|esc_attr|escap",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "skill-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 4,
+    "casesPassed": 4,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}
