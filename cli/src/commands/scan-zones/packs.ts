@@ -104,9 +104,15 @@ const signatureComparison = [
   `${operator}${notAbsent}(?:\\w+\\.)*sig\\b`,
 ].join("|");
 
-/** A header set call, or an object property whose value is a literal or a call, so a TypeScript type is not a match. */
-const authorizationHeaderBuilt =
-  "\\bheaders\\.(set|append)\\(\\s*['\"]authorization['\"]|['\"]?\\bauthorization['\"]?\\s*:\\s*(?:`|['\"]|[\\w$.]+\\()";
+/**
+ * A header set call, or an object property whose value is a template, a call, a scheme such as Bearer, or a
+ * variable. A bare string, as in a name map, and a TypeScript type are not matches.
+ */
+const authorizationHeaderBuilt = [
+  "\\bheaders\\.(set|append)\\(\\s*['\"]authorization['\"]",
+  "['\"]?\\bauthorization['\"]?\\s*:\\s*(?:`|['\"](?:Bearer|Basic|Digest|Token|Hmac|Signature|AWS4)|[\\w$.]+\\()",
+  "['\"]?\\bauthorization['\"]?\\s*:\\s*(?!(?:string|number|boolean|any|unknown|undefined|null)\\b)[A-Za-z_$][\\w$.]*\\s*[,}]",
+].join("|");
 
 export const node: Pack = {
   name: "node",

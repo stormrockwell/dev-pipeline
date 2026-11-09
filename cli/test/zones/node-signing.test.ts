@@ -51,6 +51,8 @@ describe("request signing", () => {
     "const init = { headers: { Authorization: `Bearer ${token}` } };",
     "const init = { headers: { 'Authorization': buildAuth(request) } };",
     'const init = { headers: { authorization: "Basic " + encoded } };',
+    "const init = { headers: { Authorization: token } };",
+    "const init = { headers: { authorization: header, accept: 'x' } };",
   ])("flags the Authorization header built in %s as auth", (line) => {
     expect(zonesOf(line)).toContain("auth");
   });
@@ -78,6 +80,9 @@ describe("request signing", () => {
     "type Init = { authorization?: string };",
     "const value = response.headers.get('Authorization');",
     "const authorization = 'x';",
+    'const legacy = { authorization: "authz", authentication: "auth" };',
+    "interface Headers { authorization: string, accept: string }",
+    "type Init = { headers: { authorization: string } };",
   ])("stays quiet on %s", (line) => {
     expect(zonesOf(line)).toEqual([]);
   });
