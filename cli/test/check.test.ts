@@ -7,12 +7,14 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { findOnPath, git } from "./helpers/repo.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bin = join(root, "bin", "pipeline");
@@ -216,6 +218,116 @@ describe("detection", () => {
     const { status, stderr } = check("--path", join(scratch, "nope"));
     expect(status).toBe(1);
     expect(stderr.trimEnd().split("\n")).toHaveLength(1);
+  });
+});
+
+/** Makes the repo a git repo and puts git next to the fakes, because the tests run with only the fakes on PATH. */
+function gitInit(): void {
+  symlinkSync(findOnPath("git"), join(fakes, "git"));
+  git(repo, "init", "-q");
+}
+
+describe("nested lockfiles", () => {
+  it("audits every committable package-lock.json in its own directory", () => {
+    gitInit();
+    touch("package-lock.json", "{}");
+    touch("cloudflare/delivery-worker/package-lock.json", "{}");
+    touch("cloudflare/control-plane/package-lock.json", "{}");
+    const npm = fake("npm");
+    const { names } = json();
+    expect(names).toEqual([
+      "npm-audit",
+      "npm-audit cloudflare/control-plane",
+      "npm-audit cloudflare/delivery-worker",
+      "semgrep",
+      "gitleaks",
+      "axe",
+    ]);
+    const cwds = calls(npm).map((call) => call.cwd).sort();
+    expect(cwds).toEqual(
+      [repo, join(repo, "cloudflare/control-plane"), join(repo, "cloudflare/delivery-worker")]
+        .map((path) => realpathSync(path))
+        .sort(),
+    );
+    for (const call of calls(npm)) expect(call.args).toEqual(["audit", "--omit=dev"]);
+  });
+
+  it("audits a composer.lock in a subdirectory", () => {
+    gitInit();
+    touch("composer.lock", "{}");
+    touch("plugins/seo/composer.lock", "{}");
+    const composer = fake("composer");
+    expect(json().names).toEqual(["composer-audit", "composer-audit plugins/seo", "semgrep", "gitleaks", "axe"]);
+    expect(calls(composer)).toHaveLength(2);
+  });
+
+  it("audits nested lockfiles when there is no root lockfile", () => {
+    gitInit();
+    touch("app/package-lock.json", "{}");
+    const npm = fake("npm");
+    expect(json().names).toContain("npm-audit app");
+    expect(calls(npm)[0].cwd).toBe(realpathSync(join(repo, "app")));
+  });
+
+  it("fails the check when one nested audit fails", () => {
+    gitInit();
+    touch("package-lock.json", "{}");
+    touch("worker/package-lock.json", "{}");
+    // The fake fails only when started inside the worker directory.
+    const npm = fake("npm");
+    writeFileSync(
+      npm,
+      `#!${process.execPath}
+if (process.argv.includes("--help")) process.exit(0);
+if (process.cwd().endsWith("worker")) { process.stdout.write("1 high vulnerability\\n"); process.exit(1); }
+`,
+    );
+    const { parsed, status } = json();
+    expect(status).toBe(1);
+    const byName = Object.fromEntries(parsed.tools.map((entry) => [entry.tool, entry]));
+    expect(byName["npm-audit"]).toMatchObject({ status: "passed" });
+    expect(byName["npm-audit worker"]).toMatchObject({ status: "failed", exitCode: 1 });
+  });
+
+  it("skips lockfiles under node_modules and vendor", () => {
+    gitInit();
+    touch("node_modules/dep/package-lock.json", "{}");
+    touch("web/node_modules/dep/package-lock.json", "{}");
+    touch("vendor/pkg/composer.lock", "{}");
+    touch("vendor/pkg/package-lock.json", "{}");
+    fake("npm");
+    fake("composer");
+    expect(json().names).toEqual(["semgrep", "gitleaks", "axe"]);
+  });
+
+  it("skips git-ignored lockfiles", () => {
+    gitInit();
+    touch(".gitignore", "build/\n");
+    touch("build/package-lock.json", "{}");
+    fake("npm");
+    expect(json().names).not.toContain("npm-audit build");
+  });
+
+  it("reports a missing npm for each lockfile", () => {
+    gitInit();
+    touch("package-lock.json", "{}");
+    touch("a/package-lock.json", "{}");
+    const { parsed } = json();
+    const rows = parsed.tools.filter((entry) => entry.tool.startsWith("npm-audit"));
+    expect(rows.map((row) => row.status)).toEqual(["missing", "missing"]);
+  });
+
+  it("keeps a single row named npm-audit when only the root has a lockfile", () => {
+    gitInit();
+    touch("package-lock.json", "{}");
+    fake("npm");
+    expect(json().names).toEqual(["npm-audit", "semgrep", "gitleaks", "axe"]);
+  });
+
+  it("finds no nested lockfiles outside a git repo", () => {
+    touch("app/package-lock.json", "{}");
+    fake("npm");
+    expect(json().names).toEqual(["semgrep", "gitleaks", "axe"]);
   });
 });
 

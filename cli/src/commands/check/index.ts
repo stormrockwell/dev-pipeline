@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { resolveBinary, run } from "./exec.ts";
@@ -38,7 +38,8 @@ function summarize(stdout: string, stderr: string): string {
   return text.length > 200 ? `${text.slice(0, 197)}...` : text;
 }
 
-async function runTool(tool: ToolSpec, dir: string, timeoutSeconds: number): Promise<ToolResult> {
+async function runTool(tool: ToolSpec, root: string, timeoutSeconds: number): Promise<ToolResult> {
+  const dir = tool.subdir ? join(root, tool.subdir) : root;
   const exe = resolveBinary(tool.binary, dir, tool.localDirs);
   if (!exe) {
     return {

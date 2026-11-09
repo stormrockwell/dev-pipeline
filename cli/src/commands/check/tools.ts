@@ -1,10 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { probe } from "./exec.ts";
+import { committableFiles } from "./scope.ts";
 
 export interface ToolSpec {
   /** Stable identifier used in output and in the JSON record. */
   id: string;
+  /** Repo relative directory the tool runs in, for a tool that covers one lockfile of a nested project. */
+  subdir?: string;
   binary: string;
   /** Project directories searched before PATH. */
   localDirs: string[];
@@ -151,10 +154,28 @@ const gitleaks: ToolSpec = {
       : ["detect", "--no-git", "--source", ".", "--no-banner", "--redact"],
 };
 
+/** Gives one lockfile its own row, so a nested project is named in the output and fails on its own. */
+function forSubdir(tool: ToolSpec, subdir: string): ToolSpec {
+  return { ...tool, id: `${tool.id} ${subdir}`, subdir };
+}
+
+/**
+ * Finds the directories below the root that hold a lockfile the repo would commit. Dependency
+ * directories are skipped because they hold third party lockfiles that the project does not own.
+ */
+function nestedLockfileDirs(files: string[], lockfile: string): string[] {
+  const dirs = files
+    .filter((path) => path.endsWith(`/${lockfile}`))
+    .map((path) => path.slice(0, -(lockfile.length + 1)))
+    .filter((dir) => !dir.split("/").some((segment) => segment === "node_modules" || segment === "vendor"));
+  return [...new Set(dirs)].sort();
+}
+
 /** Returns the tools that apply to a repo, in the order they run. */
 export function detectTools(dir: string): ToolSpec[] {
   const manifest = packageJson(dir);
   const tools: ToolSpec[] = [];
+  const files = committableFiles(dir) ?? [];
 
   if (has(dir, "composer.json", ...phpcsConfigs)) tools.push(phpcs);
   if (has(dir, "phpstan.neon", "phpstan.neon.dist")) tools.push(phpstan);
@@ -162,7 +183,9 @@ export function detectTools(dir: string): ToolSpec[] {
   if (manifest && (has(dir, ...eslintConfigs) || "eslintConfig" in manifest)) tools.push(eslint);
   if (has(dir, ...stylelintConfigs) || (manifest && "stylelint" in manifest)) tools.push(stylelint);
   if (has(dir, "composer.lock")) tools.push(composerAudit);
+  for (const sub of nestedLockfileDirs(files, "composer.lock")) tools.push(forSubdir(composerAudit, sub));
   if (has(dir, "package-lock.json")) tools.push(npmAudit);
+  for (const sub of nestedLockfileDirs(files, "package-lock.json")) tools.push(forSubdir(npmAudit, sub));
   tools.push(semgrep, gitleaks);
 
   return tools;
