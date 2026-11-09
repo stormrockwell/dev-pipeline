@@ -63,7 +63,7 @@ These mechanisms transfer directly:
 - **The change sets the tier, not the author.** A classifier reads the diff and requires zero, one or two human approvals. A second classifier can add an approval but never removes one. Paths that owners mark sensitive, and CI workflows, always need a person.
 - **Agents never fill a human slot.** Automated review can clear a low-risk change, and a bot approval never counts as a person's.
 - **An approval covers one commit.** New commits dissolve earlier approvals.
-- **A person is accountable for every change.** The requester counts as one reviewer for agent-written code, and only trusted, repo-listed authors get the lighter paths.
+- **A person is accountable for every change.** The requester is the author of agent-written code and never counts as a reviewer, so a peer approves.
 - **Findings are verified before they post.** Several agents hunt in parallel, and a separate group votes on each finding. Style is left to linters, findings are tagged Important, Nit or Pre-existing, and every finding gets an answer.
 - **Review converges.** AI review stops at three rounds and asks whether the approach needs rethinking. Later rounds re-review only the new diff, report a bug class once instead of every instance, and never repeat a finding. Mean rounds to pass fell from 2.08 to 1.32.
 - **`REVIEW.md` tells the reviewer what matters** in each part of the code and caps the nits, while `CLAUDE.md` describes the project.
@@ -187,7 +187,7 @@ Two signals weigh more than the rest. A removed line that matched a signal, such
 3. **When the zone work cannot stand alone**, it stays in one PR in dedicated commits, and the PR body opens with a "Human review required" section that links each file and line range.
 4. **Before the PR opens**, a deterministic scan re-runs on the actual diff. Unplanned zone hunks raise the tier and notify the user. When a large PR buries a small zone change, the pipeline proposes the split and performs it in a worktree.
 5. **On GitHub**, labels show each PR's risk and merge rules enforce it, as "Labels and merge rules" below describes.
-6. **Agents advise, and humans approve.** An agent never approves a zone PR or marks it ready. Human review in a zone is part of the floor, so no involvement level and no bypass removes it. Repo policy only decides who may approve.
+6. **Agents advise, and humans approve.** An agent never approves a zone PR or marks it ready. Human review in a zone is part of the floor, so no involvement level and no bypass removes it. The only rule about who approves is that the author never does.
 
 ### How many humans
 
@@ -195,14 +195,14 @@ The tier sets the number of human approvals, and the author never does.
 
 | Tier | Human approvals at launch | Target once metrics allow |
 |---|---|---|
-| T0 Docs, T1 Presentation | 1 | 0, after automated review and checks pass |
-| T2 Logic | 1 | 1 |
-| T3 Sensitive | 1 from zone approvers | 1 |
-| T3 on designated paths (auth core, payments, CI workflows, pipeline guardrails) | 2, at least 1 from zone approvers | 2 |
+| T0 Docs, T1 Presentation | 1 peer | 0, after automated review and checks pass |
+| T2 Logic | 1 peer | 1 |
+| T3 Sensitive | 1 peer | 1 |
+| T3 on designated paths (auth core, payments, CI workflows, pipeline guardrails) | 2 peers | 2 |
 
 The pipeline starts with a human on every PR and removes one only where the data supports it. A tier moves to zero approvals once its revert and incident rates stay flat over 100 merged PRs. That is the software-factory rule of opening the throttle as the brakes earn trust.
 
-The requester owns every change the agent writes. Marking a draft PR ready is the requester's attestation that they read the diff. For trusted authors listed in the repo profile, that attestation counts as one approval, as at Anthropic. For everyone else, the required approvals come from people other than the requester, which steers newer developers toward a second pair of eyes without slowing seniors down.
+The requester owns every change the agent writes, and agents push under the requester's account, so the requester is the author. Marking a draft PR ready is the requester's attestation that they read the diff, and it never counts as an approval. A peer is any human developer other than the author. Only approvals of the latest commit count, and a bot never does. This steers every developer toward a second pair of eyes.
 
 The classification layers in section 6 (rules, then the security reviewer's zone call, then the orchestrator) can add an approval or a zone when they see risk the rules missed. None of them can remove one.
 
@@ -214,17 +214,16 @@ Every change goes through a PR, including the automatic path, so the floor, the 
 |---|---|---|
 | `risk:low` | T0, T1 | 1 approval until those tiers earn zero, then none |
 | `risk:medium` | T2 | 1 approval |
-| `risk:high` | T3 | 1 approval from zone approvers |
-| `risk:critical` | T3 on designated paths | 2 approvals, at least one from zone approvers |
+| `risk:high` | T3 | 1 peer approval |
+| `risk:critical` | T3 on designated paths | 2 peer approvals |
 
-Zone labels say why a PR is sensitive: `zone:auth`, `zone:authz`, `zone:csrf`, `zone:input`, `zone:crypto`, `zone:secrets`, `zone:third-party`, `zone:privacy`, `zone:data-loss` and `zone:guardrails`. They route the review request to the right people and give the compounder clean data.
+Zone labels say why a PR is sensitive: `zone:auth`, `zone:authz`, `zone:csrf`, `zone:input`, `zone:crypto`, `zone:secrets`, `zone:third-party`, `zone:privacy`, `zone:data-loss` and `zone:guardrails`. They tell the reviewer why a PR is sensitive and give the compounder clean data.
 
-GitHub cannot require a reviewer because of a label. Rulesets can require approvals from a team for matching file paths (the required reviewers rule, with a minimum approval count), and CODEOWNERS works by path too, but neither reads labels. Enforcement therefore has two parts:
+GitHub cannot require a reviewer because of a label, and a ruleset cannot key an approval count on one either. Any developer other than the author may approve, so there is no zone team and no path based reviewer rule. A `risk-gate` check enforces the counts instead.
 
-1. **Path zones use GitHub's native rules.** A ruleset on the default branch requires the zone approvers team for every path in `sensitive.yml`, with a minimum of two approvals on designated paths. This is the strongest guarantee, because nothing inside the PR can change it. Consolidating security logic into known modules moves more enforcement here over time.
-2. **A `risk-gate` check covers the rest.** A small workflow runs on every push, label change and review, and its result is a required status check. It recomputes risk from the diff with the same scan the pipeline uses, takes the higher of that and the PR's labels, corrects the labels when they disagree, requests the required reviewers, and fails until the right approvals exist on the latest commit. Because it recomputes from the diff, removing a label never lowers the requirement. Marketplace actions such as label-required-approvals map labels to approvers and make a reasonable starting point, but they trust the label, so the gate adds the recomputation. Checking team membership needs a GitHub App token with organization members read access.
+`risk-gate` is a required status check. A small workflow runs on every push, label change and review. It recomputes risk from the diff with the same scan the pipeline uses, takes the higher of that and the PR's labels, corrects the labels when they disagree, and fails until the peer approvals exist on the latest commit, one for `risk:high` and two for `risk:critical`. An approval from the author or a bot does not count, and neither does an approval of an older commit. Because it recomputes from the diff, removing a label never lowers the requirement. Marketplace actions such as label-required-approvals map labels to approvers and make a reasonable starting point, but they trust the label, so the gate adds the recomputation. If the gate cannot read the reviews, it fails.
 
-The ruleset also requires a PR for every change, dismisses stale approvals, requires approval of the latest push, requires `pipeline check`, the security status and `risk-gate`, blocks force pushes, and grants no bypass to bots or agents. Its own approval count stays at zero, because `risk-gate` sets the count per PR.
+The ruleset requires a PR for every change, dismisses stale approvals, requires approval of the latest push, requires `pipeline check`, the security status and `risk-gate`, blocks force pushes, and grants no bypass to bots or agents. Its own approval count stays at zero, which lets a low-risk PR reach zero approvals once that tier earns it, and `risk-gate` sets the count per PR.
 
 A `risk:low` PR that needs no approval still merges by a person. The requester merges it, or turns on auto-merge, once the checks pass. Agents never merge.
 
@@ -236,7 +235,7 @@ The security reviewer turns its output into a guide for the human, written as a 
 
 The pipeline assumes the developer may not recognize sensitive code, so no step relies on the developer's judgment to find it.
 
-- **The developer cannot lower risk.** Anyone can raise a tier or add a zone. Removing a zone or lowering a T3 task needs a zone approver, so editing the work order to say "this is just a button" does not stick.
+- **The developer cannot lower risk.** Anyone can raise a tier or add a zone. Removing a zone or lowering a T3 task needs a peer reviewer, never the author, so editing the work order to say "this is just a button" does not stick.
 - **Three detectors run independently.** At planning, the rules and the orchestrator read each task. On the code, the rules and the security reviewer read every hunk. At merge, `risk-gate` recomputes risk in CI and GitHub's path rules apply. A zone missed at one point is caught at the next.
 - **Reach counts.** A change to a function that zone code calls is zone code, even when the function looks harmless, such as a sanitizing helper or a query builder. The classifier finds the callers of every changed function with the language server or a symbol search, and raises the task when a caller sits in a zone.
 - **Signals match the framework.** The WordPress signals miss Laravel's `Gate::allows`, Express middleware and Next.js API routes, so init picks a signal pack for each framework it detects, and the compounder adds patterns that slipped through.
@@ -313,12 +312,12 @@ Paperwork scales with the work. For a single task the work order is the plan. A 
 | T0 Docs | Markdown, readme, copy | none | comment and PR standard, light security pass | 1, target 0 |
 | T1 Presentation | CSS, SCSS, static markup | visual regression when a baseline exists, axe accessibility check | standards, light security pass, design when a Figma frame is linked | 1, target 0 |
 | T2 Logic | PHP or JS behavior | TDD at agreed seams, axe check when markup or front-end JS changes | simplifier, standards, spec, quick security review, performance when data or request-path signals appear, accessibility when markup or front-end JS changes | 1 |
-| T3 Sensitive | any human review zone | TDD plus security tests | simplifier (proposals only in zone code), standards, spec, full security review with a verifier vote, performance when signals appear | 1 from zone approvers, 2 on designated paths |
+| T3 Sensitive | any human review zone | TDD plus security tests | simplifier (proposals only in zone code), standards, spec, full security review with a verifier vote, performance when signals appear | 1 peer approval, 2 on designated paths |
 | Spike | throwaway, prototype, one-off script | none | none | cannot merge to the default branch |
 
 In an existing codebase without a test suite, TDD in this table becomes a question in the work order, as section 8 describes.
 
-The classifier assigns the tier from file types, zone signals, the repo profile and intent flags. Anyone can raise a tier, and only a zone approver can lower a T3 task or remove a zone. A PHP template that echoes variables is not "HTML only". The `EscapeOutput` sniff covers it for free, and an escaping change in a template is a zone signal.
+The classifier assigns the tier from file types, zone signals, the repo profile and intent flags. Anyone can raise a tier, and only a peer reviewer, never the author, can lower a T3 task or remove a zone. A PHP template that echoes variables is not "HTML only". The `EscapeOutput` sniff covers it for free, and an escaping change in a template is a zone signal.
 
 ### When classification runs
 
@@ -334,7 +333,7 @@ A tier belongs to a task, not to the plan. Agent reviews attach to each task whe
 
 | Review path | Tasks | Humans |
 |---|---|---|
-| Zone | T3 tasks, carrying all of the component's security logic | 1 from zone approvers, 2 on designated paths |
+| Zone | T3 tasks, carrying all of the component's security logic | 1 peer approval, 2 on designated paths |
 | Standard | T2 tasks, plus T0 and T1 tasks until those tiers earn zero approvals | 1 |
 | Automatic | T0 and T1 tasks, once their revert rates earn zero approvals | 0 |
 
@@ -359,7 +358,7 @@ On the code, every commit:
 1. **Rules** run on every hunk, matching paths, content signals and file types.
 2. **The security reviewer's zone call.** The agentic security review reads every hunk of every change, so it tags each hunk with zone categories as part of its output. It catches what patterns miss, such as a custom wrapper around `$wpdb`, a helper that hides a capability check, or user data reaching output through a template helper.
 
-Anyone can raise a tier. Lowering a T3 task or removing a zone needs a zone approver, as section 4 explains.
+Anyone can raise a tier. Lowering a T3 task or removing a zone needs a peer reviewer, never the author, as section 4 explains.
 
 The work order fits on one screen:
 
@@ -371,7 +370,7 @@ Task 2      REST route and permissions   T3   security tests: subscriber denied,
                                               full security review
 Task 3      Export button on Orders      T2   axe, accessibility pass
 Reviews     simplifier, standards, spec and performance on every task
-PR A        task 2, zone, approvers @org/security
+PR A        task 2, zone, 1 peer approval
 PR B        tasks 1 and 3, stacked on PR A, 1 approval
 Scale       up to 400 orders per export (profile); designing for more needs a yes
 Skipped     design (no Figma frame linked)
@@ -397,7 +396,7 @@ Each developer picks a level, and each repo sets floors that no level goes below
 | Lint, SAST, secrets, dependency audit, axe accessibility check | nobody | nothing, they run in hooks and CI |
 | Agentic accessibility pass | the developer | a reason shown in the PR |
 | Agentic security review below T3 | the developer | a reason shown in the PR, and the floor still runs |
-| Security review on T3 | the repo's approver role only | a reason plus approver sign-off |
+| Security review on T3 | a peer reviewer only, never the author | a reason plus peer sign-off |
 | Human review on T3 | nobody | it is the floor |
 | Design review | the developer | one word |
 
@@ -469,7 +468,7 @@ The merge gate needs every reviewer's latest pass to cover the final commit in i
 
 Security re-reviews every change. The deterministic floor re-runs on every commit. The agentic security review re-runs on every commit, at the depth of the task's tier. When the new commit touches zone code, it re-reads the whole PR diff, not just the delta, because a fix in one place can open a hole in another. Each pass posts a commit status for that exact SHA, and branch protection requires it, so any new push invalidates the previous pass automatically.
 
-The three-round cap does not let the orchestrator park a security finding. An Important security finding still open after three rounds blocks the PR and goes to a zone approver, who fixes it, accepts it with a written reason, or sends the work back to planning.
+The three-round cap does not let the orchestrator park a security finding. An Important security finding still open after three rounds blocks the PR and goes to a peer reviewer, who accepts it with a written reason or sends the work back to planning.
 
 ### Standards reviewer
 
@@ -751,7 +750,6 @@ scale:                # ceilings the performance reviewer designs for
 policy:
   floor: [lint, sast, secrets, deps, a11y, human-review-zones]
   tdd: always           # this repo has a suite; only existing code without one gets asked
-  zone_approvers: "@org/security"
 ```
 
 Adoption is a ratchet. Existing lint and static-analysis violations go into baselines, so only new violations block. In repos with a test suite, coverage on changed files never drops. The standards tighten as the team agrees, not on day one.
@@ -839,7 +837,7 @@ If a secret does reach the server, the response is to rotate it first and clean 
 - **A brand kit.** One set of logo, colors and fonts, used by the docs viewer and by every artifact the pipeline produces, from reports to charts. The kit arrives later, and the viewer's theme file is where it plugs in.
 - **Per-repo files** written by init: `.pipeline/profile.yml`, `.pipeline/sensitive.yml`, a short `CLAUDE.md` of navigation pointers for implementers, and `REVIEW.md` files for reviewers.
 - **The standards repo**, extended with flat ESLint config, Semgrep rules, PHPStan config, OCR rules and every rule the compounder adds.
-- **A reusable GitHub workflow** that runs `pipeline check`, the PR body checks and `risk-gate`, plus a ruleset template with the path-based required reviewers.
+- **A reusable GitHub workflow** that runs `pipeline check`, the PR body checks and `risk-gate`, plus a ruleset template.
 - **The eval suite** in the plugin's `evals/` directory, run in CI on every pipeline change with a pinned model and a cost ceiling.
 
 Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR is Apache 2.0, so we can adapt their material with attribution.
@@ -854,7 +852,7 @@ Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR 
 4. Write three planted-defect cases for `claude plugin eval` and confirm the scaffold and regex graders work.
 5. Run the planning classifiers (rules, orchestrator) over the tickets behind the last 50 merged PRs of a real repo, and the code classifiers (rules, security reviewer) over their diffs, plus the planted cases. Compare each zone call with a senior's, and record each layer's recall per zone category and its false alarms.
 
-**Phase 1, the floor.** Build `pipeline check`, the standards repo fixes, the guardrail hook and permissions, the secret hooks and push protection, the comment linter, the PR template and checks, the zone scan, risk labels, the ruleset with path-based required reviewers, the `risk-gate` check, and the reusable CI workflow. The phase ends when two real repos get the same results locally and in CI.
+**Phase 1, the floor.** Build `pipeline check`, the standards repo fixes, the guardrail hook and permissions, the secret hooks and push protection, the comment linter, the PR template and checks, the zone scan, risk labels, the ruleset, the `risk-gate` check, and the reusable CI workflow. The phase ends when two real repos get the same results locally and in CI.
 
 **Phase 2, the orchestrator.** Build the router and its routes, init, the classifier, the work order, involvement levels, the implementer, the standards and spec reviewers, the ledger and the fix loop. The phase ends when the judgment eval cases pass.
 
@@ -944,25 +942,24 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 ## 16. Decisions to confirm
 
 1. **Decided.** The pipeline lives under the stormrockwell GitHub account, built by one person and shared once complete.
-2. Who approves human review zones, per repo or one security group?
+2. **Decided.** Any developer other than the PR author approves a human review zone, so there is no zone team or approver role. `risk-gate` enforces one peer approval, or two on designated paths.
 3. **Decided.** Agents commit, push feature branches and open PRs. Only humans merge.
 4. Which environment profile is the default for new developers, native or container?
 5. Where does compounding data live, in hidden JSON in PR bodies (no infrastructure) or in a central repo?
 6. Does agent review run in CI from the start? It would run Claude Code in GitHub Actions with a plan OAuth token, drawing on the same plan limits as local work.
 7. **Decided.** Repos without a strategy get trunk-based development with releases. The pipeline repo itself cuts no releases while it is built, only once it is ready to ship.
 8. How do designs link to code, through a Figma token per project and a `data-figma` convention or through name matching?
-9. Who is on each repo's trusted authors list, whose own attestation counts as one approval?
+9. **Decided.** No repo lists trusted authors. The author never counts as an approval, so every approval is a peer's.
 10. Should T0 and T1 start at one human approval and earn zero through metrics, as this strategy proposes, or start at zero?
 11. Is the reviewer precedence right: security, then correctness, then readability and simplicity, then performance, then style? Your brief says readability trumps all in the coding standards and security trumps all reviewers, and this order reconciles the two.
 12. What scale should the performance reviewer assume when the profile declares none? This strategy assumes about 500.
-13. **Decided.** The pipeline repo is private under a personal account, where server-side push protection and rulesets are unavailable. The local hooks and CI scans carry secret protection, and the `.claude/settings.json` denials carry merge protection, until the repo goes public. Repos that install the pipeline run on GitHub Pro or in public, so the ruleset enforcement test runs on the first of those.
+13. **Decided.** The pipeline repo is public, so it gets push protection and a ruleset at no cost. The ruleset blocks force pushes and deletion on `main`, allows squash merges only and requires CI, and it leaves `risk-gate` out while the repo has one developer, because the author can never approve their own PR. The `.claude/settings.json` denials stay as the local layer. The peer rule enforcement test runs on the first team repo that installs the pipeline.
 14. **Decided.** Data writes from untrusted input, such as `update_option` or `wp_insert_post` fed by request data, are a signal in the `input` zone rather than a zone of their own. A repo whose input arrives another way, such as MCP ability `$input`, adds a `near` rule to its own `sensitive.yml`.
 
 ## Sources
 
 - [Solving code review at Anthropic](https://claude.dev/blog/solving-code-review-at-anthropic/)
 - [Anthropic's Code Review as a Case Study in Evolving Work Governance](https://jasonstanley.substack.com/p/anthropics-code-review-as-a-case)
-- [Mergify on GitHub ruleset required reviewers](https://docs.mergify.com/changelog/2026-06-02-honor-github-ruleset-required-reviewers/)
 - [label-required-approvals action](https://github.com/altJake/label-required-approvals)
 - [Superpowers](https://github.com/obra/superpowers)
 - [Superpowers evals](https://github.com/prime-radiant-inc/superpowers-evals)
