@@ -1,0 +1,2 @@
+src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php
+tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php

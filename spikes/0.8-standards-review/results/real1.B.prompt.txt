@@ -1,0 +1,919 @@
+You are a code reviewer enforcing coding standards on one commit. Read-only: do not edit files. Use Read, Grep and Glob for context only when needed.
+Commit message:
+feat(cdn): self-hosted backfill tool with re-run repair
+
+Adds a 'Backfill existing media' settings tool for the self-hosted provider,
+mirroring the Cloudflare offloader: a SelfHostedOffloader (ProgressProcess) that
+handles upload-on-add, delete-sync, and background bulk backfill, plus a
+SelfHostedOffloadTool descriptor + REST start route. On re-run it HEAD-checks
+each already-uploaded image (R2Client::object_exists) and re-uploads any whose
+bucket object is gone, so a bucket change is repaired. SettingsStatus now counts
+self-hosted synced images. SelfHostedUploader is removed (its role moves into the
+offloader); the CLI backfill script drives the offloader synchronously.
+
+Review rules:
+
+### Rule Group 1: system / **/*.{php,phtml}
+
+Applies to:
+- bin/backfill-selfhosted-r2.php
+- src/Features/Cdn/CdnModule.php
+- src/Features/Cdn/Providers/SelfHosted/R2Client.php
+- src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloadTool.php
+- src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloader.php
+- src/Support/Settings/SettingsStatus.php
+- tests/Integration/Cdn/SelfHosted/SelfHostedOffloadToolTest.php
+- tests/Integration/Cdn/SelfHosted/SelfHostedOffloaderTest.php
+- tests/Integration/Support/SettingsStatusTest.php
+
+#### Content
+
+#### PHP Review Principles
+> Favor precision over recall: report only defects that are likely real in the changed code and its reachable context. Treat correctness and security findings as blocking; style-only suggestions are non-blocking. Account for the project's PHP version and framework conventions before reporting version- or lifecycle-dependent behavior.
+
+Before making a non-local claim, use `file_read` and `code_search` to verify callers, input sources, framework configuration, template context, and resource ownership. Do not duplicate findings reliably enforced by PHPStan, Psalm, PHP_CodeSniffer, the formatter, or the PHP compiler unless the diff demonstrates a concrete consequence those tools do not express.
+
+#### Type Juggling, Equality, and Null Semantics
+- Loose comparison (`==` or `!=`) whose coercion can make distinct security- or domain-sensitive values compare equal. Prefer strict comparison when operands are expected to have the same type; do not flag deliberate, validated normalization.
+- Truthiness or `empty()` checks that incorrectly treat `0`, `"0"`, `false`, `null`, and an empty value as equivalent when those states have different meanings.
+- `isset()` used when a present key with a `null` value must be distinguished from a missing key; use `array_key_exists()` when presence, rather than non-nullness, is the contract.
+- Nullable, union, or `false`-returning APIs whose failure value reaches code that assumes a usable object, scalar, or resource. Confirm the declared and runtime contract before flagging.
+- Numeric-string, arithmetic, or comparison behavior that depends on a different PHP version from the one supported by `composer.json`, CI, or deployment configuration.
+
+#### Arrays, Iteration, and Value Semantics
+- Array keys read without handling a reachable missing-key path, especially request data, decoded JSON, database rows, or optional configuration.
+- A `foreach` value variable iterated by reference and then reused without `unset()`, leaving it aliased to the final element and allowing later assignments to corrupt the array.
+- Array union (`+`), `array_merge`, spread syntax, or numeric-key reindexing used with semantics different from the intended overwrite and ordering behavior.
+- Callbacks or closures that capture a loop variable by reference and later observe an unintended final or mutated value.
+- Mutation during iteration that can skip, duplicate, or unexpectedly retain elements. Do not flag mutation whose traversal behavior is deliberate and locally evident.
+
+#### Errors, Exceptions, and API Contracts
+- `Throwable` or `Exception` caught and silently discarded, converted into success, or replaced with a misleading default on a path where the failure matters.
+- Catching a broad exception around unrelated operations so the handler cannot distinguish the expected failure from a programming or infrastructure defect.
+- A codebase contract inconsistently mixing exceptions, `false`, and `null` for the same failure, causing callers to miss an error path.
+- Cleanup, rollback, or response-finalization code that hides the primary exception or returns success after the operation failed.
+- Warnings or errors suppressed with `@` where suppression can turn a meaningful failure into invalid state. Do not flag a narrowly documented compatibility probe that checks the result safely.
+
+#### Resources, Transactions, and Request Lifecycle
+- Transactions, locks, database cursors, or resources in long-running processes not released, committed, or rolled back on every reachable path when delayed cleanup can exhaust capacity or break correctness. Do not flag ordinary request-scoped streams or files merely because PHP can release them at request shutdown.
+- Database transactions with early returns or exception paths that can leave the transaction open, or nested transaction assumptions unsupported by the active driver/framework.
+- cURL or stream operations lacking timeouts on a request or worker path where a remote endpoint can stall execution.
+- Session locks held across slow network, database, or CPU work when concurrent requests for the same session must proceed.
+- Do not report resources owned by a framework, dependency-injection container, generator consumer, or caller when ownership transfer is established by the surrounding code.
+
+#### Database and ORM Correctness
+- SQL assembled from untrusted values instead of parameter binding. Identifiers such as column names and sort directions cannot usually be bound and require an allowlist.
+- Raw ORM expressions, query fragments, or dynamic table/column names that bypass the framework's normal parameterization with attacker-controlled data.
+- Missing transaction boundaries when a changed multi-step write must be atomic, or side effects ordered so a rollback cannot restore consistency.
+- N+1 queries or repeated remote calls only when the loop is reachable at meaningful scale and eager loading or batching preserves behavior.
+- Mass-assignment exposure only when request-controlled fields reach a model and the framework's fillable/guarded/schema configuration does not already constrain them.
+
+#### Web and Template Security Boundaries
+Confirm attacker control and the output or execution context before reporting. Framework validation and auto-escaping may make an otherwise dangerous-looking operation safe.
+
+- Untrusted output rendered without context-appropriate escaping for HTML text, attributes, URLs, JavaScript, or CSS. For `.phtml` templates, verify whether the view helper already escapes the value and whether raw HTML is intentional and sanitized.
+- Authorization enforced only in a client, template, or hidden control rather than at the server-side operation; check route middleware, policies, voters, and controller guards before flagging.
+- State-changing browser requests missing required CSRF protection when cookie-based authentication makes cross-site invocation possible. Do not flag token-authenticated APIs that are not vulnerable to ambient credentials.
+- Redirects, response headers, or cookies built from untrusted data without validation or appropriate `Secure`, `HttpOnly`, and `SameSite` protections where those properties are required.
+- File uploads trusted by client filename, extension, or MIME header alone; verify server-side type checks, generated storage names, destination boundaries, and executable-file handling.
+- User-controlled paths used for filesystem access without normalization and boundary enforcement, enabling traversal, symlink escape, or unintended overwrite.
+
+#### Dynamic Execution, Deserialization, and Outbound Requests
+- `eval`, dynamic `include`/`require`, variable function calls, reflection, or shell commands reached by untrusted input without a strict allowlist.
+- `unserialize()` on attacker-controlled data, including signed data where key management or verification is absent. Prefer a non-executable format; `allowed_classes` reduces object injection but does not make arbitrary data trustworthy.
+- Shell commands built through concatenation or incomplete escaping. Prefer direct process APIs with separate arguments and validate option-like attacker-controlled values.
+- Outbound URLs derived from untrusted input without required scheme, host, port, redirect, and private-network restrictions, enabling SSRF or credential forwarding.
+- Weak randomness or password handling: predictable token generation, reversible password storage, manual password hashing, or non-constant-time comparison of secrets. Prefer `random_bytes`, `password_hash`, `password_verify`, and `hash_equals` as appropriate.
+- Secrets, session identifiers, authorization headers, passwords, private keys, or sensitive personal data logged, returned in errors, or embedded in source.
+
+#### Performance and Review Scope
+- Report performance issues only with evidence of meaningful data scale or a hot path: repeated queries, accidental full-result materialization, quadratic array operations, or expensive work repeated inside a loop.
+- Suggest tests only for concrete changed failure modes involving coercion, boundary values, errors, transactions, authorization, escaping, or framework configuration.
+- Do not make formatting, naming, import ordering, modern-syntax preferences, or advice already enforced by deterministic PHP tooling into blocking findings.
+
+Diff to review:
+
+diff --git a/bin/backfill-selfhosted-r2.php b/bin/backfill-selfhosted-r2.php
+index 704808f..1cbc501 100644
+--- a/bin/backfill-selfhosted-r2.php
++++ b/bin/backfill-selfhosted-r2.php
+@@ -1,10 +1,13 @@
+ <?php
+ /**
+- * One-off backfill: push every existing image original to the self-hosted R2
+- * bucket using the configured self-hosted provider. Run once for testing /
+- * initial migration, since v1 has no "offload existing media" tool yet.
++ * Headless backfill: push every existing image original to the self-hosted R2
++ * bucket, synchronously. The settings screen has a "Backfill existing media"
++ * tool that does this in the background; this script is the CLI equivalent for
++ * bulk/headless migrations. Re-runnable: an image whose R2 object still exists
++ * is skipped, and one whose object is gone (e.g. after a bucket change) is
++ * re-uploaded.
+  *
+  * Usage (from the plugin directory):
+  *   studio wp eval-file bin/backfill-selfhosted-r2.php
+  *
+  * @package MediaOnAutopilot
+@@ -12,21 +15,23 @@
+ 
+ declare( strict_types=1 );
+ 
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloader;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedSettings;
+-use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedUploader;
++use MediaOnAutopilot\Support\Batch\ProgressState;
++use MediaOnAutopilot\Support\Batch\ProgressStore;
+ 
+ $config = ( new SelfHostedSettings() )->to_config();
+ 
+ if ( ! $config->can_upload() ) {
+ 	echo "Self-hosted R2 is not fully configured (need bucket, account id, access key id, and secret in CDN settings). Aborting.\n";
+ 	return;
+ }
+ 
+-$uploader = new SelfHostedUploader( $config, new R2Client( $config ), new ObjectKeyStore() );
++$offloader = new SelfHostedOffloader( $config, new R2Client( $config ), new ObjectKeyStore(), new ProgressStore() );
+ 
+ $ids = get_posts(
+ 	array(
+ 		'post_type'      => 'attachment',
+ 		'post_mime_type' => 'image',
+@@ -37,20 +42,28 @@ $ids = get_posts(
+ );
+ 
+ echo 'Backfilling ' . count( $ids ) . " image attachment(s) to bucket '" . $config->bucket . "'...\n";
+ 
+ $keys    = new ObjectKeyStore();
+-$done    = 0;
++$written = 0;
++$skipped = 0;
+ $failed  = 0;
+ foreach ( $ids as $id ) {
+-	$id = (int) $id;
+-	$uploader->on_add( $id );
+-	if ( $keys->is_uploaded( $id ) ) {
+-		++$done;
+-		echo "  ok    #$id  " . $keys->key_for( $id ) . "\n";
+-	} else {
+-		++$failed;
+-		echo "  FAIL  #$id  (upload did not succeed; check credentials / debug.log)\n";
++	$id      = (int) $id;
++	$outcome = $offloader->process_item( array( 'id' => $id ) );
++	switch ( $outcome ) {
++		case ProgressState::OUTCOME_WRITTEN:
++			++$written;
++			echo "  up    #$id  " . $keys->key_for( $id ) . "\n";
++			break;
++		case ProgressState::OUTCOME_SKIPPED:
++			++$skipped;
++			echo "  skip  #$id  (already in bucket)\n";
++			break;
++		default:
++			++$failed;
++			echo "  FAIL  #$id  (upload did not succeed; check credentials / debug.log)\n";
++			break;
+ 	}
+ }
+ 
+-echo "\nDone: $done uploaded, $failed failed.\n";
++echo "\nDone: $written uploaded, $skipped skipped, $failed failed.\n";
+diff --git a/src/Features/Cdn/CdnModule.php b/src/Features/Cdn/CdnModule.php
+index bc71d49..10e0b27 100644
+--- a/src/Features/Cdn/CdnModule.php
++++ b/src/Features/Cdn/CdnModule.php
+@@ -56,10 +56,11 @@ final class CdnModule implements Module {
+ 		// job) so its markup is present in the CDN → Tools panel and the start
+ 		// endpoint exists regardless of the live provider selection. nav.js shows or
+ 		// hides the tool based on the live provider value; the start endpoint checks
+ 		// config at runtime. Delete-sync + provider serving stay gated on config.
+ 		$this->wire_cloudflare_offload( $cf );
++		$this->wire_selfhosted_offload( $self );
+ 
+ 		$serve = $selector->should_serve();
+ 
+ 		switch ( $selector->current() ) {
+ 			case 'bunny':
+@@ -77,17 +78,13 @@ final class CdnModule implements Module {
+ 				}
+ 				break;
+ 
+ 			case 'selfhosted':
+ 				$config = $self->to_config();
+-				if ( $config->can_upload() ) {
+-					( new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedUploader(
+-						$config,
+-						new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client( $config ),
+-						new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore()
+-					) )->register();
+-				}
++				// Upload + delete-sync now run through the offload tool, wired
++				// unconditionally above (mirrors Cloudflare). Only serving is
++				// provider-gated here.
+ 				if ( $config->is_active() && $serve ) {
+ 					$this->wire( new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedProvider( $config ) );
+ 				}
+ 				break;
+ 		}
+@@ -119,10 +116,42 @@ final class CdnModule implements Module {
+ 		$batch = new \MediaOnAutopilot\Support\Batch\BatchController( $store );
+ 		$batch->register_job( \MediaOnAutopilot\Features\Cdn\Providers\Cloudflare\CloudflareOffloader::SLUG, $offloader, 'manage_options' );
+ 		$batch->register();
+ 	}
+ 
++	/**
++	 * Wire the self-hosted backfill tool, its REST start route, its batch job, and
++	 * (when configured) the upload + delete-sync hooks. The tool markup always
++	 * renders in the CDN → Tools panel; nav.js reveals it only when self-hosted
++	 * is the live, configured provider. The start endpoint enforces config at
++	 * runtime.
++	 *
++	 * @param \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedSettings $settings Self-hosted settings resolver.
++	 * @return void
++	 */
++	private function wire_selfhosted_offload( \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedSettings $settings ): void {
++		$config    = $settings->to_config();
++		$store     = new \MediaOnAutopilot\Support\Batch\ProgressStore();
++		$offloader = new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloader(
++			$config,
++			new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client( $config ),
++			new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore(),
++			$store
++		);
++
++		// Upload-on-add + delete-sync only matter once credentials are present.
++		if ( $config->can_upload() ) {
++			$offloader->register();
++		}
++
++		( new \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloadTool( $offloader ) )->register();
++
++		$batch = new \MediaOnAutopilot\Support\Batch\BatchController( $store );
++		$batch->register_job( \MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloader::SLUG, $offloader, 'manage_options' );
++		$batch->register();
++	}
++
+ 	/**
+ 	 * One-time upgrade migration: enable CDN serving for sites that already had a
+ 	 * provider configured before the serve toggle existed, so updating does not
+ 	 * silently stop CDN delivery. Runs once, guarded by an option flag.
+ 	 *
+diff --git a/src/Features/Cdn/Providers/SelfHosted/R2Client.php b/src/Features/Cdn/Providers/SelfHosted/R2Client.php
+index 252abc7..8b2858b 100644
+--- a/src/Features/Cdn/Providers/SelfHosted/R2Client.php
++++ b/src/Features/Cdn/Providers/SelfHosted/R2Client.php
+@@ -12,11 +12,11 @@ namespace MediaOnAutopilot\Features\Cdn\Providers\SelfHosted;
+ defined( 'ABSPATH' ) || exit;
+ 
+ /**
+  * Signs and performs R2 object writes with a bucket-scoped key.
+  *
+- * Not final: SelfHostedUploaderTest mocks this class directly (no interface
++ * Not final: SelfHostedOffloaderTest mocks this class directly (no interface
+  * exists for it) to avoid real HTTP calls, and PHPUnit's mock generator
+  * cannot double a final class.
+  */
+ class R2Client {
+ 
+@@ -47,10 +47,23 @@ class R2Client {
+ 	 */
+ 	public function delete_object( string $key ): bool {
+ 		return $this->request( 'DELETE', $key, '', '' );
+ 	}
+ 
++	/**
++	 * Whether an object exists in the bucket. A signed HEAD: 2xx means present,
++	 * a 404 (or any non-2xx) means absent. The offloader uses this to re-upload
++	 * an image whose local "uploaded" flag is set but whose bucket object is
++	 * gone, e.g. after the tenant bucket was changed.
++	 *
++	 * @param string $key Object key.
++	 * @return bool True when the object is present.
++	 */
++	public function object_exists( string $key ): bool {
++		return $this->request( 'HEAD', $key, '', '' );
++	}
++
+ 	/**
+ 	 * Perform a signed request.
+ 	 *
+ 	 * @param string $method       HTTP method.
+ 	 * @param string $key          Object key.
+diff --git a/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloadTool.php b/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloadTool.php
+new file mode 100644
+index 0000000..b9d45d8
+--- /dev/null
++++ b/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloadTool.php
+@@ -0,0 +1,112 @@
++<?php
++/**
++ * "Backfill existing media to R2" tool row + REST start endpoint.
++ *
++ * @package MediaOnAutopilot
++ */
++
++declare( strict_types=1 );
++
++namespace MediaOnAutopilot\Features\Cdn\Providers\SelfHosted;
++
++use MediaOnAutopilot\Support\Settings\SettingsStatus;
++
++defined( 'ABSPATH' ) || exit;
++
++/**
++ * Renders the bulk backfill tool and starts it via REST (no page reload).
++ */
++final class SelfHostedOffloadTool {
++
++	/**
++	 * Sets up the tool with its background offloader.
++	 *
++	 * @param SelfHostedOffloader $offloader Background offloader.
++	 */
++	public function __construct( private SelfHostedOffloader $offloader ) {}
++
++	/**
++	 * Register the tool row + REST start route.
++	 *
++	 * @return void
++	 */
++	public function register(): void {
++		add_filter( 'moap_settings_tools', array( $this, 'descriptor' ) );
++		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
++	}
++
++	/**
++	 * Register the start route: POST moap/v1/batch/{slug}/start.
++	 *
++	 * @return void
++	 */
++	public function register_routes(): void {
++		register_rest_route(
++			'moap/v1',
++			'/batch/' . SelfHostedOffloader::SLUG . '/start',
++			array(
++				'methods'             => 'POST',
++				'callback'            => array( $this, 'handle' ),
++				'permission_callback' => static fn(): bool => current_user_can( 'manage_options' ),
++			)
++		);
++	}
++
++	/**
++	 * Contribute this tool's descriptor. nav.js reveals it only when self-hosted
++	 * is the live, configured provider; the start endpoint enforces config too.
++	 *
++	 * @param array<int, array<string, mixed>> $tools Tool descriptors.
++	 * @return array<int, array<string, mixed>>
++	 */
++	public function descriptor( array $tools ): array {
++		$status    = ( new SettingsStatus() )->to_array();
++		$available = 'selfhosted' === $status['provider'] && $this->offloader->is_configured();
++		$offloaded = (array) ( $status['offloaded'] ?? array() );
++		$done      = (int) ( $offloaded['done'] ?? 0 );
++		$total     = (int) ( $offloaded['total'] ?? 0 );
++
++		$tools[] = array(
++			'slug'          => SelfHostedOffloader::SLUG,
++			'group'         => 'cdn',
++			'title'         => __( 'Backfill existing media', 'media-on-autopilot' ),
++			'description'   => __( 'Push existing media to your R2 bucket in the background. Local originals are always kept.', 'media-on-autopilot' ),
++			'startEndpoint' => 'moap/v1/batch/' . SelfHostedOffloader::SLUG . '/start',
++			'showSummary'   => true,
++			'available'     => $available,
++			'syncedLine'    => sprintf(
++				/* translators: 1: synced count, 2: total image count */
++				__( '%1$s of %2$s images synced to R2', 'media-on-autopilot' ),
++				number_format_i18n( $done ),
++				number_format_i18n( $total )
++			),
++			'options'       => array(),
++		);
++		return $tools;
++	}
++
++	/**
++	 * Enqueue all not-yet-synced images and return the queued count.
++	 *
++	 * @return \WP_REST_Response
++	 */
++	public function handle(): \WP_REST_Response {
++		if ( ! $this->offloader->is_configured() ) {
++			return rest_ensure_response(
++				array(
++					'started' => false,
++					'queued'  => 0,
++				)
++			);
++		}
++
++		$count = $this->offloader->enqueue_all();
++
++		return rest_ensure_response(
++			array(
++				'started' => true,
++				'queued'  => $count,
++			)
++		);
++	}
++}
+diff --git a/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloader.php b/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloader.php
+new file mode 100644
+index 0000000..aeb8447
+--- /dev/null
++++ b/src/Features/Cdn/Providers/SelfHosted/SelfHostedOffloader.php
+@@ -0,0 +1,199 @@
++<?php
++/**
++ * Background offloader: uploads originals to the tenant R2 bucket and syncs
++ * deletes for the self-hosted provider.
++ *
++ * @package MediaOnAutopilot
++ */
++
++declare( strict_types=1 );
++
++namespace MediaOnAutopilot\Features\Cdn\Providers\SelfHosted;
++
++use MediaOnAutopilot\Support\Batch\ProgressProcess;
++use MediaOnAutopilot\Support\Batch\ProgressState;
++use MediaOnAutopilot\Support\Batch\ProgressStore;
++
++defined( 'ABSPATH' ) || exit;
++
++/**
++ * Queues attachment uploads to the tenant R2 bucket and deletes on removal.
++ * This is both the attachment-lifecycle handler and the backfill batch engine,
++ * mirroring the Cloudflare offloader.
++ */
++final class SelfHostedOffloader extends ProgressProcess {
++
++	public const SLUG = 'selfhosted_offload';
++
++	/**
++	 * Queue action name (WP_Background_Process).
++	 *
++	 * @var string
++	 */
++	protected $action = 'selfhosted_offload';
++
++	/**
++	 * Sets up the offloader with self-hosted credentials, R2 client, key store, and progress store.
++	 *
++	 * @param SelfHostedConfig $config Resolved settings (credentials + delivery options).
++	 * @param R2Client         $r2     R2 write/read client.
++	 * @param ObjectKeyStore   $keys   Key + upload-state store.
++	 * @param ProgressStore    $store  Progress persistence.
++	 */
++	public function __construct(
++		private SelfHostedConfig $config,
++		private R2Client $r2,
++		private ObjectKeyStore $keys,
++		ProgressStore $store
++	) {
++		parent::__construct( $store );
++	}
++
++	/**
++	 * {@inheritDoc}
++	 *
++	 * @return string
++	 */
++	public function slug(): string {
++		return self::SLUG;
++	}
++
++	/**
++	 * {@inheritDoc}
++	 *
++	 * @return string
++	 */
++	public function label(): string {
++		return __( 'Backfilling images to R2', 'media-on-autopilot' );
++	}
++
++	/**
++	 * Hook attachment lifecycle.
++	 *
++	 * @return void
++	 */
++	public function register(): void {
++		add_action( 'add_attachment', array( $this, 'on_add' ) );
++		add_action( 'delete_attachment', array( $this, 'on_delete' ) );
++	}
++
++	/**
++	 * Enqueue one new image on upload.
++	 *
++	 * @param int $attachment_id New attachment ID.
++	 * @return void
++	 */
++	public function on_add( int $attachment_id ): void {
++		if ( $this->config->can_upload() && wp_attachment_is_image( $attachment_id ) ) {
++			$this->start( array( array( 'id' => $attachment_id ) ) );
++		}
++	}
++
++	/**
++	 * Delete the original and its cached variant prefix on removal.
++	 *
++	 * @param int $attachment_id Attachment ID.
++	 * @return void
++	 */
++	public function on_delete( int $attachment_id ): void {
++		if ( ! $this->config->can_upload() || ! $this->keys->is_uploaded( $attachment_id ) ) {
++			return;
++		}
++		$key = $this->keys->key_for( $attachment_id );
++		if ( '' === $key ) {
++			return;
++		}
++		$this->r2->delete_object( $key );
++		// Cached variants live under "{key}/..."; delete the counter object too.
++		$this->r2->delete_object( $key . '/.count' );
++		$this->keys->clear( $attachment_id );
++	}
++
++	/**
++	 * Whether self-hosted credentials are present (offload can run).
++	 *
++	 * @return bool
++	 */
++	public function is_configured(): bool {
++		return $this->config->can_upload();
++	}
++
++	/**
++	 * Queue every image attachment for a full re-sync. Images already flagged
++	 * uploaded are re-verified in handle_item (skipped if the R2 object still
++	 * exists, re-uploaded if it is gone), so running the tool repairs a library
++	 * after a bucket change or an out-of-band delete.
++	 *
++	 * @return int Number queued.
++	 */
++	public function enqueue_all(): int {
++		$ids   = get_posts(
++			array(
++				'post_type'      => 'attachment',
++				'post_mime_type' => 'image',
++				'post_status'    => 'inherit',
++				'fields'         => 'ids',
++				'nopaging'       => true,
++			)
++		);
++		$items = array_map( static fn( $id ) => array( 'id' => (int) $id ), $ids );
++		$this->start( $items );
++
++		return count( $items );
++	}
++
++	/**
++	 * Test/seam wrapper to process one item synchronously.
++	 *
++	 * @param array<string, mixed> $item Queue item.
++	 * @return string
++	 */
++	public function process_item( array $item ): string {
++		return $this->handle_item( $item );
++	}
++
++	/**
++	 * Upload one attachment's original to R2 and flag it. Local originals are
++	 * always kept — the offload is purely additive.
++	 *
++	 * @param array<string, mixed> $item Queue item with 'id'.
++	 * @return string One of ProgressState::OUTCOME_*.
++	 */
++	protected function handle_item( array $item ): string {
++		$id = (int) ( $item['id'] ?? 0 );
++		if ( $id <= 0 || ! wp_attachment_is_image( $id ) ) {
++			return ProgressState::OUTCOME_FAILED;
++		}
++
++		$key = $this->keys->key_for( $id );
++		if ( '' === $key ) {
++			return ProgressState::OUTCOME_FAILED;
++		}
++
++		// The uploaded flag can be stale if the object was deleted out-of-band or
++		// the tenant bucket was changed. Verify the object still exists before
++		// skipping; if it is gone, clear the flag and fall through to re-upload.
++		if ( $this->keys->is_uploaded( $id ) ) {
++			if ( $this->r2->object_exists( $key ) ) {
++				return ProgressState::OUTCOME_SKIPPED;
++			}
++			$this->keys->clear( $id );
++		}
++
++		$path = get_attached_file( $id );
++		if ( ! is_string( $path ) || '' === $path || ! file_exists( $path ) ) {
++			return ProgressState::OUTCOME_FAILED;
++		}
++
++		$body = (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- local file.
++		$type = (string) ( wp_check_filetype( $path )['type'] ?? 'application/octet-stream' );
++
++		if ( ! $this->r2->put_object( $key, $body, $type ) ) {
++			return ProgressState::OUTCOME_FAILED;
++		}
++
++		$this->keys->mark_uploaded( $id );
++
++		return ProgressState::OUTCOME_WRITTEN;
++	}
++}
+diff --git a/src/Support/Settings/SettingsStatus.php b/src/Support/Settings/SettingsStatus.php
+index db0c677..9079e8f 100644
+--- a/src/Support/Settings/SettingsStatus.php
++++ b/src/Support/Settings/SettingsStatus.php
+@@ -14,10 +14,11 @@ use MediaOnAutopilot\Features\AiTagging\Connector;
+ use MediaOnAutopilot\Features\Cdn\CdnSettings;
+ use MediaOnAutopilot\Features\Cdn\CdnTester;
+ use MediaOnAutopilot\Features\Cdn\Providers\Bunny\BunnySettings;
+ use MediaOnAutopilot\Features\Cdn\Providers\Cloudflare\CloudflareSettings;
+ use MediaOnAutopilot\Features\Cdn\Providers\Cloudflare\ImageIdStore;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedSettings;
+ use MediaOnAutopilot\Features\FocalPoint\FocalPointSetting;
+ 
+ defined( 'ABSPATH' ) || exit;
+ 
+@@ -47,27 +48,39 @@ final class SettingsStatus {
+ 		return array(
+ 			'provider'       => $provider,
+ 			'cdnConfigured'  => $configured,
+ 			'serving'        => $cdn->should_serve(),
+ 			'cdnLastTest'    => is_array( $last_test ) ? $last_test : null,
+-			'offloaded'      => 'cloudflare' === $provider ? $this->offload_counts() : array(
+-				'done'  => 0,
+-				'total' => 0,
+-			),
++			'offloaded'      => $this->offload_counts( $provider ),
+ 			'aiAvailable'    => ( new Connector() )->is_available(),
+ 			'autoTag'        => (bool) get_option( AutoTagSetting::OPTION, false ),
+ 			'targetTagCount' => (int) get_option( AutoTagSetting::TARGET_TAG_COUNT_OPTION, 20 ),
+ 			'focalEnabled'   => (bool) get_option( FocalPointSetting::OPTION, true ),
+ 		);
+ 	}
+ 
+ 	/**
+-	 * Count total image attachments and how many carry a Cloudflare id.
++	 * Count total image attachments and how many are offloaded for the active
++	 * provider. Providers with no offload feature report zeros.
+ 	 *
++	 * @param string $provider Active CDN provider.
+ 	 * @return array{done:int,total:int}
+ 	 */
+-	private function offload_counts(): array {
++	private function offload_counts( string $provider ): array {
++		$meta_key = match ( $provider ) {
++			'cloudflare' => ImageIdStore::META_KEY,
++			'selfhosted' => ObjectKeyStore::META_KEY,
++			default      => '',
++		};
++
++		if ( '' === $meta_key ) {
++			return array(
++				'done'  => 0,
++				'total' => 0,
++			);
++		}
++
+ 		$total = (int) ( new \WP_Query(
+ 			array(
+ 				'post_type'      => 'attachment',
+ 				'post_mime_type' => 'image',
+ 				'post_status'    => 'inherit',
+@@ -83,11 +96,11 @@ final class SettingsStatus {
+ 				'post_status'    => 'inherit',
+ 				'fields'         => 'ids',
+ 				'nopaging'       => true,
+ 				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+ 					array(
+-						'key'     => ImageIdStore::META_KEY,
++						'key'     => $meta_key,
+ 						'compare' => 'EXISTS',
+ 					),
+ 				),
+ 			)
+ 		) )->found_posts;
+diff --git a/tests/Integration/Cdn/SelfHosted/SelfHostedOffloadToolTest.php b/tests/Integration/Cdn/SelfHosted/SelfHostedOffloadToolTest.php
+new file mode 100644
+index 0000000..4d7af59
+--- /dev/null
++++ b/tests/Integration/Cdn/SelfHosted/SelfHostedOffloadToolTest.php
+@@ -0,0 +1,52 @@
++<?php
++
++declare( strict_types=1 );
++
++namespace MediaOnAutopilot\Tests\Integration\Cdn\SelfHosted;
++
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedConfig;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloader;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloadTool;
++use MediaOnAutopilot\Support\Batch\ProgressStore;
++use WP_UnitTestCase;
++
++final class SelfHostedOffloadToolTest extends WP_UnitTestCase {
++
++	/**
++	 * @param SelfHostedConfig $config Config under test.
++	 * @return SelfHostedOffloadTool
++	 */
++	private function tool( SelfHostedConfig $config ): SelfHostedOffloadTool {
++		$offloader = new SelfHostedOffloader( $config, new R2Client( $config ), new ObjectKeyStore(), new ProgressStore() );
++		return new SelfHostedOffloadTool( $offloader );
++	}
++
++	public function test_register_adds_descriptor_filter(): void {
++		$config = new SelfHostedConfig( 'acme.yourcdn.com', 82, 'auto', 'tenant-acme', 'abc', 'k', 's', '' );
++		$this->tool( $config )->register();
++
++		$this->assertNotFalse( has_filter( 'moap_settings_tools' ) );
++	}
++
++	public function test_handle_does_not_start_when_unconfigured(): void {
++		// Missing credentials: the always-registered start endpoint must refuse at
++		// runtime so it can't queue work for an unconfigured provider.
++		$config = new SelfHostedConfig( '', 82, 'auto', '', '', '', '', '' );
++		$data   = $this->tool( $config )->handle()->get_data();
++
++		$this->assertFalse( $data['started'] );
++		$this->assertSame( 0, $data['queued'] );
++	}
++
++	public function test_handle_queues_when_configured(): void {
++		$config = new SelfHostedConfig( 'acme.yourcdn.com', 82, 'auto', 'tenant-acme', 'abc', 'k', 's', '' );
++		self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++
++		$data = $this->tool( $config )->handle()->get_data();
++
++		$this->assertTrue( $data['started'] );
++		$this->assertSame( 1, $data['queued'] );
++	}
++}
+diff --git a/tests/Integration/Cdn/SelfHosted/SelfHostedOffloaderTest.php b/tests/Integration/Cdn/SelfHosted/SelfHostedOffloaderTest.php
+new file mode 100644
+index 0000000..ee9a01e
+--- /dev/null
++++ b/tests/Integration/Cdn/SelfHosted/SelfHostedOffloaderTest.php
+@@ -0,0 +1,116 @@
++<?php
++
++declare( strict_types=1 );
++
++namespace MediaOnAutopilot\Tests\Integration\Cdn\SelfHosted;
++
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedConfig;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedOffloader;
++use MediaOnAutopilot\Support\Batch\ProgressState;
++use MediaOnAutopilot\Support\Batch\ProgressStore;
++use WP_UnitTestCase;
++
++final class SelfHostedOffloaderTest extends WP_UnitTestCase {
++
++	private function config(): SelfHostedConfig {
++		return new SelfHostedConfig( 'acme.yourcdn.com', 82, 'auto', 'tenant-acme', 'abc', 'k', 's', '' );
++	}
++
++	/**
++	 * @param R2Client $r2 Mock client.
++	 * @return SelfHostedOffloader
++	 */
++	private function offloader( R2Client $r2 ): SelfHostedOffloader {
++		return new SelfHostedOffloader( $this->config(), $r2, new ObjectKeyStore(), new ProgressStore() );
++	}
++
++	public function test_handle_item_uploads_and_marks_keeping_local(): void {
++		$r2 = $this->createMock( R2Client::class );
++		$r2->expects( $this->once() )->method( 'put_object' )->willReturn( true );
++		$r2->expects( $this->never() )->method( 'object_exists' );
++
++		$id   = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		$file = get_attached_file( $id );
++
++		$outcome = $this->offloader( $r2 )->process_item( array( 'id' => $id ) );
++
++		$this->assertSame( ProgressState::OUTCOME_WRITTEN, $outcome );
++		$this->assertTrue( ( new ObjectKeyStore() )->is_uploaded( $id ) );
++		// The offload is purely additive: the local original is always kept.
++		$this->assertFileExists( $file );
++	}
++
++	public function test_handle_item_skips_already_uploaded_when_object_present(): void {
++		$r2 = $this->createMock( R2Client::class );
++		$r2->expects( $this->once() )->method( 'object_exists' )->willReturn( true );
++		$r2->expects( $this->never() )->method( 'put_object' );
++
++		$id = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		( new ObjectKeyStore() )->mark_uploaded( $id );
++
++		$this->assertSame( ProgressState::OUTCOME_SKIPPED, $this->offloader( $r2 )->process_item( array( 'id' => $id ) ) );
++		$this->assertTrue( ( new ObjectKeyStore() )->is_uploaded( $id ) );
++	}
++
++	public function test_handle_item_reuploads_when_object_missing(): void {
++		// Marked uploaded, but the bucket object is gone (e.g. bucket changed):
++		// object_exists returns false, so the flag is cleared and it re-uploads.
++		$r2 = $this->createMock( R2Client::class );
++		$r2->expects( $this->once() )->method( 'object_exists' )->willReturn( false );
++		$r2->expects( $this->once() )->method( 'put_object' )->willReturn( true );
++
++		$id = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		( new ObjectKeyStore() )->mark_uploaded( $id );
++
++		$outcome = $this->offloader( $r2 )->process_item( array( 'id' => $id ) );
++
++		$this->assertSame( ProgressState::OUTCOME_WRITTEN, $outcome );
++		$this->assertTrue( ( new ObjectKeyStore() )->is_uploaded( $id ) );
++	}
++
++	public function test_failed_upload_is_not_marked(): void {
++		$r2 = $this->createMock( R2Client::class );
++		$r2->method( 'put_object' )->willReturn( false );
++
++		$id   = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		$file = get_attached_file( $id );
++
++		$out = $this->offloader( $r2 )->process_item( array( 'id' => $id ) );
++
++		$this->assertSame( ProgressState::OUTCOME_FAILED, $out );
++		$this->assertFalse( ( new ObjectKeyStore() )->is_uploaded( $id ) );
++		$this->assertFileExists( $file );
++	}
++
++	public function test_delete_sync_removes_object_variants_and_flag(): void {
++		$keys = new ObjectKeyStore();
++		$id   = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		$keys->mark_uploaded( $id );
++		$key = $keys->key_for( $id );
++
++		$deleted = array();
++		$r2      = $this->createMock( R2Client::class );
++		$r2->method( 'delete_object' )->willReturnCallback(
++			static function ( string $k ) use ( &$deleted ) {
++				$deleted[] = $k;
++				return true;
++			}
++		);
++
++		$this->offloader( $r2 )->on_delete( $id );
++
++		$this->assertContains( $key, $deleted );
++		$this->assertContains( $key . '/.count', $deleted );
++		$this->assertFalse( $keys->is_uploaded( $id ) );
++	}
++
++	public function test_enqueue_all_queues_every_image(): void {
++		$r2 = $this->createMock( R2Client::class );
++		self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++
++		$this->assertSame( 2, $this->offloader( $r2 )->enqueue_all() );
++	}
++}
+diff --git a/tests/Integration/Support/SettingsStatusTest.php b/tests/Integration/Support/SettingsStatusTest.php
+index 5eb0363..68972b7 100644
+--- a/tests/Integration/Support/SettingsStatusTest.php
++++ b/tests/Integration/Support/SettingsStatusTest.php
+@@ -3,10 +3,11 @@ declare( strict_types=1 );
+ 
+ namespace MediaOnAutopilot\Tests\Integration\Support;
+ 
+ use MediaOnAutopilot\Features\Cdn\CdnSettings;
+ use MediaOnAutopilot\Features\Cdn\Providers\Bunny\BunnySettings;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\ObjectKeyStore;
+ use MediaOnAutopilot\Support\Settings\SettingsStatus;
+ use WP_UnitTestCase;
+ 
+ final class SettingsStatusTest extends WP_UnitTestCase {
+ 
+@@ -25,6 +26,20 @@ final class SettingsStatusTest extends WP_UnitTestCase {
+ 	public function test_focal_default_enabled_and_offload_zero_without_cloudflare(): void {
+ 		$data = ( new SettingsStatus() )->to_array();
+ 		$this->assertTrue( $data['focalEnabled'] );
+ 		$this->assertSame( array( 'done' => 0, 'total' => 0 ), $data['offloaded'] );
+ 	}
++
++	public function test_offload_counts_self_hosted_uploaded_images(): void {
++		update_option( CdnSettings::OPTION_PROVIDER, 'selfhosted' );
++
++		$keys = new ObjectKeyStore();
++		$done = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg' );
++		$keys->mark_uploaded( $done );
++
++		$data = ( new SettingsStatus() )->to_array();
++
++		$this->assertSame( 1, $data['offloaded']['done'] );
++		$this->assertSame( 2, $data['offloaded']['total'] );
++	}
+ }
+
+Report only defects that violate the rules above in the changed lines. Output ONLY JSON lines, one object per finding, with keys file, line, rule, severity (high|medium|low), message. Output nothing if there are no findings.

@@ -1,0 +1,59 @@
+# Zone scanner configuration: paths and signals that trigger human review
+paths:
+  - "**/auth/**"
+  - "**/rest/**"
+  - "**/*permission*"
+  - "**/migrations/**"
+  - "composer.{json,lock}"
+  - "package{,-lock}.json"
+  - ".github/**"
+  - ".claude/**"
+  - ".pipeline/**"
+  - "**/.env*"
+  - "**/*.{pem,key,p12}"
+  - "**/{auth.json,wp-config*.php,.htaccess}"
+
+signals:
+  php:
+    - pattern: '\$_(GET|POST|REQUEST|COOKIE|SERVER|FILES)'
+      zone: input
+    - pattern: '\$wpdb->'
+      zone: input
+    - pattern: 'register_rest_route|permission_callback'
+      zone: authorization
+    - pattern: 'current_user_can|user_can|map_meta_cap'
+      zone: authorization
+    - pattern: 'wp_signon|wp_set_auth_cookie|wp_check_password|setcookie'
+      zone: authentication
+    - pattern: 'wp_ajax_nopriv_|check_ajax_referer|wp_verify_nonce'
+      zone: csrf
+    - pattern: 'unserialize|eval\(|shell_exec|proc_open|move_uploaded_file'
+      zone: input
+    - pattern: 'dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook'
+      zone: data-loss
+
+  js:
+    - pattern: 'innerHTML|insertAdjacentHTML|dangerouslySetInnerHTML'
+      zone: browser-sinks
+    - pattern: 'postMessage|new Function'
+      zone: browser-sinks
+
+  markup:
+    - pattern: '<script[^>]+src=["'']https?://'
+      zone: third-party
+    - pattern: '<iframe|<form[^>]+action=["'']https?://'
+      zone: third-party
+    - pattern: 'javascript:|\son[a-z]+='
+      zone: browser-sinks
+
+  css:
+    - pattern: 'url\(["'']?https?://|@import'
+      zone: third-party
+
+  suppressions:
+    - pattern: 'phpcs:ignore.*WordPress\.(Security|DB)'
+      zone: suppressions
+    - pattern: 'eslint-disable.*no-unsanitized'
+      zone: suppressions
+    - pattern: 'nosemgrep'
+      zone: suppressions
