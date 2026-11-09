@@ -943,16 +943,16 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 
 1. **Decided.** The pipeline lives under the stormrockwell GitHub account, built by one person and shared once complete.
 2. **Decided.** Any developer other than the PR author approves a human review zone, so there is no zone team or approver role. `risk-gate` enforces one peer approval, or two on designated paths.
-3. **Decided.** Agents commit, push feature branches and open PRs. Only humans merge.
+3. **Decided.** Agents commit and push feature branches. Only the implementer opens a PR, in the finish step after reviews pass, and reviewer agents report findings without opening PRs. Only humans merge.
 4. Which environment profile is the default for new developers, native or container?
 5. Where does compounding data live, in hidden JSON in PR bodies (no infrastructure) or in a central repo?
 6. Does agent review run in CI from the start? It would run Claude Code in GitHub Actions with a plan OAuth token, drawing on the same plan limits as local work.
 7. **Decided.** Repos without a strategy get trunk-based development with releases. The pipeline repo itself cuts no releases while it is built, only once it is ready to ship.
 8. How do designs link to code, through a Figma token per project and a `data-figma` convention or through name matching?
 9. **Decided.** No repo lists trusted authors. The author never counts as an approval, so every approval is a peer's.
-10. Should T0 and T1 start at one human approval and earn zero through metrics, as this strategy proposes, or start at zero?
-11. Is the reviewer precedence right: security, then correctness, then readability and simplicity, then performance, then style? Your brief says readability trumps all in the coding standards and security trumps all reviewers, and this order reconciles the two.
-12. What scale should the performance reviewer assume when the profile declares none? This strategy assumes about 500.
+10. **Decided.** T0 and T1 start at one peer approval and earn zero only when the compounder's metrics show it is safe.
+11. **Decided.** Reviewer precedence is security, then correctness, then readability and simplicity, then performance, then style. Security trumps all reviewers and readability trumps the coding standards, as the brief asks.
+12. **Decided.** The performance reviewer assumes about 500 when the profile declares no scale, and a profile can override it.
 13. **Decided.** The pipeline repo is public, so it gets push protection and a ruleset at no cost. The ruleset blocks force pushes and deletion on `main`, allows squash merges only and requires CI, and it leaves `risk-gate` out while the repo has one developer, because the author can never approve their own PR. The `.claude/settings.json` denials stay as the local layer. The peer rule enforcement test runs on the first team repo that installs the pipeline.
 14. **Decided.** Data writes from untrusted input, such as `update_option` or `wp_insert_post` fed by request data, are a signal in the `input` zone rather than a zone of their own. A repo whose input arrives another way, such as MCP ability `$input`, adds a `near` rule to its own `sensitive.yml`.
 

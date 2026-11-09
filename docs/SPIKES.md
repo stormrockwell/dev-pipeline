@@ -14,7 +14,8 @@ Each spike answered one question with numbers. Details and raw tables live in `d
 ## Open for you
 
 - Mark each row in `docs/spikes/0.6-zone-scan.md` as correct, missed or false alarm.
-- Decide whether data writes from untrusted input become a zone category.
+
+Data writes from untrusted input became a signal in the `input` zone, as decision 14 records.
 
 ## Lessons for later phases
 
