@@ -346,6 +346,28 @@ Door: one-way. Blast radius: local.
       expect(result.status).toBe(0);
       cleanup();
     });
+
+    it("does not count periods inside versions, file names or paths", () => {
+      const body = `## What changed
+- Added feature
+
+## Why this approach
+Plugins require PHP 8.0 and read docs/STRATEGY.md first. The config lives in .github/workflows/ci.yml today. Third sentence.
+
+## How to verify
+Test.
+
+## Risk
+Door: one-way. Blast radius: local.
+
+## Auditors
+- Ran: security (quick)
+`;
+      const file = writeTestFile("periods-in-words.md", body);
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.status).toBe(0);
+      cleanup();
+    });
   });
 
   describe("risk check", () => {
