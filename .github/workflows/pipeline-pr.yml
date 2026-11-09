@@ -14,10 +14,6 @@ on:
         required: false
         default: stormrockwell/dev-pipeline
         type: string
-    secrets:
-      CLI_TOKEN:
-        description: A token that can read cli-repo. Needed while that repo is private.
-        required: false
 
 permissions:
   contents: read
@@ -38,13 +34,11 @@ jobs:
         env:
           CLI_REPO: ${{ inputs.cli-repo }}
           CLI_REF: ${{ inputs.cli-ref }}
-          CLI_TOKEN: ${{ secrets.CLI_TOKEN || github.token }}
         run: |
           # The CLI lives outside the workspace so the floor never scans it as part of the target repo.
           dir="$RUNNER_TEMP/pipeline-cli"
-          auth="$(printf 'x-access-token:%s' "$CLI_TOKEN" | base64 | tr -d '\n')"
           git init -q "$dir"
-          git -C "$dir" -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
+          git -C "$dir" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
           git -C "$dir" checkout -q FETCH_HEAD
           echo "PIPELINE=$dir/cli/bin/pipeline" >> "$GITHUB_ENV"
       - name: Find the changed range
@@ -84,12 +78,10 @@ jobs:
         env:
           CLI_REPO: ${{ inputs.cli-repo }}
           CLI_REF: ${{ inputs.cli-ref }}
-          CLI_TOKEN: ${{ secrets.CLI_TOKEN || github.token }}
         run: |
           dir="$RUNNER_TEMP/pipeline-cli"
-          auth="$(printf 'x-access-token:%s' "$CLI_TOKEN" | base64 | tr -d '\n')"
           git init -q "$dir"
-          git -C "$dir" -c http.extraheader="AUTHORIZATION: basic $auth" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
+          git -C "$dir" fetch -q --depth 1 "https://github.com/$CLI_REPO" "$CLI_REF"
           git -C "$dir" checkout -q FETCH_HEAD
           echo "PIPELINE=$dir/cli/bin/pipeline" >> "$GITHUB_ENV"
       - name: Gate the PR

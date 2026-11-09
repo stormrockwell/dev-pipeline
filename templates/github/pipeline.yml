@@ -22,5 +22,3 @@ jobs:
     uses: stormrockwell/dev-pipeline/.github/workflows/pipeline-pr.yml@REPLACE_WITH_SHA
     with:
       cli-ref: REPLACE_WITH_SHA
-    secrets:
-      CLI_TOKEN: ${{ secrets.PIPELINE_CLI_TOKEN }}

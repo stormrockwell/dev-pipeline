@@ -1,6 +1,6 @@
 # GitHub layer
 
-The GitHub layer makes `docs/STRATEGY.md` section 4 enforceable on a target repo. It has three parts: a reusable workflow that runs the floor and the `risk-gate` check, a ruleset, and the `risk:*` and `zone:*` labels. This repo applies none of it to itself, because it is private on a free account. The first repo on GitHub Pro or a public repo is where the enforcement gets tested.
+The GitHub layer makes `docs/STRATEGY.md` section 4 enforceable on a target repo. It has three parts: a reusable workflow that runs the floor and the `risk-gate` check, a ruleset, and the `risk:*` and `zone:*` labels. This repo does not require `risk-gate` while it has one developer, because the peer rule needs a second person. The first team repo on GitHub Pro or a public repo is where the enforcement gets tested.
 
 ## What enforces what
 
@@ -17,9 +17,8 @@ A ruleset cannot key approvals on a label, so it requires the `risk-gate` check 
 ## Install on a target repo
 
 1. Put the zone rules in `.pipeline/sensitive.yml` (schema in `docs/zones.md`). Add a `critical` list for designated paths such as auth core and payments. Without one, `.github/**`, `.pipeline/**` and `.claude/**` are designated.
-2. Copy `templates/github/pipeline.yml` to `.github/workflows/pipeline.yml`. Replace both `REPLACE_WITH_SHA` values with the same commit of `stormrockwell/dev-pipeline`. Keep the job id `pipeline`, because the ruleset requires the checks `pipeline / floor` and `pipeline / risk-gate`.
-3. While `stormrockwell/dev-pipeline` is private, add a repo secret `PIPELINE_CLI_TOKEN` that can read it. The workflow fetches the CLI at the pinned commit into the runner's temp directory, so the target repo needs no copy of it and the floor never scans it.
-4. Print the install commands, read them, and run them as a repo admin:
+2. Copy `templates/github/pipeline.yml` to `.github/workflows/pipeline.yml`. Replace both `REPLACE_WITH_SHA` values with the same commit of `stormrockwell/dev-pipeline`. Keep the job id `pipeline`, because the ruleset requires the checks `pipeline / floor` and `pipeline / risk-gate`. The workflow fetches the public CLI at the pinned commit into the runner's temp directory, so the target repo needs no copy of it, no secret, and the floor never scans it.
+3. Print the install commands, read them, and run them as a repo admin:
 
 ```
 pipeline github ruleset --out ruleset.json
