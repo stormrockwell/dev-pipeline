@@ -22,3 +22,5 @@ jobs:
     uses: stormrockwell/dev-pipeline/.github/workflows/pipeline-pr.yml@REPLACE_WITH_SHA
     with:
       cli-ref: REPLACE_WITH_SHA
+      # php-version: '8.3'  # Match the PHP version of the repo's own CI.
+      # enforce-approvals: false  # For a repo with one developer, see docs/github.md.

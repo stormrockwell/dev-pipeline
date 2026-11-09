@@ -79,6 +79,35 @@ describe("risk-gate", () => {
     expect(failing.status).toBe(1);
   });
 
+  it("skips the approval count with --enforce-approvals false and says so", () => {
+    const { repo, range } = setup("src/auth/login.php", "<?php\n");
+    const event = (humanReview: string) => JSON.stringify({
+      pull_request: { number: 7, title: "t", body: body(humanReview), user: { login: "dev" }, head: { sha: "bbbb" }, labels: [] },
+      repository: { full_name: "acme/site" },
+    });
+    write(repo, "event.json", event("Human review: required, zone:auth (src/auth/login.php)."));
+    // No --reviews file and no gh login, so a run that tried to read reviews would fail closed.
+    const args = ["risk-gate", "--range", range, "--event", "event.json", "--enforce-approvals", "false"];
+    const text = pipeline(repo, args);
+    expect(text.status).toBe(0);
+    expect(text.stdout).toContain("Approvals: not enforced");
+    expect(text.stdout).toContain("zone:auth");
+    const json = JSON.parse(pipeline(repo, [...args, "--json"]).stdout) as GateResult;
+    expect(json).toMatchObject({ ok: true, approvals: null, approvalsSkipped: true });
+
+    // The Human review line is still checked.
+    write(repo, "none.json", event("Human review: none."));
+    const none = pipeline(repo, ["risk-gate", "--range", range, "--event", "none.json", "--enforce-approvals", "false"]);
+    expect(none.status).toBe(1);
+  });
+
+  it("rejects a value for --enforce-approvals that is not true or false", () => {
+    const { repo, range } = setup("docs/a.md", "# A\n");
+    write(repo, "body.md", body("Human review: none."));
+    const result = pipeline(repo, ["risk-gate", "--range", range, "--body-file", "body.md", "--enforce-approvals", "maybe"]);
+    expect(result.status).toBe(2);
+  });
+
   it("rejects bad usage with exit 2", () => {
     const repo = makeRepo();
     expect(pipeline(repo, ["risk-gate"]).status).toBe(2);

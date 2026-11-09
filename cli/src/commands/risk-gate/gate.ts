@@ -26,6 +26,8 @@ export interface GateInput {
   labels: string[];
   // Null when no review data was given, as in a local run.
   approvals: ApprovalInput | null;
+  /** False skips the peer approval count, for a repo with one developer. Defaults to true. */
+  enforceApprovals?: boolean;
 }
 
 export interface GateResult {
@@ -35,6 +37,8 @@ export interface GateResult {
   zones: string[];
   labels: { add: string[]; remove: string[] };
   approvals: { required: number; have: number } | null;
+  /** True when review data was given and the count was skipped on purpose. */
+  approvalsSkipped: boolean;
   failures: string[];
   warnings: string[];
 }
@@ -97,11 +101,12 @@ export function evaluate(input: GateInput): GateResult {
 
   const failures = [...body.failures];
   let counts: GateResult["approvals"] = null;
-  if (input.approvals) {
+  const skipped = input.approvals !== null && input.enforceApprovals === false;
+  if (input.approvals && !skipped) {
     const checked = checkApprovals(risk, input.approvals);
     failures.push(...checked.failures);
     counts = checked.counts;
   }
 
-  return { ok: failures.length === 0, tier: input.tier, risk, zones, labels: { add, remove }, approvals: counts, failures, warnings: body.warnings };
+  return { ok: failures.length === 0, tier: input.tier, risk, zones, labels: { add, remove }, approvals: counts, approvalsSkipped: skipped, failures, warnings: body.warnings };
 }

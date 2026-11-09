@@ -23,6 +23,7 @@ Recomputes a PR's risk from its diff, the way docs/STRATEGY.md describes the ris
      the scan found zones, or that omits a found zone, fails. A body that names an extra zone warns.
   4. With --event, fails when the PR lacks the peer approvals its risk needs: 1, or 2 for risk:critical.
      A peer is any human other than the author. Bots and approvals of an older commit do not count.
+     --enforce-approvals false turns this step off.
 
 The result never lowers a label the PR already carries.
 
@@ -33,6 +34,10 @@ Input:
                             approval check, which reads reviews with "gh api" and the ambient GH_TOKEN.
   --reviews <file>          Read reviews from this file (a JSON array) instead of calling "gh api".
   --labels <list>           Labels the PR carries, for a run without --event.
+  --enforce-approvals <true|false>
+                            Defaults to true. False skips the peer approval count and reads no reviews,
+                            for a repo with one developer, where the author can never be a peer. The
+                            labels and the Human review line are still checked.
   --path <dir>              Repo to diff. Defaults to the current directory.
 
 Output:
@@ -55,7 +60,9 @@ function formatText(result: GateResult): string {
   const out = [`Risk: ${riskLabel(result.risk)} (${result.tier})`, `Zones: ${result.zones.length > 0 ? result.zones.join(", ") : "none"}`];
   const edits = [`add ${result.labels.add.join(", ") || "nothing"}`, `remove ${result.labels.remove.join(", ") || "nothing"}`];
   out.push(`Labels: ${edits.join("; ")}`);
-  if (result.approvals) {
+  if (result.approvalsSkipped) {
+    out.push("Approvals: not enforced, --enforce-approvals is false, so the peer approval count was skipped");
+  } else if (result.approvals) {
     out.push(`Approvals: ${result.approvals.have} of ${result.approvals.required} required from people other than the author`);
   } else {
     out.push("Approvals: not checked, no --event given");
@@ -76,6 +83,7 @@ async function run(argv: string[]): Promise<number> {
         event: { type: "string" },
         reviews: { type: "string" },
         labels: { type: "string" },
+        "enforce-approvals": { type: "string" },
         path: { type: "string" },
         apply: { type: "boolean" },
         json: { type: "boolean" },
@@ -88,6 +96,10 @@ async function run(argv: string[]): Promise<number> {
   if (values.range === undefined) return fail("give --range <from>..<to>.");
   if (values.apply && values.event === undefined) return fail("--apply needs --event, which names the PR to edit.");
   if (values.event === undefined && values["body-file"] === undefined) return fail("give --body-file or --event.");
+
+  const enforceValue = values["enforce-approvals"] ?? "true";
+  if (enforceValue !== "true" && enforceValue !== "false") return fail(`--enforce-approvals takes true or false, not "${enforceValue}".`);
+  const enforceApprovals = enforceValue === "true";
 
   let event: PullRequestEvent | null = null;
   let body: string;
@@ -119,7 +131,7 @@ async function run(argv: string[]): Promise<number> {
   if (event) {
     try {
       approvals = {
-        reviews: reviewText !== null ? parseReviews(reviewText) : fetchReviews(event.repo, event.number),
+        reviews: !enforceApprovals ? [] : reviewText !== null ? parseReviews(reviewText) : fetchReviews(event.repo, event.number),
         headSha: event.headSha,
         author: event.author,
       };
@@ -138,6 +150,7 @@ async function run(argv: string[]): Promise<number> {
     body,
     labels: event ? event.labels : list(values.labels),
     approvals,
+    enforceApprovals,
   });
 
   console.log(values.json ? JSON.stringify(result, null, 2) : formatText(result));
