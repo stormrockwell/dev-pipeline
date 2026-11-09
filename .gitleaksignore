@@ -1,0 +1,3 @@
+# Fake key planted in the standards review prompt for the 0.8 experiment, in both result files.
+spikes/0.8-standards-review/results/real2.A.prompt.txt:generic-api-key:238
+spikes/0.8-standards-review/results/real2.B.prompt.txt:generic-api-key:185

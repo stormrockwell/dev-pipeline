@@ -9,6 +9,22 @@ interface CheckResult {
   passed: boolean;
 }
 
+const ZONES = [
+  "auth",
+  "authz",
+  "csrf",
+  "input",
+  "crypto",
+  "secrets",
+  "third-party",
+  "privacy",
+  "data-loss",
+  "guardrails",
+];
+
+const HUMAN_REVIEW_FORMS =
+  "'Human review: none.' or 'Human review: required, zone:<name> (<paths>).'";
+
 function readFile(path: string): string {
   return readFileSync(path, "utf8");
 }
@@ -176,6 +192,72 @@ function checkWhy(body: string): CheckResult {
   };
 }
 
+function checkHumanReview(riskSection: string): CheckResult {
+  const line = riskSection
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => /^Human review:/i.test(l));
+
+  if (!line) {
+    return {
+      id: "risk",
+      message: `Risk section missing 'Human review:' line, use ${HUMAN_REVIEW_FORMS}`,
+      passed: false,
+    };
+  }
+
+  const value = line.replace(/^Human review:\s*/i, "");
+
+  if (value === "none.") {
+    return { id: "risk", message: "Human review line is valid", passed: true };
+  }
+
+  // Each zone is matched separately so one unknown name can be reported by itself.
+  const zonePattern = /,\s*zone:(\S+?)\s+\(([^)]*)\)/y;
+  if (!/^required,/.test(value)) {
+    return {
+      id: "risk",
+      message: `Human review line is malformed: ${line}. Use ${HUMAN_REVIEW_FORMS}`,
+      passed: false,
+    };
+  }
+
+  let position = "required".length;
+  const names: string[] = [];
+  while (position < value.length - 1) {
+    zonePattern.lastIndex = position;
+    const match = zonePattern.exec(value);
+    if (!match || !match[2].trim()) {
+      return {
+        id: "risk",
+        message: `Human review line is malformed: ${line}. Each zone needs a path, as 'zone:<name> (<paths>)', and the line ends with a full stop`,
+        passed: false,
+      };
+    }
+    names.push(match[1]);
+    position = zonePattern.lastIndex;
+  }
+
+  if (names.length === 0 || value[position] !== ".") {
+    return {
+      id: "risk",
+      message: `Human review line is malformed: ${line}. Use ${HUMAN_REVIEW_FORMS}`,
+      passed: false,
+    };
+  }
+
+  const unknown = names.filter((n) => !ZONES.includes(n));
+  if (unknown.length > 0) {
+    return {
+      id: "risk",
+      message: `Unknown zone in Human review line: ${unknown.join(", ")}. Valid zones: ${ZONES.join(", ")}`,
+      passed: false,
+    };
+  }
+
+  return { id: "risk", message: "Human review line is valid", passed: true };
+}
+
 function checkRisk(body: string): CheckResult {
   const sections = extractSections(body);
   const riskSection = sections["Risk"] || "";
@@ -199,9 +281,14 @@ function checkRisk(body: string): CheckResult {
     };
   }
 
+  const humanReview = checkHumanReview(riskSection);
+  if (!humanReview.passed) {
+    return humanReview;
+  }
+
   return {
     id: "risk",
-    message: "Risk section contains required Door and Blast radius",
+    message: "Risk section contains required Door, Blast radius and Human review",
     passed: true,
   };
 }

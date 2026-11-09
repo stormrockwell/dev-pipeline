@@ -12,6 +12,8 @@ export interface ToolSpec {
   args(dir: string): string[];
   /** Replaces `args` when the right arguments depend on the installed version. */
   resolveArgs?(exe: string, dir: string): string[];
+  /** Runs the tool on the files the repo would commit instead of everything under the directory. */
+  committableOnly?: boolean;
 }
 
 const composerBin = ["vendor/bin"];
@@ -139,6 +141,8 @@ const gitleaks: ToolSpec = {
   binary: "gitleaks",
   localDirs: [],
   hint: "brew install gitleaks",
+  // Gitleaks walks the directory itself and has no notion of .gitignore, so it needs a filtered copy.
+  committableOnly: true,
   args: () => ["dir", ".", "--no-banner", "--redact"],
   // The `dir` command arrived in 8.19, and older versions scan a plain directory with `detect --no-git`.
   resolveArgs: (exe, dir) =>
