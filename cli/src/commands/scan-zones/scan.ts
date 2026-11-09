@@ -1,4 +1,5 @@
 import { extname } from "node:path";
+import { isCommentOnlyChange } from "./comments.ts";
 import { globToRegExp } from "./glob.ts";
 import { functionRanges, innermost, type Range } from "./scope.ts";
 import type { FileInput, FileScan, Group, Match, Signal, Zone, ZoneConfig } from "./types.ts";
@@ -137,8 +138,14 @@ export function scanFile(config: ZoneConfig, input: FileInput): FileScan {
   const matches: Match[] = [];
   const removed: Match[] = [];
 
+  // A comment cannot change a schema, but a comment in a guardrails file can carry a directive, so only data-loss rules look.
+  let commentsOnly: boolean | undefined;
   for (const rule of pathRules(config)) {
     if (rule.regex.test(input.path)) {
+      if (rule.zone === "data-loss") {
+        commentsOnly ??= isCommentOnlyChange(input);
+        if (commentsOnly) continue;
+      }
       matches.push({ kind: "path", zone: rule.zone, line: null, pattern: rule.glob, text: input.path });
     }
   }

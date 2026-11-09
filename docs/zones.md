@@ -169,6 +169,20 @@ The heuristic checks for co-occurrence, not data flow, so it errs in both direct
 
 The security reviewer's zone call is the second layer for the cases the heuristic misses.
 
+## Comment-only edits to schema paths
+
+In a diff, a path rule in the `data-loss` zone, such as `**/migrations/**`, does not fire when every changed line is blank or a comment, because a comment cannot change a schema. Comments are `--` and `#` lines and `/* */` blocks in SQL, `//`, `#` and `/* */` in PHP, and `//` and `/* */` in JavaScript and TypeScript. A `--` counts only when whitespace follows it, as MySQL requires.
+
+These cases stay path hits, because the changed text can run or can move code in or out of a comment:
+
+- MySQL conditional comments (`/*!`) and optimizer hints (`/*+`), which execute.
+- Any code on a changed line, including a code line beside a trailing comment.
+- A removed line that is code, so commenting out a statement is still a change.
+- A block comment whose opening or closing line was added or removed while other lines sit inside it, and a removed line that opens or closes a block comment.
+- A new file, because the migration itself is the change, and a file type whose comment syntax is not known.
+
+The exemption never applies to `guardrails` paths, because a comment in a workflow or in `CODEOWNERS` can carry a directive such as `nosemgrep` or an owner change. Content signals still read comment text, so a comment that names `DROP TABLE` is a signal hit.
+
 ## Other limits
 
 - Signals are one line at a time, so a statement split over lines can miss a pattern that spans the break.
