@@ -13,7 +13,7 @@ import type { FileInput } from "./types.ts";
  */
 const SKIP_DIRS = new Set(["vendor", "node_modules", ".git", "dist", "build"]);
 
-/** Third party code stays skipped in a git repo, but committed build output counts as the repo's own. */
+// Third party code stays skipped in a git repo, but committed build output counts as the repo's own.
 const THIRD_PARTY_DIRS = new Set(["vendor", "node_modules", ".git"]);
 
 /** Files above this size are generated bundles or data, which no reviewer reads line by line. */
