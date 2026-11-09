@@ -149,43 +149,33 @@ A change enters a human review zone when it matches a path rule or a content sig
 - The guardrails themselves, meaning `.pipeline/`, `.github/`, `.claude/`, `CODEOWNERS`, linter configs and dependency manifests.
 
 ```yaml
-# .pipeline/sensitive.yml
+# .pipeline/sensitive.yml, with the full schema in docs/zones.md
+packs: [wordpress]
+
 paths:
-  - "**/auth/**"
-  - "**/rest/**"
-  - "**/*permission*"
-  - "**/migrations/**"
-  - "composer.{json,lock}"
-  - "package{,-lock}.json"
-  - ".github/**"
-  - ".claude/**"
+  # A bare glob puts matching files in the guardrails zone.
   - ".pipeline/**"
-  - "**/.env*"
-  - "**/*.{pem,key,p12}"
-  - "**/{auth.json,wp-config*.php,.htaccess}"
+  - ".github/**"
+  - "composer.{json,lock}"
+  # A map names another zone.
+  - path: "**/auth/**"
+    zone: auth
+  - path: "**/migrations/**"
+    zone: data-loss
+
 signals:
   php:
-    - '\$_(GET|POST|REQUEST|COOKIE|SERVER|FILES)'
-    - '\$wpdb->'
-    - 'register_rest_route|permission_callback'
-    - 'current_user_can|user_can|map_meta_cap'
-    - 'wp_signon|wp_set_auth_cookie|wp_check_password|setcookie'
-    - 'wp_ajax_nopriv_|check_ajax_referer|wp_verify_nonce'
-    - 'unserialize|eval\(|shell_exec|proc_open|move_uploaded_file'
-    - 'dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook'
-  js:
-    - 'innerHTML|insertAdjacentHTML|dangerouslySetInnerHTML'
-    - 'postMessage|new Function'
-  markup:
-    - '<script[^>]+src=["'']https?://'
-    - '<iframe|<form[^>]+action=["'']https?://'
-    - 'javascript:|\son[a-z]+='
-  css:
-    - 'url\(["'']?https?://|@import'
+    - pattern: 'current_user_can|user_can|map_meta_cap'
+      zone: authz
+    - pattern: '\b(update_option|wp_insert_post|wp_update_post)\('
+      zone: input
+      near: '\$_(GET|POST|REQUEST)|get_param'
+    - pattern: '\b(esc_html|esc_attr|wp_verify_nonce)\('
+      zone: input
+      only: removed
   suppressions:
-    - 'phpcs:ignore.*WordPress\.(Security|DB)'
-    - 'eslint-disable.*no-unsanitized'
-    - 'nosemgrep'
+    - pattern: 'phpcs:ignore.*WordPress\.(Security|DB)'
+      zone: guardrails
 ```
 
 Two signals weigh more than the rest. A removed line that matched a signal, such as a deleted capability or nonce check, weakens a control, so the review guide lists it first. A change to the guardrails can weaken every future gate, so an agent can never land one without a human.
@@ -965,7 +955,8 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 10. Should T0 and T1 start at one human approval and earn zero through metrics, as this strategy proposes, or start at zero?
 11. Is the reviewer precedence right: security, then correctness, then readability and simplicity, then performance, then style? Your brief says readability trumps all in the coding standards and security trumps all reviewers, and this order reconciles the two.
 12. What scale should the performance reviewer assume when the profile declares none? This strategy assumes about 500.
-13. **Decided.** The pipeline repo is private under a personal account, where server-side push protection is unavailable, so the local hooks and CI scans carry secret protection until it moves to a team org.
+13. **Decided.** The pipeline repo is private under a personal account, where server-side push protection and rulesets are unavailable. The local hooks and CI scans carry secret protection, and the `.claude/settings.json` denials carry merge protection, until the repo goes public. Repos that install the pipeline run on GitHub Pro or in public, so the ruleset enforcement test runs on the first of those.
+14. **Decided.** Data writes from untrusted input, such as `update_option` or `wp_insert_post` fed by request data, are a signal in the `input` zone rather than a zone of their own. A repo whose input arrives another way, such as MCP ability `$input`, adds a `near` rule to its own `sensitive.yml`.
 
 ## Sources
 
