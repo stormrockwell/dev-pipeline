@@ -9,7 +9,7 @@ export const CONFIG_PATH = ".pipeline/sensitive.yml";
 
 const TOP_KEYS = ["packs", "paths", "signals", "critical", "test_paths"];
 
-/** The guardrail paths that STRATEGY names as designated, used when a sensitive.yml omits `critical`. */
+// The guardrail paths that STRATEGY names as designated, used when a sensitive.yml omits `critical`.
 export const DEFAULT_CRITICAL = [".github/**", ".pipeline/**", ".claude/**"];
 /**
  * Test files hold attack strings and mocks on purpose, so content signals skip them. The list is explicit
@@ -19,7 +19,7 @@ export const DEFAULT_TEST_PATHS = ["**/test/**", "**/tests/**", "**/__tests__/**
 const SIGNAL_KEYS = ["pattern", "zone", "near", "only", "flags"];
 const PATH_KEYS = ["path", "zone"];
 
-/** Names from the 0.6 spike, so an old file gets a pointer to the current zone instead of a bare error. */
+// Names from the 0.6 spike, so an old file gets a pointer to the current zone instead of a bare error.
 const legacyZones: Record<string, Zone> = {
   authentication: "auth",
   authorization: "authz",
@@ -173,7 +173,7 @@ function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[
   };
 }
 
-/** Every built-in pack, which is what a repo without a sensitive.yml gets. */
+// Every built-in pack, which is what a repo without a sensitive.yml gets.
 export function builtinConfig(): ZoneConfig {
   return combine("builtin", Object.keys(packs), [], [], { critical: DEFAULT_CRITICAL, testPaths: DEFAULT_TEST_PATHS });
 }

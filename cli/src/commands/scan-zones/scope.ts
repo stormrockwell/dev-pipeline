@@ -3,7 +3,7 @@ export interface Range {
   end: number;
 }
 
-/** Control keywords share the `name(...) {` shape of a method, so they must not open a function scope. */
+// Control keywords share the `name(...) {` shape of a method, so they must not open a function scope.
 const notMethods = new Set(["if", "for", "foreach", "while", "switch", "catch", "elseif", "with", "return"]);
 
 const method =
@@ -49,7 +49,7 @@ function startsFunction(line: string): boolean {
   return name !== undefined && !notMethods.has(name);
 }
 
-/** Finds the closing line of the body that opens at or after `from`, or -1 when there is no body. */
+// Finds the closing line of the body that opens at or after `from`, or -1 when there is no body.
 function bodyEnd(blanked: string[], from: number): number {
   let depth = 0;
   let opened = false;
@@ -71,7 +71,7 @@ function bodyEnd(blanked: string[], from: number): number {
   return -1;
 }
 
-/** Zero-based line ranges of function and method bodies, which bound a "same function" check. */
+// Zero-based line ranges of function and method bodies, which bound a "same function" check.
 export function functionRanges(lines: string[]): Range[] {
   const blanked = blank(lines);
   const ranges: Range[] = [];
@@ -83,7 +83,7 @@ export function functionRanges(lines: string[]): Range[] {
   return ranges;
 }
 
-/** The smallest range that holds the line, so a nested closure wins over the function around it. */
+// The smallest range that holds the line, so a nested closure wins over the function around it.
 export function innermost(ranges: Range[], index: number): Range | null {
   let best: Range | null = null;
   for (const range of ranges) {

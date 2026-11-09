@@ -9,7 +9,7 @@ function zonesOf(path: string, content: string): Zone[] {
   return scanText(config, path, content).zones;
 }
 
-/** A change with its added line numbers and removed lines, as a diff would report it. */
+// A change with its added line numbers and removed lines, as a diff would report it.
 function change(path: string, content: string, added: number[], removed: string[] = []): FileInput {
   return {
     path,

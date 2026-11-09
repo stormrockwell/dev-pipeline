@@ -26,7 +26,7 @@ interface Behavior {
   stderr?: string;
   sleepMs?: number;
   pidFile?: string;
-  /** Makes `gitleaks dir --help` fail, as it does on a gitleaks older than 8.19. */
+  // Makes `gitleaks dir --help` fail, as it does on a gitleaks older than 8.19.
   legacy?: boolean;
 }
 
@@ -47,7 +47,7 @@ function fresh(): void {
   mkdirSync(fakes, { recursive: true });
 }
 
-/** Writes a node script with an absolute shebang, so the fake needs nothing else on PATH. */
+// Writes a node script with an absolute shebang, so the fake needs nothing else on PATH.
 function fakeAt(dir: string, name: string, behavior: Behavior = {}): string {
   mkdirSync(dir, { recursive: true });
   const file = join(dir, name);
@@ -221,7 +221,7 @@ describe("detection", () => {
   });
 });
 
-/** Makes the repo a git repo and puts git next to the fakes, because the tests run with only the fakes on PATH. */
+// Makes the repo a git repo and puts git next to the fakes, because the tests run with only the fakes on PATH.
 function gitInit(): void {
   symlinkSync(findOnPath("git"), join(fakes, "git"));
   git(repo, "init", "-q");

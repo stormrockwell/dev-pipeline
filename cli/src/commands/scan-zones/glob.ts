@@ -1,4 +1,4 @@
-/** Escapes a character that is special in a regular expression. */
+// Escapes a character that is special in a regular expression.
 function escape(char: string): string {
   return /[\\^$.*+?()[\]{}|/]/.test(char) ? `\\${char}` : char;
 }

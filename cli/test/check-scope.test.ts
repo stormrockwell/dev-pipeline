@@ -16,7 +16,7 @@ const gitleaks = locate("gitleaks");
 // Each case starts real gitleaks, which can take seconds when the whole suite runs in parallel.
 const slow = { timeout: 60_000 };
 
-/** Runs the real floor with real gitleaks, because only the real scanner proves what gets scanned. */
+// Runs the real floor with real gitleaks, because only the real scanner proves what gets scanned.
 function gitleaksResult(cwd: string) {
   const path = [dirname(gitleaks!), dirname(locate("git")!), "/usr/bin", "/bin"].join(":");
   const run = spawnSync(process.execPath, [bin, "check", "--json", "--timeout", "60"], {

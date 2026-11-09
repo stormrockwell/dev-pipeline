@@ -14,7 +14,7 @@ function signals(group: Group, zone: Zone, ...patterns: string[]): Signal[] {
   return patterns.map((pattern) => ({ group, zone, pattern }));
 }
 
-/** Request data in the same function, which is what makes a data write an input risk. */
+// Request data in the same function, which is what makes a data write an input risk.
 const wpRequest =
   "\\$_(GET|POST|REQUEST)\\b|->get_(json_|body_|query_|url_)?params?\\(|\\$request\\[";
 
@@ -29,17 +29,17 @@ function removedOnly(group: Group, zone: Zone, pattern: string): Signal {
   return { group, zone, pattern, only: "removed" };
 }
 
-/** The calls that hand a string to a shell, which stay a signal whatever the string holds. */
+// The calls that hand a string to a shell, which stay a signal whatever the string holds.
 const shellOrFork = "\\bexecSync\\(|(?<![.\\w])(?:exec|fork)\\(";
 
-/** Programs that run code from their arguments, so a literal name does not make the call safe. */
+// Programs that run code from their arguments, so a literal name does not make the call safe.
 const launchers =
   "(?:[^\"'`$]*[/\\\\])?(?:sh|bash|zsh|dash|fish|ksh|cmd|powershell|pwsh|node|nodejs|deno|bun|python[\\d.]*|perl|ruby|php|osascript|env|xargs|sudo|npx|bunx|pnpx)(?:\\.exe)?";
 
-/** Package managers, whose install and run subcommands execute code from the network or from scripts. */
+// Package managers, whose install and run subcommands execute code from the network or from scripts.
 const installers = "(?:npm|pnpm|yarn|bun|composer|pip3?|gem|cargo|brew|apt(?:-get)?)";
 
-/** The subcommands of an installer that only read, so `npm audit` is not an install. */
+// The subcommands of an installer that only read, so `npm audit` is not an install.
 const readOnlyCommands = "(?:audit|ls|list|view|show|outdated|why|validate|config|whoami|--version|-v|-V)";
 
 /**
@@ -54,14 +54,14 @@ const literalCommandWithArray =
 
 const spawnWithoutLiteralArray = `(?:\\b(?:spawnSync|execFile(?:Sync)?)|(?<![.\\w])spawn)\\((?!${literalCommandWithArray})`;
 
-/** An import that only names its members adds nothing, because the calls it enables match on their own. */
+// An import that only names its members adds nothing, because the calls it enables match on their own.
 const plainChildProcessImport =
   "\\s*(?:import\\s+(?:type\\s+)?\\{(?:(?!\\bas\\b)[^}])*\\}\\s*from\\s*[\"'](?:node:)?child_process[\"']" +
   "|(?:const|let|var)\\s+\\{[^}:]*\\}\\s*=\\s*require\\(\\s*[\"'](?:node:)?child_process[\"']\\s*\\))\\s*;?\\s*$";
 
 const childProcessMention = `^(?!${plainChildProcessImport}).*?\\bchild_process\\b`;
 
-/** Browser sinks, third-party loads and suppressions apply to both stacks, so each pack carries them. */
+// Browser sinks, third-party loads and suppressions apply to both stacks, so each pack carries them.
 const shared: Signal[] = [
   ...signals("js", "input", "innerHTML|insertAdjacentHTML|dangerouslySetInnerHTML", "postMessage|new Function"),
   ...signals("markup", "third-party", "<script[^>]+src=[\"']https?://", "<iframe|<form[^>]+action=[\"']https?://"),
@@ -123,13 +123,13 @@ export const wordpress: Pack = {
 
 const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
 
-/** The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`. */
+// The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`.
 const operator = "(?:===?|!==?)(?!=)\\s*(?=\\S)";
 
-/** A comparison against null, undefined or an empty string is a presence check, not a signature check. */
+// A comparison against null, undefined or an empty string is a presence check, not a signature check.
 const notAbsent = "(?!null\\b|undefined\\b|['\"]{2})";
 
-/** Either side of a loose or strict comparison names a signature. */
+// Either side of a loose or strict comparison names a signature.
 const signatureComparison = [
   `\\b${signatureName}\\s*${operator}${notAbsent}\\S`,
   `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,

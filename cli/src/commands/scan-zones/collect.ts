@@ -13,16 +13,16 @@ import type { FileInput } from "./types.ts";
  */
 const SKIP_DIRS = new Set(["vendor", "node_modules", ".git", "dist", "build"]);
 
-/** Third party code stays skipped in a git repo, but committed build output counts as the repo's own. */
+// Third party code stays skipped in a git repo, but committed build output counts as the repo's own.
 const THIRD_PARTY_DIRS = new Set(["vendor", "node_modules", ".git"]);
 
-/** Files above this size are generated bundles or data, which no reviewer reads line by line. */
+// Files above this size are generated bundles or data, which no reviewer reads line by line.
 const MAX_BYTES = 5 * 1024 * 1024;
 
 const diffFlags = ["-U0", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/"];
 
 export interface Collected {
-  /** The repo or directory that holds .pipeline/sensitive.yml. */
+  // The repo or directory that holds .pipeline/sensitive.yml.
   root: string;
   inputs: FileInput[];
 }
@@ -72,7 +72,7 @@ export function collectTree(dir: string): Collected {
   return { root: dir, inputs };
 }
 
-/** Reads named files from the working tree, for callers that already know which files they care about. */
+// Reads named files from the working tree, for callers that already know which files they care about.
 export function collectFiles(root: string, files: string[]): Collected {
   const inputs = files.map((path): FileInput => {
     const full = join(root, path);

@@ -4,7 +4,7 @@ import { globToRegExp } from "./glob.ts";
 import { functionRanges, innermost, type Range } from "./scope.ts";
 import type { FileInput, FileScan, Group, Match, Signal, Zone, ZoneConfig } from "./types.ts";
 
-/** Which signal groups apply to which file types. Suppressions apply to every scanned type. */
+// Which signal groups apply to which file types. Suppressions apply to every scanned type.
 const groupsByExtension: Record<string, Group[]> = {
   ".php": ["php", "markup", "suppressions"],
   ".inc": ["php", "markup", "suppressions"],
@@ -32,7 +32,7 @@ export function isScanned(path: string): boolean {
   return groupsFor(path).length > 0;
 }
 
-/** Lines on each side of a write that count as "nearby" when the write sits outside any function. */
+// Lines on each side of a write that count as "nearby" when the write sits outside any function.
 const TOP_LEVEL_WINDOW = 20;
 
 const SNIPPET_LENGTH = 120;
@@ -66,7 +66,7 @@ function compiled(config: ZoneConfig): Compiled[] {
 
 const testPathCache = new WeakMap<ZoneConfig, RegExp[]>();
 
-/** Test globs match case sensitively, so `*Test.php` finds FooTest.php and leaves latest.php alone. */
+// Test globs match case sensitively, so `*Test.php` finds FooTest.php and leaves latest.php alone.
 function isTestFile(config: ZoneConfig, path: string): boolean {
   let list = testPathCache.get(config);
   if (!list) {
@@ -85,7 +85,7 @@ function pathRules(config: ZoneConfig) {
   return list;
 }
 
-/** Matches a signal's `near` pattern against the function around a line, the hunk, or a window. */
+// Matches a signal's `near` pattern against the function around a line, the hunk, or a window.
 class Neighbourhood {
   private ranges: Range[] | null = null;
   private readonly lines: string[];
@@ -108,7 +108,7 @@ class Neighbourhood {
     return this.hunkHolds(near, index);
   }
 
-  /** Added lines next to each other form a hunk, and request data in the same hunk counts. */
+  // Added lines next to each other form a hunk, and request data in the same hunk counts.
   private hunkHolds(near: RegExp, index: number): boolean {
     const added = this.added;
     if (!added) return false;
@@ -127,7 +127,7 @@ function splitLines(content: string): string[] {
   return content.split(/\r?\n/);
 }
 
-/** Rebuilds a sparse file from the added lines of a diff when the full content could not be read. */
+// Rebuilds a sparse file from the added lines of a diff when the full content could not be read.
 export function sparseContent(added: { line: number; text: string }[]): string {
   const lines: string[] = [];
   for (const entry of added) lines[entry.line - 1] = entry.text;
@@ -186,7 +186,7 @@ export function scanFile(config: ZoneConfig, input: FileInput): FileScan {
   return { path: input.path, zones, matches, removed };
 }
 
-/** Scans plain text as a whole file, which is how the unit tests and `classify` read a path list. */
+// Scans plain text as a whole file, which is how the unit tests and `classify` read a path list.
 export function scanText(config: ZoneConfig, path: string, content: string): FileScan {
   return scanFile(config, { path, content, added: null, removed: [], deleted: false });
 }
