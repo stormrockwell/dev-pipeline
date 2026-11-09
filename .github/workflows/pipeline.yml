@@ -1,0 +1,25 @@
+# The pipeline runs its own floor and risk gate on every PR, from the copy in the PR itself.
+name: Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+concurrency:
+  group: pipeline-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  pipeline:
+    uses: ./.github/workflows/pipeline-pr.yml
+    with:
+      # The PR head, so a change to the CLI is checked by the CLI it changes.
+      cli-ref: ${{ github.event.pull_request.head.sha }}
+      # The author never counts as a peer, and the repo has one developer, as decision 13 records.
+      enforce-approvals: false
