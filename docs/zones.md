@@ -16,7 +16,7 @@ A file is in a zone when its path matches a path rule or when a line matches a c
 
 Removed lines that matched a signal are reported separately and printed first. A deleted capability check or nonce check weakens a control, so the review guide lists it before anything that was added. A removed line is matched against the signal alone, so a signal that depends on its neighbours (`near`) is skipped for removals.
 
-Tree mode skips `vendor/`, `node_modules/`, `.git/` and the build output folders `dist/` and `build/`, which repeat their source. Diff modes still scan build output, because a plugin ships it. Tree mode reads content only from files of a scanned type. Every file still gets the path rules. Scanned types:
+Inside a git repo, tree mode reads only the files git would commit, which are the tracked files and the untracked files that `.gitignore` does not exclude. A generated folder that the repo ignores, such as `.claude/`, `public/build` or `.next`, is never scanned, because no change can carry it. Committed build output counts as the repo's own code, and `vendor/`, `node_modules/` and `.git/` stay skipped. Outside a git repo, tree mode walks the directory and skips those three folders and the build output folders `dist/` and `build/`, which repeat their source. Diff modes still scan build output, because a plugin ships it. Tree mode reads content only from files of a scanned type. Every file still gets the path rules. Scanned types:
 
 | Type | Extensions | Signal groups |
 |---|---|---|
