@@ -1,0 +1,11 @@
+import { createServer } from "node:http";
+import { renderPage } from "./page.ts";
+
+const port = Number(process.env.PORT ?? 3000);
+
+createServer((_request, response) => {
+	response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+	response.end(renderPage("{{name}}"));
+}).listen(port, () => {
+	console.log(`Listening on http://localhost:${port}`);
+});

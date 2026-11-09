@@ -1,0 +1,22 @@
+<?php
+/**
+ * Greeting logic, kept free of WordPress calls so PHPUnit can test it without a WordPress install.
+ *
+ * @package {{Prefix}}
+ */
+
+/**
+ * Builds greetings.
+ */
+class {{Prefix}}_Greeting {
+
+	/**
+	 * Returns the greeting for a name.
+	 *
+	 * @param string $name Who to greet.
+	 * @return string
+	 */
+	public function for_name( string $name ): string {
+		return 'Hello, ' . $name . '.';
+	}
+}

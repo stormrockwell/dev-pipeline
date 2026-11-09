@@ -1,0 +1,18 @@
+import { describe, expect, it } from "vitest";
+import { escapeHtml, renderPage } from "../src/page.ts";
+
+describe("renderPage", () => {
+	it("sets the language and the title", () => {
+		const html = renderPage("Hello");
+
+		expect(html).toContain('<html lang="en">');
+		expect(html).toContain("<title>Hello</title>");
+	});
+
+	it("escapes the title", () => {
+		expect(escapeHtml('<script>"x"</script>')).toBe(
+			"&lt;script&gt;&quot;x&quot;&lt;/script&gt;",
+		);
+		expect(renderPage("<b>")).not.toContain("<b>");
+	});
+});

@@ -1,0 +1,32 @@
+{
+	"name": "local/{{slug}}",
+	"description": "{{name}}",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require": {
+		"php": ">=8.0"
+	},
+	"require-dev": {
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"digitalimpulse/php-coding-standards": "dev-main#{{standardsRef}}",
+		"phpunit/phpunit": "^9.6"
+	},
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "https://github.com/stormrockwell/coding-standards"
+		}
+	],
+	"scripts": {
+		"test": "phpunit",
+		"lint": "phpcs",
+		"post-install-cmd": "pipeline hooks install || echo 'warning: the pipeline CLI is missing, so the git hooks were not installed.'",
+		"post-update-cmd": "pipeline hooks install || echo 'warning: the pipeline CLI is missing, so the git hooks were not installed.'"
+	},
+	"config": {
+		"sort-packages": true,
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	}
+}

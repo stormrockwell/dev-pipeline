@@ -1,0 +1,9 @@
+# {{name}}
+
+Navigation pointers for agents. The profile records this repo's choices.
+
+- `.pipeline/profile.yml` holds the project type, the test layers and the policy.
+- `.pipeline/sensitive.yml` lists the human review zones, and a change there needs a human.
+- `{{slug}}.php` is the plugin header, `includes/` holds the classes, and `tests/Unit/` holds the PHPUnit suite.
+- Write the failing test first, then the code. `composer test` runs the suite, and `pipeline check` runs the floor.
+- Every capability check, nonce and escaping call stays in place. A removed one needs a human reviewer.
