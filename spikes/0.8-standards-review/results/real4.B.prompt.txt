@@ -1,0 +1,351 @@
+You are a code reviewer enforcing coding standards on one commit. Read-only: do not edit files. Use Read, Grep and Glob for context only when needed.
+Commit message:
+fix(cdn): make self-hosted connection test verify the R2 round-trip
+
+The verifier was copied from BunnyVerifier and fetched a WordPress core
+image through the delivery host. The self-hosted Worker only serves from
+R2, so that image is never present and the connection test could never
+pass. Rewrite it to PUT a probe object to R2 with the configured
+credentials, fetch it back through the delivery host, then delete it,
+which verifies the credentials, the R2 write path, and the Worker's
+bucket binding end to end.
+
+Review rules:
+
+### Rule Group 1: system / **/*.{php,phtml}
+
+Applies to:
+- src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php
+- tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php
+
+#### Content
+
+#### PHP Review Principles
+> Favor precision over recall: report only defects that are likely real in the changed code and its reachable context. Treat correctness and security findings as blocking; style-only suggestions are non-blocking. Account for the project's PHP version and framework conventions before reporting version- or lifecycle-dependent behavior.
+
+Before making a non-local claim, use `file_read` and `code_search` to verify callers, input sources, framework configuration, template context, and resource ownership. Do not duplicate findings reliably enforced by PHPStan, Psalm, PHP_CodeSniffer, the formatter, or the PHP compiler unless the diff demonstrates a concrete consequence those tools do not express.
+
+#### Type Juggling, Equality, and Null Semantics
+- Loose comparison (`==` or `!=`) whose coercion can make distinct security- or domain-sensitive values compare equal. Prefer strict comparison when operands are expected to have the same type; do not flag deliberate, validated normalization.
+- Truthiness or `empty()` checks that incorrectly treat `0`, `"0"`, `false`, `null`, and an empty value as equivalent when those states have different meanings.
+- `isset()` used when a present key with a `null` value must be distinguished from a missing key; use `array_key_exists()` when presence, rather than non-nullness, is the contract.
+- Nullable, union, or `false`-returning APIs whose failure value reaches code that assumes a usable object, scalar, or resource. Confirm the declared and runtime contract before flagging.
+- Numeric-string, arithmetic, or comparison behavior that depends on a different PHP version from the one supported by `composer.json`, CI, or deployment configuration.
+
+#### Arrays, Iteration, and Value Semantics
+- Array keys read without handling a reachable missing-key path, especially request data, decoded JSON, database rows, or optional configuration.
+- A `foreach` value variable iterated by reference and then reused without `unset()`, leaving it aliased to the final element and allowing later assignments to corrupt the array.
+- Array union (`+`), `array_merge`, spread syntax, or numeric-key reindexing used with semantics different from the intended overwrite and ordering behavior.
+- Callbacks or closures that capture a loop variable by reference and later observe an unintended final or mutated value.
+- Mutation during iteration that can skip, duplicate, or unexpectedly retain elements. Do not flag mutation whose traversal behavior is deliberate and locally evident.
+
+#### Errors, Exceptions, and API Contracts
+- `Throwable` or `Exception` caught and silently discarded, converted into success, or replaced with a misleading default on a path where the failure matters.
+- Catching a broad exception around unrelated operations so the handler cannot distinguish the expected failure from a programming or infrastructure defect.
+- A codebase contract inconsistently mixing exceptions, `false`, and `null` for the same failure, causing callers to miss an error path.
+- Cleanup, rollback, or response-finalization code that hides the primary exception or returns success after the operation failed.
+- Warnings or errors suppressed with `@` where suppression can turn a meaningful failure into invalid state. Do not flag a narrowly documented compatibility probe that checks the result safely.
+
+#### Resources, Transactions, and Request Lifecycle
+- Transactions, locks, database cursors, or resources in long-running processes not released, committed, or rolled back on every reachable path when delayed cleanup can exhaust capacity or break correctness. Do not flag ordinary request-scoped streams or files merely because PHP can release them at request shutdown.
+- Database transactions with early returns or exception paths that can leave the transaction open, or nested transaction assumptions unsupported by the active driver/framework.
+- cURL or stream operations lacking timeouts on a request or worker path where a remote endpoint can stall execution.
+- Session locks held across slow network, database, or CPU work when concurrent requests for the same session must proceed.
+- Do not report resources owned by a framework, dependency-injection container, generator consumer, or caller when ownership transfer is established by the surrounding code.
+
+#### Database and ORM Correctness
+- SQL assembled from untrusted values instead of parameter binding. Identifiers such as column names and sort directions cannot usually be bound and require an allowlist.
+- Raw ORM expressions, query fragments, or dynamic table/column names that bypass the framework's normal parameterization with attacker-controlled data.
+- Missing transaction boundaries when a changed multi-step write must be atomic, or side effects ordered so a rollback cannot restore consistency.
+- N+1 queries or repeated remote calls only when the loop is reachable at meaningful scale and eager loading or batching preserves behavior.
+- Mass-assignment exposure only when request-controlled fields reach a model and the framework's fillable/guarded/schema configuration does not already constrain them.
+
+#### Web and Template Security Boundaries
+Confirm attacker control and the output or execution context before reporting. Framework validation and auto-escaping may make an otherwise dangerous-looking operation safe.
+
+- Untrusted output rendered without context-appropriate escaping for HTML text, attributes, URLs, JavaScript, or CSS. For `.phtml` templates, verify whether the view helper already escapes the value and whether raw HTML is intentional and sanitized.
+- Authorization enforced only in a client, template, or hidden control rather than at the server-side operation; check route middleware, policies, voters, and controller guards before flagging.
+- State-changing browser requests missing required CSRF protection when cookie-based authentication makes cross-site invocation possible. Do not flag token-authenticated APIs that are not vulnerable to ambient credentials.
+- Redirects, response headers, or cookies built from untrusted data without validation or appropriate `Secure`, `HttpOnly`, and `SameSite` protections where those properties are required.
+- File uploads trusted by client filename, extension, or MIME header alone; verify server-side type checks, generated storage names, destination boundaries, and executable-file handling.
+- User-controlled paths used for filesystem access without normalization and boundary enforcement, enabling traversal, symlink escape, or unintended overwrite.
+
+#### Dynamic Execution, Deserialization, and Outbound Requests
+- `eval`, dynamic `include`/`require`, variable function calls, reflection, or shell commands reached by untrusted input without a strict allowlist.
+- `unserialize()` on attacker-controlled data, including signed data where key management or verification is absent. Prefer a non-executable format; `allowed_classes` reduces object injection but does not make arbitrary data trustworthy.
+- Shell commands built through concatenation or incomplete escaping. Prefer direct process APIs with separate arguments and validate option-like attacker-controlled values.
+- Outbound URLs derived from untrusted input without required scheme, host, port, redirect, and private-network restrictions, enabling SSRF or credential forwarding.
+- Weak randomness or password handling: predictable token generation, reversible password storage, manual password hashing, or non-constant-time comparison of secrets. Prefer `random_bytes`, `password_hash`, `password_verify`, and `hash_equals` as appropriate.
+- Secrets, session identifiers, authorization headers, passwords, private keys, or sensitive personal data logged, returned in errors, or embedded in source.
+
+#### Performance and Review Scope
+- Report performance issues only with evidence of meaningful data scale or a hot path: repeated queries, accidental full-result materialization, quadratic array operations, or expensive work repeated inside a loop.
+- Suggest tests only for concrete changed failure modes involving coercion, boundary values, errors, transactions, authorization, escaping, or framework configuration.
+- Do not make formatting, naming, import ordering, modern-syntax preferences, or advice already enforced by deterministic PHP tooling into blocking findings.
+
+Diff to review:
+
+diff --git a/src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php b/src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php
+index cb48e8a..b114005 100644
+--- a/src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php
++++ b/src/Features/Cdn/Providers/SelfHosted/SelfHostedVerifier.php
+@@ -1,8 +1,9 @@
+ <?php
+ /**
+- * Live reachability check for a self-hosted CDN delivery host.
++ * Connection test for the self-hosted CDN: round-trips a probe object through
++ * R2 and the delivery Worker.
+  *
+  * @package MediaOnAutopilot
+  */
+ 
+ declare( strict_types=1 );
+@@ -13,64 +14,98 @@ use MediaOnAutopilot\Features\Cdn\Verification\Verifiable;
+ use MediaOnAutopilot\Features\Cdn\Verification\VerificationResult;
+ 
+ defined( 'ABSPATH' ) || exit;
+ 
+ /**
+- * Confirms the delivery host actually serves an image from this site's origin.
++ * Verifies self-hosted delivery end to end. Unlike a pull-zone provider, the
++ * delivery Worker only serves objects that exist in the tenant's R2 bucket, so
++ * the check writes a small probe object to R2 with the configured credentials,
++ * fetches it back through the delivery host, then deletes it. This proves the
++ * upload credentials work AND that the Worker is bound to the right bucket.
+  */
+ final class SelfHostedVerifier implements Verifiable {
+ 
+ 	/**
+-	 * Sets up the verifier with resolved self-hosted settings.
++	 * A 1x1 transparent PNG used as the probe payload.
++	 */
++	private const PROBE_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
++
++	/**
++	 * Sets up the verifier with resolved settings and an R2 write client.
+ 	 *
+ 	 * @param SelfHostedConfig $config Resolved self-hosted settings.
++	 * @param R2Client|null    $r2     R2 write client (defaults to one built from $config).
+ 	 */
+-	public function __construct( private SelfHostedConfig $config ) {}
++	public function __construct(
++		private SelfHostedConfig $config,
++		private ?R2Client $r2 = null
++	) {}
+ 
+ 	/**
+-	 * Check the delivery host by fetching a known core image through it.
++	 * Round-trip a probe object through R2 and the delivery host.
+ 	 *
+ 	 * @return VerificationResult
+ 	 */
+ 	public function verify(): VerificationResult {
+ 		if ( '' === $this->config->host ) {
+ 			return VerificationResult::unconfigured(
+ 				__( 'Enter a delivery hostname to connect self-hosted CDN.', 'media-on-autopilot' )
+ 			);
+ 		}
+ 
+-		$path = (string) wp_parse_url( includes_url( 'images/w-logo-blue-white-bg.png' ), PHP_URL_PATH );
+-		if ( '' === $path ) {
+-			$path = '/wp-includes/images/w-logo-blue-white-bg.png';
++		if ( ! $this->config->can_upload() ) {
++			return VerificationResult::unconfigured(
++				__( 'Enter the R2 bucket, account ID, and access keys to test the connection.', 'media-on-autopilot' )
++			);
++		}
++
++		$r2  = $this->r2 ?? new R2Client( $this->config );
++		$key = '.moap-connection-test/probe-' . wp_generate_password( 16, false ) . '.png';
++		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Decoding a static 1x1 PNG probe payload, not obfuscated code.
++		$png = (string) base64_decode( self::PROBE_PNG_BASE64, true );
++
++		// 1. Write a probe object to R2 with the configured credentials.
++		if ( ! $r2->put_object( $key, $png, 'image/png' ) ) {
++			return VerificationResult::error(
++				__( 'Could not write to your R2 bucket. Check the bucket name, account ID, and access keys.', 'media-on-autopilot' ),
++				__( 'R2 upload failed.', 'media-on-autopilot' )
++			);
+ 		}
+ 
+-		// wp_safe_remote_get rejects URLs resolving to private/reserved ranges; the
+-		// host comes from an admin-settable option, so this closes an SSRF probe.
++		// 2. Fetch the probe back through the delivery host. A width past the
++		// ceiling makes the Worker serve the stored object untouched, so this
++		// isolates delivery (Worker -> bucket) from the transform pipeline.
++		// wp_safe_remote_get rejects private/reserved hosts (SSRF guard); the
++		// host is an admin-settable option.
+ 		$response = wp_safe_remote_get(
+-			'https://' . $this->config->host . $path . '?w=20',
++			'https://' . $this->config->host . '/' . $key . '?w=99999',
+ 			array( 'timeout' => 15 )
+ 		);
+ 
++		// 3. Clean up the probe (best effort; a leftover probe is harmless).
++		$r2->delete_object( $key );
++
+ 		if ( is_wp_error( $response ) ) {
+-			// Don't surface the raw transport error (it can echo internal host/port detail).
+ 			return VerificationResult::error(
+-				__( 'Could not reach the delivery hostname.', 'media-on-autopilot' ),
++				__( 'Wrote to R2, but could not reach the delivery hostname.', 'media-on-autopilot' ),
+ 				__( 'The request to the delivery host could not be completed.', 'media-on-autopilot' )
+ 			);
+ 		}
+ 
+ 		$code = (int) wp_remote_retrieve_response_code( $response );
+ 		$type = strtolower( (string) wp_remote_retrieve_header( $response, 'content-type' ) );
+ 
+ 		if ( 200 === $code && str_starts_with( $type, 'image/' ) ) {
+-			return VerificationResult::ok( __( 'Delivery host is serving images from your site.', 'media-on-autopilot' ) );
++			return VerificationResult::ok(
++				__( 'Connected: a test image uploaded to R2 and served through your delivery host.', 'media-on-autopilot' )
++			);
+ 		}
+ 
+-		if ( 200 === $code ) {
++		if ( 404 === $code ) {
+ 			return VerificationResult::error(
+-				__( 'The hostname responded but did not serve an image. Check the delivery hostname and that the Worker points to this site.', 'media-on-autopilot' ),
+-				'' !== $type ? $type : __( 'unexpected response', 'media-on-autopilot' )
++				__( 'Uploaded to R2, but the delivery Worker returned not found. Check that the Worker is deployed and its bucket binding matches this bucket.', 'media-on-autopilot' ),
++				__( 'HTTP 404', 'media-on-autopilot' )
+ 			);
+ 		}
+ 
+ 		return VerificationResult::error(
+ 			__( 'The delivery host did not serve the test image. Check the delivery hostname and the Worker configuration.', 'media-on-autopilot' ),
+diff --git a/tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php b/tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php
+index f7de31e..5f4a3a9 100644
+--- a/tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php
++++ b/tests/Integration/Cdn/SelfHosted/SelfHostedVerifierTest.php
+@@ -2,75 +2,107 @@
+ 
+ declare( strict_types=1 );
+ 
+ namespace MediaOnAutopilot\Tests\Integration\Cdn\SelfHosted;
+ 
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedConfig;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedVerifier;
+ use WP_UnitTestCase;
+ 
+ final class SelfHostedVerifierTest extends WP_UnitTestCase {
+ 
++	private function config(
++		string $host = 'cdn.example.com',
++		string $bucket = 'tenant-acme'
++	): SelfHostedConfig {
++		return new SelfHostedConfig( $host, 82, 'auto', $bucket, 'acct', 'key', 'secret' );
++	}
++
++	/**
++	 * Mock R2 client whose put/delete succeed unless overridden.
++	 *
++	 * @param bool $put_ok Whether put_object succeeds.
++	 * @return R2Client
++	 */
++	private function r2( bool $put_ok = true ): R2Client {
++		$r2 = $this->createMock( R2Client::class );
++		$r2->method( 'put_object' )->willReturn( $put_ok );
++		$r2->method( 'delete_object' )->willReturn( true );
++		return $r2;
++	}
++
+ 	public function test_unconfigured_when_host_blank(): void {
+-		$result = ( new SelfHostedVerifier( new SelfHostedConfig( '', 82, 'auto', '', '', '', '' ) ) )->verify();
++		$result = ( new SelfHostedVerifier( $this->config( '' ) ) )->verify();
++		$this->assertSame( 'unconfigured', $result->state );
++	}
++
++	public function test_unconfigured_when_credentials_missing(): void {
++		$config = new SelfHostedConfig( 'cdn.example.com', 82, 'auto', '', '', '', '' );
++		$result = ( new SelfHostedVerifier( $config ) )->verify();
+ 		$this->assertSame( 'unconfigured', $result->state );
+ 	}
+ 
+-	public function test_ok_when_host_serves_an_image(): void {
++	public function test_error_when_r2_write_fails(): void {
++		// Delivery must never be attempted if the R2 write failed.
++		$fetched = false;
+ 		add_filter(
+ 			'pre_http_request',
+-			static fn() => array(
+-				'response' => array( 'code' => 200 ),
+-				'headers'  => array( 'content-type' => 'image/webp' ),
+-				'body'     => 'fake-image-bytes',
+-			),
++			static function () use ( &$fetched ) {
++				$fetched = true;
++				return array(
++					'response' => array( 'code' => 200 ),
++					'headers'  => array(),
++					'body'     => '',
++				);
++			},
+ 			10,
+ 			3
+ 		);
+-		$result = ( new SelfHostedVerifier( new SelfHostedConfig( 'cdn.example.com', 82, 'auto', '', '', '', '' ) ) )->verify();
+-		$this->assertSame( 'ok', $result->state );
++		$result = ( new SelfHostedVerifier( $this->config(), $this->r2( false ) ) )->verify();
++		$this->assertSame( 'error', $result->state );
++		$this->assertFalse( $fetched, 'delivery fetch should not run when the R2 write fails' );
+ 	}
+ 
+-	public function test_error_when_host_responds_but_not_with_an_image(): void {
++	public function test_ok_when_probe_round_trips(): void {
+ 		add_filter(
+ 			'pre_http_request',
+ 			static fn() => array(
+ 				'response' => array( 'code' => 200 ),
+-				'headers'  => array( 'content-type' => 'text/html; charset=utf-8' ),
+-				'body'     => '<html>Not found</html>',
++				'headers'  => array( 'content-type' => 'image/png' ),
++				'body'     => 'probe-bytes',
+ 			),
+ 			10,
+ 			3
+ 		);
+-		$result = ( new SelfHostedVerifier( new SelfHostedConfig( 'cdn.example.com', 82, 'auto', '', '', '', '' ) ) )->verify();
+-		$this->assertSame( 'error', $result->state );
+-		$this->assertSame( 'text/html; charset=utf-8', $result->detail );
++		$result = ( new SelfHostedVerifier( $this->config(), $this->r2() ) )->verify();
++		$this->assertSame( 'ok', $result->state );
+ 	}
+ 
+-	public function test_error_on_http_error_status(): void {
++	public function test_error_when_worker_returns_404(): void {
+ 		add_filter(
+ 			'pre_http_request',
+ 			static fn() => array(
+ 				'response' => array( 'code' => 404 ),
+ 				'headers'  => array(),
+-				'body'     => '',
++				'body'     => 'not found',
+ 			),
+ 			10,
+ 			3
+ 		);
+-		$result = ( new SelfHostedVerifier( new SelfHostedConfig( 'cdn.example.com', 82, 'auto', '', '', '', '' ) ) )->verify();
++		$result = ( new SelfHostedVerifier( $this->config(), $this->r2() ) )->verify();
+ 		$this->assertSame( 'error', $result->state );
+ 		$this->assertStringContainsString( '404', $result->detail );
+ 	}
+ 
+-	public function test_error_on_transport_failure(): void {
++	public function test_error_on_transport_failure_suppresses_raw_error(): void {
+ 		add_filter(
+ 			'pre_http_request',
+ 			static fn() => new \WP_Error( 'http_request_failed', 'dns failure' ),
+ 			10,
+ 			3
+ 		);
+-		$result = ( new SelfHostedVerifier( new SelfHostedConfig( 'cdn.example.com', 82, 'auto', '', '', '', '' ) ) )->verify();
++		$result = ( new SelfHostedVerifier( $this->config(), $this->r2() ) )->verify();
+ 		$this->assertSame( 'error', $result->state );
+ 		$this->assertStringNotContainsString( 'dns failure', $result->detail );
+ 	}
+ }
+
+Report only defects that violate the rules above in the changed lines. Output ONLY JSON lines, one object per finding, with keys file, line, rule, severity (high|medium|low), message. Output nothing if there are no findings.
