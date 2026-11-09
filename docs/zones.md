@@ -81,6 +81,7 @@ signals:
 | `packs` | list of names | Built-in packs to include, from `wordpress` and `node`. |
 | `paths` | list | Path rules, each a glob string or a map with `path` and `zone`. |
 | `signals` | map of group to list | Content signals. Groups are `php`, `js`, `markup`, `css`, `sql` and `suppressions`. |
+| `critical` | list of globs | Designated paths, where a T3 change is `risk:critical` and needs two approvals. Omit the key for `.github/**`, `.pipeline/**` and `.claude/**`, and leave it empty for none. |
 
 Any other key is an error, so a typo does not silently disable a rule.
 
