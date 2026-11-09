@@ -175,7 +175,8 @@ function checkWhy(body: string): CheckResult {
   const sections = extractSections(body);
   const whySection = sections["Why this approach"] || "";
 
-  const sentences = whySection.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+  // A sentence ends at punctuation followed by whitespace, so versions like 8.0 and paths like docs/STRATEGY.md stay whole.
+  const sentences = whySection.split(/[.!?]+(?=\s|$)/).filter((s) => s.trim().length > 0);
 
   if (sentences.length > 3) {
     return {
