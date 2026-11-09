@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -511,6 +511,162 @@ describe("comment-lint", () => {
       const result = pipeline(tmpdir, "comment-lint", "--staged");
       expect(result.stdout).not.toContain("#fff");
       expect(result.status).toBe(0);
+    });
+  });
+
+  describe("one-line-block rule", () => {
+    function lint(file: string, content: string, ...args: string[]) {
+      tmpdir = createTempRepo();
+      commitFile(tmpdir, file, "const x = 1;", "initial");
+      createFile(tmpdir, file, content);
+      stageFile(tmpdir, file);
+      return pipeline(tmpdir, "comment-lint", "--staged", ...args);
+    }
+
+    it.each([
+      ["a.js", "/** Keeps the cache warm. */\nconst x = 1;"],
+      ["a.ts", "/* Keeps the cache warm. */\nconst x = 1;"],
+      ["a.mjs", "/** Keeps the cache warm. */\nconst x = 1;"],
+      ["a.cjs", "/** Keeps the cache warm. */\nconst x = 1;"],
+      ["a.php", "<?php\n/** Keeps the cache warm. */\n$x = 1;"],
+    ])("flags a whole-line block comment in %s", (file, content) => {
+      const result = lint(file, content);
+      expect(result.stdout).toContain("one-line-block");
+      expect(result.stdout).toContain("Keeps the cache warm.");
+    });
+
+    it("flags an indented block comment", () => {
+      const result = lint("a.ts", "function f() {\n    /** Keeps the cache warm. */\n    return 1;\n}");
+      expect(result.stdout).toContain("a.ts:2  one-line-block");
+    });
+
+    it("flags a block comment that trails code", () => {
+      const result = lint("a.ts", "const total = 0; /* Keeps the cache warm. */");
+      expect(result.stdout).toContain("a.ts:1  one-line-block");
+    });
+
+    it("reports the full path when a directory name ends in b", () => {
+      const result = lint("github/a.ts", "/** Keeps the cache warm. */\nconst x = 1;");
+      expect(result.stdout).toContain("github/a.ts:1  one-line-block");
+    });
+
+    it("exits 1 with --fail", () => {
+      const result = lint("a.ts", "/** Keeps the cache warm. */\nconst x = 1;", "--fail");
+      expect(result.status).toBe(1);
+    });
+
+    it.each([
+      ["PHP var annotation", "a.php", "<?php\n/** @var Foo $x */\n$x = 1;"],
+      ["JSDoc type annotation", "a.js", "/** @type {Foo} */\nconst x = 1;"],
+      ["license comment", "a.js", "/*! Keeps the license header. */\nconst x = 1;"],
+      ["MySQL conditional comment", "a.php", "<?php\n/*!40101 SET NAMES utf8 */;"],
+      ["eslint directive", "a.js", "/* eslint-disable no-console */\nconst x = 1;"],
+      ["eslint global directive", "a.js", "/* global window */\nconst x = 1;"],
+      ["istanbul directive", "a.js", "/* istanbul ignore next */\nconst x = 1;"],
+      ["c8 directive", "a.js", "/* c8 ignore next */\nconst x = 1;"],
+      ["prettier directive", "a.ts", "/* prettier-ignore */\nconst x = 1;"],
+      ["phpcs directive", "a.php", "<?php\n/* phpcs:ignore WordPress.Security */\n$x = 1;"],
+      ["comment with code after it", "a.ts", "const x = /* why */ 1;"],
+      ["JSX comment", "a.ts", "const x = <div>{/* Keeps the cache warm. */}</div>;"],
+      ["empty comment", "a.ts", "const x = 1; /**/"],
+      ["multi-line comment", "a.ts", "/**\n * Keeps the cache warm.\n */\nconst x = 1;"],
+      ["double-quoted string", "a.ts", 'const x = "/* Keeps the cache warm. */";'],
+      ["single-quoted string", "a.ts", "const x = '/** Keeps the cache warm. */';"],
+      ["template literal", "a.ts", "const x = `/* Keeps the cache warm. */`;"],
+      ["multi-line template literal", "a.ts", "const x = `\n/** Keeps the cache warm. */\n`;"],
+      ["regular expression", "a.ts", "const x = /['\"]/.test(y); const z = /\\/*/;"],
+      ["line comment", "a.ts", "// Keeps the cache warm. /* inner */\nconst x = 1;"],
+      ["CSS file", "a.css", "/* Keeps the cache warm. */\na { color: red; }"],
+      ["SCSS file", "a.scss", "/* Keeps the cache warm. */\na { color: red; }"],
+      ["SQL file", "a.sql", "/* Keeps the cache warm. */\nSELECT 1;"],
+    ])("does not flag a %s", (_name, file, content) => {
+      const result = lint(file, content);
+      expect(result.stdout).not.toContain("one-line-block");
+    });
+
+    it("reports the rule in JSON output", () => {
+      const result = lint("a.ts", "/** Keeps the cache warm. */\nconst x = 1;", "--json");
+      const findings = JSON.parse(result.stdout);
+      expect(findings).toEqual([
+        { file: "a.ts", line: 1, rule: "one-line-block", text: "Keeps the cache warm." },
+      ]);
+    });
+
+    describe("--fix", () => {
+      function fix(file: string, content: string) {
+        const result = lint(file, content, "--fix");
+        return { result, text: readFileSync(join(tmpdir, file), "utf8") };
+      }
+
+      it("rewrites a whole-line comment and keeps indentation", () => {
+        const { text } = fix("a.ts", "function f() {\n    /** Keeps the cache warm. */\n    return 1;\n}\n");
+        expect(text).toBe("function f() {\n    // Keeps the cache warm.\n    return 1;\n}\n");
+      });
+
+      it("rewrites a trailing comment", () => {
+        const { text } = fix("a.ts", "const total = 0; /* Keeps the cache warm. */\n");
+        expect(text).toBe("const total = 0; // Keeps the cache warm.\n");
+      });
+
+      it("rewrites in PHP files", () => {
+        const { text } = fix("a.php", "<?php\n\t/* Keeps the cache warm. */\n$x = 1;\n");
+        expect(text).toBe("<?php\n\t// Keeps the cache warm.\n$x = 1;\n");
+      });
+
+      it("keeps CRLF line endings", () => {
+        const { text } = fix("a.ts", "/** Keeps the cache warm. */\r\nconst x = 1;\r\n");
+        expect(text).toBe("// Keeps the cache warm.\r\nconst x = 1;\r\n");
+      });
+
+      it("leaves exceptions untouched", () => {
+        const content = [
+          "/** @type {Foo} */",
+          "/*! License. */",
+          "/* eslint-disable no-console */",
+          'const x = "/* Keeps the cache warm. */";',
+          "/**",
+          " * Spans several lines.",
+          " */",
+          "",
+        ].join("\n");
+        const { text } = fix("a.ts", content);
+        expect(text).toBe(content);
+      });
+
+      it("does not rewrite CSS", () => {
+        const content = "/* Keeps the cache warm. */\na { color: red; }\n";
+        const { text } = fix("a.css", content);
+        expect(text).toBe(content);
+      });
+
+      it("exits 0 with --fail once everything is fixed", () => {
+        tmpdir = createTempRepo();
+        commitFile(tmpdir, "a.ts", "const x = 1;", "initial");
+        createFile(tmpdir, "a.ts", "/** Keeps the cache warm. */\nconst x = 1;\n");
+        stageFile(tmpdir, "a.ts");
+
+        const result = pipeline(tmpdir, "comment-lint", "--staged", "--fix", "--fail");
+        expect(result.status).toBe(0);
+        expect(result.stdout).not.toContain("one-line-block");
+      });
+
+      it("still reports findings from other rules", () => {
+        const { result, text } = fix("a.ts", "/** Keeps the cache warm. */\n// TODO: fix this\nconst x = 1;\n");
+        expect(text).toBe("// Keeps the cache warm.\n// TODO: fix this\nconst x = 1;\n");
+        expect(result.stdout).toContain("todo-no-issue");
+        expect(result.stdout).not.toContain("one-line-block");
+      });
+
+      it("skips a line that changed on disk since it was staged", () => {
+        tmpdir = createTempRepo();
+        commitFile(tmpdir, "a.ts", "const x = 1;", "initial");
+        createFile(tmpdir, "a.ts", "/** Keeps the cache warm. */\nconst x = 1;\n");
+        stageFile(tmpdir, "a.ts");
+        createFile(tmpdir, "a.ts", "/** Edited after staging. */\nconst x = 1;\n");
+
+        pipeline(tmpdir, "comment-lint", "--staged", "--fix");
+        expect(readFileSync(join(tmpdir, "a.ts"), "utf8")).toBe("/** Edited after staging. */\nconst x = 1;\n");
+      });
     });
   });
 });

@@ -1,12 +1,25 @@
 import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
+import { newScanState, scanLine, supportsOneLineBlock, toLineComment } from "./one-line-block.ts";
+
+// A whole-repo range diff outruns the 1 MB default, which would silently report nothing.
+const maxBuffer = 1024 * 1024 * 1024;
 
 interface Finding {
   file: string;
   line: number;
   rule: string;
   text: string;
+}
+
+interface Fix {
+  file: string;
+  line: number;
+  original: string;
+  fixed: string;
 }
 
 const commentPatterns = {
@@ -174,11 +187,11 @@ function getDiffLines(staged: boolean, rangeStr?: string): Map<string, FileLine[
   try {
     if (rangeStr) {
       const [from, to] = rangeStr.split("..");
-      output = execSync(`git diff ${from}..${to}`, { encoding: "utf8" });
+      output = execSync(`git diff ${from}..${to}`, { encoding: "utf8", maxBuffer });
     } else if (staged) {
-      output = execSync("git diff --cached", { encoding: "utf8" });
+      output = execSync("git diff --cached", { encoding: "utf8", maxBuffer });
     } else {
-      output = execSync("git diff HEAD", { encoding: "utf8" });
+      output = execSync("git diff HEAD", { encoding: "utf8", maxBuffer });
     }
   } catch {
     return new Map();
@@ -190,7 +203,7 @@ function getDiffLines(staged: boolean, rangeStr?: string): Map<string, FileLine[
 
   for (const line of output.split("\n")) {
     if (line.startsWith("diff --git")) {
-      const match = line.match(/b\/(.*?)$/);
+      const match = line.match(/^diff --git a\/.* b\/(.*)$/);
       if (match) {
         currentFile = match[1];
         files.set(currentFile, []);
@@ -286,6 +299,40 @@ function checkLine(
   return null;
 }
 
+// Rewrites only lines that still match what was linted, so a stale diff never edits the wrong line.
+// A finding stays in the report unless its line was rewritten.
+function applyFixes(fixes: Fix[], findings: Finding[]): Finding[] {
+  const root = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+  const fixed = new Set<string>();
+  const byFile = new Map<string, Fix[]>();
+
+  for (const fix of fixes) {
+    byFile.set(fix.file, [...(byFile.get(fix.file) ?? []), fix]);
+  }
+
+  for (const [file, fileFixes] of byFile) {
+    const path = join(root, file);
+    let lines: string[];
+    try {
+      lines = readFileSync(path, "utf8").split("\n");
+    } catch {
+      continue;
+    }
+
+    for (const fix of fileFixes) {
+      if (lines[fix.line - 1] !== fix.original) continue;
+      lines[fix.line - 1] = fix.fixed;
+      fixed.add(`${fix.file}:${fix.line}`);
+    }
+
+    if (fileFixes.some((fix) => fixed.has(`${fix.file}:${fix.line}`))) {
+      writeFileSync(path, lines.join("\n"));
+    }
+  }
+
+  return findings.filter((finding) => finding.rule !== "one-line-block" || !fixed.has(`${finding.file}:${finding.line}`));
+}
+
 async function run(argv: string[]): Promise<number> {
   const { values } = parseArgs({
     args: argv,
@@ -293,6 +340,7 @@ async function run(argv: string[]): Promise<number> {
       staged: { type: "boolean" },
       range: { type: "string" },
       fail: { type: "boolean" },
+      fix: { type: "boolean" },
       json: { type: "boolean" },
     },
     allowPositionals: true,
@@ -304,15 +352,33 @@ async function run(argv: string[]): Promise<number> {
 
   const files = getDiffLines(staged, rangeStr);
   const findings: Finding[] = [];
+  const fixes: Fix[] = [];
 
   for (const [file, addedLines] of files) {
-    if (!isSupportedFile(file)) continue;
+    const general = isSupportedFile(file);
+    const blocks = supportsOneLineBlock(file);
+    if (!general && !blocks) continue;
+
+    const php = file.toLowerCase().endsWith(".php");
+    let state = newScanState();
+    let previous = -1;
 
     for (let i = 0; i < addedLines.length; i++) {
       const line = addedLines[i];
       const nextLine = i + 1 < addedLines.length ? addedLines[i + 1].content : "";
 
-      const issue = checkLine(line.content, nextLine);
+      if (blocks) {
+        if (line.lineNum !== previous + 1) state = newScanState();
+        previous = line.lineNum;
+
+        const block = scanLine(line.content, php, state);
+        if (block) {
+          findings.push({ file, line: line.lineNum, rule: "one-line-block", text: block.text.slice(0, 80) });
+          fixes.push({ file, line: line.lineNum, original: line.content, fixed: toLineComment(line.content, block) });
+        }
+      }
+
+      const issue = general ? checkLine(line.content, nextLine) : null;
       if (issue) {
         findings.push({
           file,
@@ -324,15 +390,17 @@ async function run(argv: string[]): Promise<number> {
     }
   }
 
+  const remaining = values.fix ? applyFixes(fixes, findings) : findings;
+
   if (values.json) {
-    console.log(JSON.stringify(findings));
+    console.log(JSON.stringify(remaining));
   } else {
-    for (const finding of findings) {
+    for (const finding of remaining) {
       console.log(`${finding.file}:${finding.line}  ${finding.rule}  ${finding.text}`);
     }
   }
 
-  if (values.fail && findings.length > 0) {
+  if (values.fail && remaining.length > 0) {
     return 1;
   }
 
