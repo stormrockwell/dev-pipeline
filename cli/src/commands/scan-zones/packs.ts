@@ -29,17 +29,17 @@ function removedOnly(group: Group, zone: Zone, pattern: string): Signal {
   return { group, zone, pattern, only: "removed" };
 }
 
-/** The calls that hand a string to a shell, which stay a signal whatever the string holds. */
+// The calls that hand a string to a shell, which stay a signal whatever the string holds.
 const shellOrFork = "\\bexecSync\\(|(?<![.\\w])(?:exec|fork)\\(";
 
-/** Programs that run code from their arguments, so a literal name does not make the call safe. */
+// Programs that run code from their arguments, so a literal name does not make the call safe.
 const launchers =
   "(?:[^\"'`$]*[/\\\\])?(?:sh|bash|zsh|dash|fish|ksh|cmd|powershell|pwsh|node|nodejs|deno|bun|python[\\d.]*|perl|ruby|php|osascript|env|xargs|sudo|npx|bunx|pnpx)(?:\\.exe)?";
 
-/** Package managers, whose install and run subcommands execute code from the network or from scripts. */
+// Package managers, whose install and run subcommands execute code from the network or from scripts.
 const installers = "(?:npm|pnpm|yarn|bun|composer|pip3?|gem|cargo|brew|apt(?:-get)?)";
 
-/** The subcommands of an installer that only read, so `npm audit` is not an install. */
+// The subcommands of an installer that only read, so `npm audit` is not an install.
 const readOnlyCommands = "(?:audit|ls|list|view|show|outdated|why|validate|config|whoami|--version|-v|-V)";
 
 /**
@@ -54,7 +54,7 @@ const literalCommandWithArray =
 
 const spawnWithoutLiteralArray = `(?:\\b(?:spawnSync|execFile(?:Sync)?)|(?<![.\\w])spawn)\\((?!${literalCommandWithArray})`;
 
-/** An import that only names its members adds nothing, because the calls it enables match on their own. */
+// An import that only names its members adds nothing, because the calls it enables match on their own.
 const plainChildProcessImport =
   "\\s*(?:import\\s+(?:type\\s+)?\\{(?:(?!\\bas\\b)[^}])*\\}\\s*from\\s*[\"'](?:node:)?child_process[\"']" +
   "|(?:const|let|var)\\s+\\{[^}:]*\\}\\s*=\\s*require\\(\\s*[\"'](?:node:)?child_process[\"']\\s*\\))\\s*;?\\s*$";
