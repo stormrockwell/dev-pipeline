@@ -1,6 +1,6 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, isAbsolute, normalize, resolve } from "node:path";
+import { basename, isAbsolute, join, normalize, resolve } from "node:path";
 import { expandBraces } from "./shell.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
@@ -19,6 +19,80 @@ function isSensitive(path: string): boolean {
   if (name === "wp-config.php" || name === "auth.json") return true;
   if (KEY_EXTENSIONS.some((extension) => lower.endsWith(extension))) return true;
   return path.split("/").includes(".ssh");
+}
+
+const MAX_GLOB_ENTRIES = 5000;
+
+function hasGlob(word: string): boolean {
+  return /[*?[]/.test(word);
+}
+
+function segmentPattern(segment: string): RegExp {
+  let source = "";
+  for (let i = 0; i < segment.length; i++) {
+    const c = segment[i]!;
+    if (c === "*") {
+      while (segment[i + 1] === "*") i++;
+      source += "[^/]*";
+    } else if (c === "?") source += "[^/]";
+    else if (c === "[" && segment.indexOf("]", i + 2) !== -1) {
+      const end = segment.indexOf("]", i + 2);
+      source += `[${segment.slice(i + 1, end).replace(/^!/, "^").replaceAll("\\", "\\\\")}]`;
+      i = end;
+    } else source += c.replace(/[.+^${}()|\\\]]/g, "\\$&");
+  }
+  return new RegExp(`^${source}$`);
+}
+
+/** Expands a shell glob against the real directory tree, so only files that exist count. */
+function expandGlob(word: string, cwd: string): string[] {
+  const absolute = isAbsolute(word) ? normalize(word) : resolve(cwd, word);
+  const segments = absolute.split("/").filter(Boolean);
+  let paths = ["/"];
+  let budget = MAX_GLOB_ENTRIES;
+  for (const segment of segments) {
+    const next: string[] = [];
+    for (const base of paths) {
+      if (!hasGlob(segment)) {
+        next.push(join(base, segment));
+        continue;
+      }
+      const pattern = segmentPattern(segment);
+      let names: string[] = [];
+      try {
+        names = readdirSync(base).slice(0, budget);
+      } catch {
+        // A directory that cannot be listed matches nothing.
+      }
+      budget -= names.length;
+      for (const name of names) {
+        if (name.startsWith(".") && !segment.startsWith(".")) continue;
+        if (pattern.test(name)) next.push(join(base, name));
+      }
+    }
+    paths = next;
+  }
+  return paths;
+}
+
+/**
+ * Checks one command-line word. The word may be a plain path, a glob, or a wrapper around
+ * one, such as `--file=.env`, `host:.env`, `@.env` or `HEAD:.env`.
+ */
+export function wordIsSensitive(word: string, cwd: string): boolean {
+  const candidates = new Set([
+    word,
+    word.slice(word.indexOf("=") + 1),
+    word.slice(word.lastIndexOf(":") + 1),
+    word.replace(/^@/, ""),
+  ]);
+  for (const candidate of candidates) {
+    if (candidate === "") continue;
+    if (hasGlob(candidate)) {
+      if (expandGlob(expandHome(candidate), cwd).some(isSensitive)) return true;
+    } else if (pathIsSensitive(candidate, cwd)) return true;
+  }
+  return false;
 }
 
 /** Checks a path or glob, following symlinks when the target exists. */

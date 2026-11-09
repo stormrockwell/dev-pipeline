@@ -8,6 +8,8 @@ export interface SimpleCommand {
   words: string[];
   /** Heredoc and here-string bodies attached to this command, in order. */
   heredocs: string[];
+  /** Files the command reads through `<` redirections. */
+  inputs: string[];
   /** The command whose output feeds this one through a pipe. */
   pipedFrom?: SimpleCommand;
 }
@@ -91,10 +93,10 @@ class Parser {
     let words: string[] = [];
     let buf: string | null = null;
     let plain = true;
-    let current: SimpleCommand = { words: [], heredocs: [] };
+    let current: SimpleCommand = { words: [], heredocs: [], inputs: [] };
     let pipeFrom: SimpleCommand | undefined;
     let lastEnded: SimpleCommand | undefined;
-    let redirectNext = false;
+    let redirectNext: "in" | "out" | undefined;
     let heredocNext: { strip: boolean } | undefined;
     let hereStringNext = false;
     const pending: PendingHeredoc[] = [];
@@ -117,7 +119,8 @@ class Parser {
         current.heredocs.push(word);
         hereStringNext = false;
       } else if (redirectNext) {
-        redirectNext = false;
+        if (redirectNext === "in") current.inputs.push(word);
+        redirectNext = undefined;
       } else if (wasPlain && word.includes("{")) {
         words.push(...expandBraces(word));
       } else {
@@ -133,7 +136,7 @@ class Parser {
         this.out.push(current);
         lastEnded = current;
         words = [];
-        current = { words: [], heredocs: [] };
+        current = { words: [], heredocs: [], inputs: [] };
       }
     };
 
@@ -227,7 +230,7 @@ class Parser {
         }
         if (operator === "<<" && !heredocNext) heredocNext = { strip: false };
         else if (operator === "<<<") hereStringNext = true;
-        else if (!heredocNext) redirectNext = true;
+        else if (!heredocNext) redirectNext = operator.startsWith("<") ? "in" : "out";
         this.i = j;
       } else if (c === ";" || c === "&" || c === "|") {
         endCommand();

@@ -1,6 +1,7 @@
 import { basename, resolve } from "node:path";
 import { checkGh } from "./gh.ts";
 import { checkGit, RepoState } from "./git.ts";
+import { checkSecretReads } from "./reads.ts";
 import { parseShell, type SimpleCommand } from "./shell.ts";
 import { strictest, verdict, type Verdict } from "./verdict.ts";
 import { checkWp } from "./wp.ts";
@@ -186,7 +187,14 @@ function inspect(command: SimpleCommand, walk: Walk, depth: number): void {
   if (program === "git") found.push(...checkGit(args, walk.repo, walk.dir));
   else if (program === "gh") found.push(...checkGh(args));
   else if (program === "wp") found.push(...checkWp(args));
-  else if (program === "cd" || program === "pushd") {
+  found.push(
+    ...checkSecretReads(argv, command, {
+      dir: walk.dir,
+      viaXargs: words.slice(0, words.length - argv.length).some((word) => basename(word) === "xargs"),
+      unwrap: (list) => unwrap(list, []),
+    }),
+  );
+  if (program === "cd" || program === "pushd") {
     if (args[0] && !args[0].startsWith("-")) walk.dir = resolve(walk.dir, args[0]);
   }
 
@@ -213,7 +221,7 @@ function inspect(command: SimpleCommand, walk: Walk, depth: number): void {
       return;
     }
     for (const script of nested) walkSource(script, walk, depth + 1);
-    for (const words of nestedCommands) inspect({ words, heredocs: [] }, walk, depth + 1);
+    for (const words of nestedCommands) inspect({ words, heredocs: [], inputs: [] }, walk, depth + 1);
   }
 }
 

@@ -49,7 +49,7 @@ export class RepoState {
   }
 }
 
-interface GlobalOptions {
+export interface GlobalOptions {
   dir: string;
   configs: string[];
   subcommand: string | undefined;
@@ -66,7 +66,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
 ]);
 
 /** Skips the options that go before the git subcommand, such as `-C dir` and `-c key=value`. */
-function parseGlobal(args: string[], startDir: string): GlobalOptions {
+export function parseGlobal(args: string[], startDir: string): GlobalOptions {
   let dir = startDir;
   const configs: string[] = [];
   let i = 0;
