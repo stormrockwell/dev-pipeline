@@ -134,7 +134,26 @@ Test globs match case sensitively, unlike path rules, so `*Test.php` finds `FooT
 
 The `wordpress` pack holds the spike's signals, renamed to the strategy's zones, and adds crypto, secrets, privacy and more data-loss patterns. The `node` pack covers Express middleware and routes, Next.js API routes and route handlers, auth libraries, cookies and sessions, `crypto`, `child_process`, SQL strings built from variables, and `fetch` to user-supplied URLs. Both packs carry the shared browser sink, third-party load and suppression signals, and a signal that both packs carry is listed once.
 
+The `node` pack also covers WebCrypto, which Cloudflare Workers and browsers use in place of the Node module. `crypto.subtle.*` and `crypto.getRandomValues` are `crypto` signals. Request signing is covered two ways. The SigV4 names (`AWS4-HMAC-SHA256`, `X-Amz-Signature`, `X-Amz-Credential`, `aws4_request`) and a comparison where either side is named like a signature, HMAC or digest are `crypto` signals, and building an `Authorization` header with `headers.set`, `headers.append` or an object property whose value is a template, a call, a scheme such as `Bearer` or a variable is an `auth` signal. A comparison against `null`, `undefined` or an empty string is a presence check and does not count.
+
+Helpers that belong to one repo are not in the pack. A Worker's `isAuthorized( req, env )` or `isSignatureValid` is that repo's own authorization logic, so the repo names it in its `sensitive.yml`, for example `authz` signals under `js:` with the helper names, or a path rule such as `cloudflare/**/src/**`.
+
 Escaping and sanitizing calls (`esc_html`, `wp_kses`, `sanitize_*`, `DOMPurify`) are `only: removed` signals. Adding an escape is the safe direction, and removing one in a template is a zone signal as the strategy says.
+
+## Process spawning
+
+The `node` pack separates a spawn that runs a fixed program from one that can run anything. These are `input` signals:
+
+- `exec`, `execSync` and `fork`, because they pass a string to a shell or run a script.
+- `spawn`, `spawnSync`, `execFile` and `execFileSync` when the command is not a literal, when the second argument is not an array literal, or when `shell` appears on the line.
+- A literal command that is a shell or interpreter (`sh`, `bash`, `cmd`, `powershell`, `node`, `python`, `perl`, `env`, `sudo`, `npx` and the like).
+- A package manager (`npm`, `pnpm`, `yarn`, `composer`, `pip` and the like) unless the first argument is a read only subcommand such as `audit` or `ls`, so installs and script runs stay flagged.
+- Any `shell:` option whose value is not `false`.
+- A mention of `child_process` that renames a member, takes a namespace or reaches a member (`{ exec: run }`, `import * as cp`, `require('child_process').exec`).
+
+A plain import of named members (`import { spawnSync } from "node:child_process"`) is not a signal, and neither is a call with a literal program and a literal array (`spawnSync("git", ["show", spec])`). The scan reads one line at a time, so a call that puts the program on the next line stays flagged. A variable array element can still carry argument injection, such as a leading dash, and the security reviewer owns that case.
+
+The built-in rules cannot know that a repo's own command code is guardrail logic. A repo that spawns programs to enforce policy lists those directories in `paths` in its `sensitive.yml`, as this repo does for `cli/src/commands/guard`, `secrets`, `hooks`, `scan-zones`, `check`, `risk-gate` and `github`.
 
 ## Data writes from untrusted input
 

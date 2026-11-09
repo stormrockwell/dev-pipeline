@@ -13,8 +13,17 @@ if (fs.existsSync(sidebarPath)) {
 
 export default {
   srcDir: 'content',
+  // GitHub Pages serves the site under the repo name, so the deploy workflow sets DOCS_BASE.
+  base: process.env.DOCS_BASE || '/',
   title: 'Dev Pipeline Docs',
   cleanUrls: true,
+  markdown: {
+    config(md) {
+      // Docs quote template syntax such as `{{` in inline code, which Vue would otherwise try to compile.
+      const codeInline = md.renderer.rules.code_inline;
+      md.renderer.rules.code_inline = (...args) => codeInline(...args).replace('<code', '<code v-pre');
+    }
+  },
   themeConfig: {
     outline: [2, 3],
     outlineTitle: 'On this page',
