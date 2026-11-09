@@ -1,0 +1,9 @@
+{
+  "name": "dev-pipeline",
+  "version": "0.1.0",
+  "description": "Routes plain-language requests onto the dev pipeline: answer, report, quick change, change, debug, new project or spike.",
+  "author": {
+    "name": "Storm Rockwell"
+  },
+  "repository": "https://github.com/stormrockwell/dev-pipeline"
+}

@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: new-project-wp-plugin
+tags: [routing]
+context:
+  scaffold_script: scaffold.sh
