@@ -1,0 +1,17 @@
+# Zone rules for this repo. Team leads own this file, and it is itself a guardrails path.
+packs: [node]
+
+paths:
+  # The default guardrail paths, listed here so the file reads as the whole policy.
+  - ".pipeline/**"
+  - ".github/**"
+  - ".claude/**"
+  - "**/CODEOWNERS"
+  # These commands hold guardrail logic, so they are zoned by path and not by what their code happens to call.
+  - "cli/src/commands/guard/**"
+  - "cli/src/commands/secrets/**"
+  - "cli/src/commands/hooks/**"
+  - "cli/src/commands/scan-zones/**"
+  - "cli/src/commands/check/**"
+  - "cli/src/commands/risk-gate/**"
+  - "cli/src/commands/github/**"

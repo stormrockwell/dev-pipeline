@@ -29,6 +29,38 @@ function removedOnly(group: Group, zone: Zone, pattern: string): Signal {
   return { group, zone, pattern, only: "removed" };
 }
 
+/** The calls that hand a string to a shell, which stay a signal whatever the string holds. */
+const shellOrFork = "\\bexecSync\\(|(?<![.\\w])(?:exec|fork)\\(";
+
+/** Programs that run code from their arguments, so a literal name does not make the call safe. */
+const launchers =
+  "(?:[^\"'`$]*[/\\\\])?(?:sh|bash|zsh|dash|fish|ksh|cmd|powershell|pwsh|node|nodejs|deno|bun|python[\\d.]*|perl|ruby|php|osascript|env|xargs|sudo|npx|bunx|pnpx)(?:\\.exe)?";
+
+/** Package managers, whose install and run subcommands execute code from the network or from scripts. */
+const installers = "(?:npm|pnpm|yarn|bun|composer|pip3?|gem|cargo|brew|apt(?:-get)?)";
+
+/** The subcommands of an installer that only read, so `npm audit` is not an install. */
+const readOnlyCommands = "(?:audit|ls|list|view|show|outdated|why|validate|config|whoami|--version|-v|-V)";
+
+/**
+ * A spawn, spawnSync or execFile call is safe to skip when it names a literal program and passes a
+ * literal array, because no shell reads the command. The lookahead fails for a launcher, for an installer
+ * that is not read only, and for a shell option on the same line. A command on the next line fails it too,
+ * so a multi line call stays flagged.
+ */
+const literalCommandWithArray =
+  `\\s*(["'\`])(?!${launchers}\\1)(?!${installers}\\1\\s*,\\s*\\[\\s*(?!["'\`]${readOnlyCommands}\\b))` +
+  "[^\"'`$]+\\1\\s*,\\s*\\[(?![^\\n]*\\bshell\\b)";
+
+const spawnWithoutLiteralArray = `(?:\\b(?:spawnSync|execFile(?:Sync)?)|(?<![.\\w])spawn)\\((?!${literalCommandWithArray})`;
+
+/** An import that only names its members adds nothing, because the calls it enables match on their own. */
+const plainChildProcessImport =
+  "\\s*(?:import\\s+(?:type\\s+)?\\{(?:(?!\\bas\\b)[^}])*\\}\\s*from\\s*[\"'](?:node:)?child_process[\"']" +
+  "|(?:const|let|var)\\s+\\{[^}:]*\\}\\s*=\\s*require\\(\\s*[\"'](?:node:)?child_process[\"']\\s*\\))\\s*;?\\s*$";
+
+const childProcessMention = `^(?!${plainChildProcessImport}).*?\\bchild_process\\b`;
+
 /** Browser sinks, third-party loads and suppressions apply to both stacks, so each pack carries them. */
 const shared: Signal[] = [
   ...signals("js", "input", "innerHTML|insertAdjacentHTML|dangerouslySetInnerHTML", "postMessage|new Function"),
@@ -111,7 +143,10 @@ export const node: Pack = {
       "\\b(req|request)\\.(body|query|params)\\b",
       "export\\s+(async\\s+)?function\\s+(GET|POST|PUT|PATCH|DELETE)\\b",
       "export\\s+default\\s+(async\\s+)?function\\s+handler\\b|\\b(NextApiRequest|NextRequest)\\b",
-      "\\b(execSync|spawnSync|execFile(Sync)?)\\(|\\bchild_process\\b|(?<![.\\w])(exec|spawn|fork)\\(",
+      shellOrFork,
+      spawnWithoutLiteralArray,
+      childProcessMention,
+      "\\bshell\\s*:\\s*(?!false\\b)\\S",
       "\\beval\\(|\\bvm\\.(runIn\\w+|Script)\\b|\\bres\\.redirect\\(|(?<![.\\w])redirect\\(",
       "\\$(query|execute)RawUnsafe|\\bsequelize\\.query\\(|\\bknex\\.raw\\(",
       "(SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^`'\"]*['\"`]\\s*\\+|`[^`]*\\b(SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^`]*\\$\\{",

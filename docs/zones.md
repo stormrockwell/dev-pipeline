@@ -123,6 +123,21 @@ The `wordpress` pack holds the spike's signals, renamed to the strategy's zones,
 
 Escaping and sanitizing calls (`esc_html`, `wp_kses`, `sanitize_*`, `DOMPurify`) are `only: removed` signals. Adding an escape is the safe direction, and removing one in a template is a zone signal as the strategy says.
 
+## Process spawning
+
+The `node` pack separates a spawn that runs a fixed program from one that can run anything. These are `input` signals:
+
+- `exec`, `execSync` and `fork`, because they pass a string to a shell or run a script.
+- `spawn`, `spawnSync`, `execFile` and `execFileSync` when the command is not a literal, when the second argument is not an array literal, or when `shell` appears on the line.
+- A literal command that is a shell or interpreter (`sh`, `bash`, `cmd`, `powershell`, `node`, `python`, `perl`, `env`, `sudo`, `npx` and the like).
+- A package manager (`npm`, `pnpm`, `yarn`, `composer`, `pip` and the like) unless the first argument is a read only subcommand such as `audit` or `ls`, so installs and script runs stay flagged.
+- Any `shell:` option whose value is not `false`.
+- A mention of `child_process` that renames a member, takes a namespace or reaches a member (`{ exec: run }`, `import * as cp`, `require('child_process').exec`).
+
+A plain import of named members (`import { spawnSync } from "node:child_process"`) is not a signal, and neither is a call with a literal program and a literal array (`spawnSync("git", ["show", spec])`). The scan reads one line at a time, so a call that puts the program on the next line stays flagged. A variable array element can still carry argument injection, such as a leading dash, and the security reviewer owns that case.
+
+The built-in rules cannot know that a repo's own command code is guardrail logic. A repo that spawns programs to enforce policy lists those directories in `paths` in its `sensitive.yml`, as this repo does for `cli/src/commands/guard`, `secrets`, `hooks`, `scan-zones`, `check`, `risk-gate` and `github`.
+
 ## Data writes from untrusted input
 
 A write is a signal under `input` only when request data reaches it. The write functions are:
