@@ -15,18 +15,18 @@ const languages: Record<string, Language> = {
 };
 
 interface Block {
-  /** Zero-based first and last line of a block comment. */
+  // Zero-based first and last line of a block comment.
   start: number;
   end: number;
 }
 
 interface Analysis {
-  /** True for a line that holds only whitespace and comment text, so no code runs from it. */
+  // True for a line that holds only whitespace and comment text, so no code runs from it.
   inert: boolean[];
   blocks: Block[];
 }
 
-/** `--` starts a MySQL comment only when whitespace follows, so `--1` stays code. */
+// `--` starts a MySQL comment only when whitespace follows, so `--1` stays code.
 function startsLineComment(language: Language, text: string, at: number): boolean {
   const rest = text.slice(at);
   if (language === "sql") return /^--(\s|$)/.test(rest) || rest.startsWith("#");
