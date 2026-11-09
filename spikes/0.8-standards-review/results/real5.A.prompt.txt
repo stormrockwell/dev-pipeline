@@ -1,0 +1,344 @@
+You are a code reviewer enforcing coding standards on one commit. Read-only: do not edit files. Use Read, Grep and Glob for context only when needed.
+Commit message:
+fix(cdn): self-hosted delivery test uploads a probe to R2 first
+
+The self-hosted CdnTester branch was copied from Bunny (pull-zone): it
+built a delivery URL for the bundled sample image and fetched it,
+expecting the Worker to serve it. The Worker only serves from R2 and the
+sample was never uploaded, so the test always 404'd. Rewrite it to mirror
+the Cloudflare (storage-backed) branch: upload a probe to R2, fetch its
+resized variant through the delivery host, then delete it. Add the
+self-hosted tester tests that were missing (upload+fetch+delete, delete
+on delivery failure, and unconfigured without credentials).
+
+Review rules:
+
+## PHP rules
+#### PHP Review Principles
+> Favor precision over recall: report only defects that are likely real in the changed code and its reachable context. Treat correctness and security findings as blocking; style-only suggestions are non-blocking. Account for the project's PHP version and framework conventions before reporting version- or lifecycle-dependent behavior.
+
+Before making a non-local claim, use `file_read` and `code_search` to verify callers, input sources, framework configuration, template context, and resource ownership. Do not duplicate findings reliably enforced by PHPStan, Psalm, PHP_CodeSniffer, the formatter, or the PHP compiler unless the diff demonstrates a concrete consequence those tools do not express.
+
+#### Type Juggling, Equality, and Null Semantics
+- Loose comparison (`==` or `!=`) whose coercion can make distinct security- or domain-sensitive values compare equal. Prefer strict comparison when operands are expected to have the same type; do not flag deliberate, validated normalization.
+- Truthiness or `empty()` checks that incorrectly treat `0`, `"0"`, `false`, `null`, and an empty value as equivalent when those states have different meanings.
+- `isset()` used when a present key with a `null` value must be distinguished from a missing key; use `array_key_exists()` when presence, rather than non-nullness, is the contract.
+- Nullable, union, or `false`-returning APIs whose failure value reaches code that assumes a usable object, scalar, or resource. Confirm the declared and runtime contract before flagging.
+- Numeric-string, arithmetic, or comparison behavior that depends on a different PHP version from the one supported by `composer.json`, CI, or deployment configuration.
+
+#### Arrays, Iteration, and Value Semantics
+- Array keys read without handling a reachable missing-key path, especially request data, decoded JSON, database rows, or optional configuration.
+- A `foreach` value variable iterated by reference and then reused without `unset()`, leaving it aliased to the final element and allowing later assignments to corrupt the array.
+- Array union (`+`), `array_merge`, spread syntax, or numeric-key reindexing used with semantics different from the intended overwrite and ordering behavior.
+- Callbacks or closures that capture a loop variable by reference and later observe an unintended final or mutated value.
+- Mutation during iteration that can skip, duplicate, or unexpectedly retain elements. Do not flag mutation whose traversal behavior is deliberate and locally evident.
+
+#### Errors, Exceptions, and API Contracts
+- `Throwable` or `Exception` caught and silently discarded, converted into success, or replaced with a misleading default on a path where the failure matters.
+- Catching a broad exception around unrelated operations so the handler cannot distinguish the expected failure from a programming or infrastructure defect.
+- A codebase contract inconsistently mixing exceptions, `false`, and `null` for the same failure, causing callers to miss an error path.
+- Cleanup, rollback, or response-finalization code that hides the primary exception or returns success after the operation failed.
+- Warnings or errors suppressed with `@` where suppression can turn a meaningful failure into invalid state. Do not flag a narrowly documented compatibility probe that checks the result safely.
+
+#### Resources, Transactions, and Request Lifecycle
+- Transactions, locks, database cursors, or resources in long-running processes not released, committed, or rolled back on every reachable path when delayed cleanup can exhaust capacity or break correctness. Do not flag ordinary request-scoped streams or files merely because PHP can release them at request shutdown.
+- Database transactions with early returns or exception paths that can leave the transaction open, or nested transaction assumptions unsupported by the active driver/framework.
+- cURL or stream operations lacking timeouts on a request or worker path where a remote endpoint can stall execution.
+- Session locks held across slow network, database, or CPU work when concurrent requests for the same session must proceed.
+- Do not report resources owned by a framework, dependency-injection container, generator consumer, or caller when ownership transfer is established by the surrounding code.
+
+#### Database and ORM Correctness
+- SQL assembled from untrusted values instead of parameter binding. Identifiers such as column names and sort directions cannot usually be bound and require an allowlist.
+- Raw ORM expressions, query fragments, or dynamic table/column names that bypass the framework's normal parameterization with attacker-controlled data.
+- Missing transaction boundaries when a changed multi-step write must be atomic, or side effects ordered so a rollback cannot restore consistency.
+- N+1 queries or repeated remote calls only when the loop is reachable at meaningful scale and eager loading or batching preserves behavior.
+- Mass-assignment exposure only when request-controlled fields reach a model and the framework's fillable/guarded/schema configuration does not already constrain them.
+
+#### Web and Template Security Boundaries
+Confirm attacker control and the output or execution context before reporting. Framework validation and auto-escaping may make an otherwise dangerous-looking operation safe.
+
+- Untrusted output rendered without context-appropriate escaping for HTML text, attributes, URLs, JavaScript, or CSS. For `.phtml` templates, verify whether the view helper already escapes the value and whether raw HTML is intentional and sanitized.
+- Authorization enforced only in a client, template, or hidden control rather than at the server-side operation; check route middleware, policies, voters, and controller guards before flagging.
+- State-changing browser requests missing required CSRF protection when cookie-based authentication makes cross-site invocation possible. Do not flag token-authenticated APIs that are not vulnerable to ambient credentials.
+- Redirects, response headers, or cookies built from untrusted data without validation or appropriate `Secure`, `HttpOnly`, and `SameSite` protections where those properties are required.
+- File uploads trusted by client filename, extension, or MIME header alone; verify server-side type checks, generated storage names, destination boundaries, and executable-file handling.
+- User-controlled paths used for filesystem access without normalization and boundary enforcement, enabling traversal, symlink escape, or unintended overwrite.
+
+#### Dynamic Execution, Deserialization, and Outbound Requests
+- `eval`, dynamic `include`/`require`, variable function calls, reflection, or shell commands reached by untrusted input without a strict allowlist.
+- `unserialize()` on attacker-controlled data, including signed data where key management or verification is absent. Prefer a non-executable format; `allowed_classes` reduces object injection but does not make arbitrary data trustworthy.
+- Shell commands built through concatenation or incomplete escaping. Prefer direct process APIs with separate arguments and validate option-like attacker-controlled values.
+- Outbound URLs derived from untrusted input without required scheme, host, port, redirect, and private-network restrictions, enabling SSRF or credential forwarding.
+- Weak randomness or password handling: predictable token generation, reversible password storage, manual password hashing, or non-constant-time comparison of secrets. Prefer `random_bytes`, `password_hash`, `password_verify`, and `hash_equals` as appropriate.
+- Secrets, session identifiers, authorization headers, passwords, private keys, or sensitive personal data logged, returned in errors, or embedded in source.
+
+#### Performance and Review Scope
+- Report performance issues only with evidence of meaningful data scale or a hot path: repeated queries, accidental full-result materialization, quadratic array operations, or expensive work repeated inside a loop.
+- Suggest tests only for concrete changed failure modes involving coercion, boundary values, errors, transactions, authorization, escaping, or framework configuration.
+- Do not make formatting, naming, import ordering, modern-syntax preferences, or advice already enforced by deterministic PHP tooling into blocking findings.
+
+## DemandDrive PHPCS ruleset
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="DemandDrive" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/squizlabs/PHP_CodeSniffer/master/phpcs.xsd">
+	<description>DemandDrive coding standards</description>
+
+	<!-- Include some PSR-12 rules -->
+	<rule ref="PSR12.Functions.ReturnTypeDeclaration"/>
+	<rule ref="PSR12.Keywords.ShortFormTypeKeywords"/>
+
+	<!-- Custom DemandDrive sniffs -->
+	<rule ref="DemandDrive.BEM.ClassNaming"/>
+	<rule ref="DemandDrive.Conditionals.ConditionalAlternateSyntax"/>
+	<rule ref="DemandDrive.Conditionals.ConditionalIndentation"/>
+
+	<!-- Include WordPress Coding Standards -->
+	<rule ref="WordPress">
+		<!-- Disable internationalization checks -->
+		<exclude name="WordPress.WP.I18n" />
+	</rule>
+
+	<!-- Control Structure Spacing -->
+	<rule ref="WordPress.WhiteSpace.ControlStructureSpacing">
+		<properties>
+			<property name="blank_line_check" value="true" />
+		</properties>
+	</rule>
+
+	<!-- Hook Naming -->
+	<rule ref="WordPress.NamingConventions.ValidHookName">
+		<properties>
+			<property name="additionalWordDelimiters" value="/" />
+		</properties>
+	</rule>
+
+	<!-- Array Alignment -->
+	<rule ref="WordPress.Arrays.MultipleStatementAlignment">
+		<properties>
+			<property name="ignoreNewlines" value="false" />
+		</properties>
+	</rule>
+
+	<!-- Disable Generic short open tag rule completely -->
+	<rule ref="Generic.PHP.DisallowShortOpenTag">
+		<exclude name="Generic.PHP.DisallowShortOpenTag"/>
+	</rule>
+
+	<!-- Disable Universal short ternary rule -->
+	<rule ref="Universal.Operators.DisallowShortTernary">
+		<exclude name="Universal.Operators.DisallowShortTernary"/>
+	</rule>
+
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+</ruleset>
+
+Diff to review:
+
+diff --git a/src/Features/Cdn/CdnTester.php b/src/Features/Cdn/CdnTester.php
+index ff7536f..739b619 100644
+--- a/src/Features/Cdn/CdnTester.php
++++ b/src/Features/Cdn/CdnTester.php
+@@ -10,10 +10,11 @@ declare( strict_types=1 );
+ namespace MediaOnAutopilot\Features\Cdn;
+ 
+ use MediaOnAutopilot\Features\Cdn\Providers\Bunny\BunnyProvider;
+ use MediaOnAutopilot\Features\Cdn\Providers\Bunny\BunnySettings;
+ use MediaOnAutopilot\Features\Cdn\Providers\Cloudflare\CloudflareSettings;
++use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\R2Client;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedProvider;
+ use MediaOnAutopilot\Features\Cdn\Providers\SelfHosted\SelfHostedSettings;
+ use MediaOnAutopilot\Support\SampleImage;
+ 
+ defined( 'ABSPATH' ) || exit;
+@@ -119,40 +120,76 @@ final class CdnTester {
+ 			case 'selfhosted':
+ 				$config = $this->self_hosted->to_config();
+ 				if ( ! $config->is_active() ) {
+ 					return $this->record( 'unconfigured', 0, '', __( 'Add your delivery hostname first.', 'media-on-autopilot' ), '', array() );
+ 				}
+-				$origin = MOAP_PLUGIN_URL . 'assets/sample-image.jpg';
++				if ( ! $config->can_upload() ) {
++					return $this->record( 'unconfigured', 0, '', __( 'Add your R2 bucket, account ID, and access keys first.', 'media-on-autopilot' ), '', array() );
++				}
++
++				// Self-hosted delivery is storage-backed (R2): the Worker only
++				// serves what is in the bucket. So upload a probe, fetch its
++				// resized variant through the delivery host, then delete it.
++				$r2  = new R2Client( $config );
++				$key = '.moap-connection-test/sample-' . wp_generate_password( 16, false ) . '.jpg';
++
++				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading a local bundled asset.
++				$body = (string) file_get_contents( SampleImage::path() );
++				if ( '' === $body || ! $r2->put_object( $key, $body, 'image/jpeg' ) ) {
++					$steps[] = array(
++						'label'  => __( 'Upload of the test image to R2 failed', 'media-on-autopilot' ),
++						'status' => 'fail',
++					);
++					return $this->record( 'error', 0, '', __( 'Could not upload the test image to R2. Check the bucket name, account ID, and access keys.', 'media-on-autopilot' ), '', $steps );
++				}
++
++				$steps[] = array(
++					'label'  => __( 'Uploaded test image to R2', 'media-on-autopilot' ),
++					'status' => 'ok',
++				);
++
++				$origin = 'https://origin.invalid/' . $key;
+ 				$url    = ( new SelfHostedProvider( $config ) )->build_url(
+ 					$origin,
+ 					new ImageTransform( 0, 600, 0, false, null, 1024, 768 )
+ 				);
+ 
+ 				$fetched = call_user_func( $this->fetch, $url );
+ 				$ms      = (int) round( ( microtime( true ) - $start ) * 1000 );
+ 				$status  = (int) ( $fetched['status'] ?? 0 );
+ 				$format  = (string) ( $fetched['format'] ?? '' );
+ 
+-				$steps[] = array(
+-					'label'  => __( 'Requested resized variant from your delivery host', 'media-on-autopilot' ),
+-					'status' => 'ok',
+-				);
+-
+-				if ( 200 !== $status ) {
++				if ( 200 === $status ) {
++					$steps[] = array(
++						/* translators: 1: HTTP status code, 2: image format (e.g. webp), 3: elapsed milliseconds */
++						'label'  => sprintf( __( 'Delivered resized variant (HTTP %1$d · %2$s · %3$d ms)', 'media-on-autopilot' ), $status, $format, $ms ),
++						'status' => 'ok',
++					);
++				} else {
+ 					$steps[] = array(
+ 						/* translators: %d: HTTP status code */
+-						'label'  => sprintf( __( 'Variant did not load (HTTP %d) — is the delivery Worker pointed at this site?', 'media-on-autopilot' ), $status ),
++						'label'  => sprintf( __( 'Variant did not load (HTTP %d) — is the delivery Worker deployed and bound to this bucket?', 'media-on-autopilot' ), $status ),
+ 						'status' => 'fail',
+ 					);
+-					return $this->record( 'error', $ms, '', __( 'The delivered image did not load.', 'media-on-autopilot' ), 'HTTP ' . $status, $steps );
+ 				}
+ 
+-				$steps[] = array(
+-					/* translators: 1: HTTP status code, 2: image format (e.g. webp), 3: elapsed milliseconds */
+-					'label'  => sprintf( __( 'Delivered (HTTP %1$d · %2$s · %3$d ms)', 'media-on-autopilot' ), $status, $format, $ms ),
+-					'status' => 'ok',
+-				);
++				// Always clean up the probe, regardless of the fetch outcome.
++				if ( $r2->delete_object( $key ) ) {
++					$steps[] = array(
++						'label'  => __( 'Deleted test image from R2', 'media-on-autopilot' ),
++						'status' => 'ok',
++					);
++				} else {
++					$steps[] = array(
++						'label'  => __( 'Could not delete the test image from R2 — remove it manually', 'media-on-autopilot' ),
++						'status' => 'warn',
++					);
++				}
++
++				if ( 200 !== $status ) {
++					return $this->record( 'error', $ms, '', __( 'The delivered image did not load.', 'media-on-autopilot' ), 'HTTP ' . $status, $steps );
++				}
+ 				return $this->record( 'ok', $ms, $format, __( 'Delivery passed.', 'media-on-autopilot' ), '', $steps );
+ 
+ 			case 'cloudflare':
+ 				$config = $this->cloudflare->to_config();
+ 				if ( ! $config->is_active() ) {
+diff --git a/tests/Integration/Cdn/CdnTesterTest.php b/tests/Integration/Cdn/CdnTesterTest.php
+index 9ae8d42..82c570b 100644
+--- a/tests/Integration/Cdn/CdnTesterTest.php
++++ b/tests/Integration/Cdn/CdnTesterTest.php
+@@ -41,10 +41,89 @@ final class CdnTesterTest extends WP_UnitTestCase {
+ 		$result = $this->tester( static fn() => array( 'status' => 502, 'format' => '' ) )->run();
+ 
+ 		$this->assertSame( 'error', $result['state'] );
+ 	}
+ 
++	/**
++	 * Configure a fully credentialed self-hosted provider so can_upload() is true.
++	 *
++	 * @return void
++	 */
++	private function configure_selfhosted(): void {
++		update_option( CdnSettings::OPTION_PROVIDER, 'selfhosted' );
++		update_option( SelfHostedSettings::OPTION_HOST, 'cdn.example.com' );
++		update_option( SelfHostedSettings::OPTION_BUCKET, 'tenant-acme' );
++		update_option( SelfHostedSettings::OPTION_ACCOUNT, 'acct' );
++		update_option( SelfHostedSettings::OPTION_KEY_ID, 'key' );
++		update_option( SelfHostedSettings::OPTION_SECRET, 'secret' );
++	}
++
++	/**
++	 * Intercept the R2 S3 calls: PUT (probe upload) succeeds, DELETE (cleanup) is
++	 * recorded and succeeds. The delivery fetch uses the injected $fetch seam, so
++	 * only the R2 writes reach this filter.
++	 *
++	 * @param array<int,string> $deleted Collects DELETE URLs.
++	 * @return callable The pre_http_request filter.
++	 */
++	private function r2_intercept( array &$deleted ): callable {
++		return static function ( $pre, $args, $url ) use ( &$deleted ) {
++			$method = $args['method'] ?? 'GET';
++			if ( 'DELETE' === $method ) {
++				$deleted[] = $url;
++			}
++			return array(
++				'response' => array( 'code' => 'DELETE' === $method ? 204 : 200 ),
++				'headers'  => array(),
++				'body'     => '',
++			);
++		};
++	}
++
++	public function test_selfhosted_uploads_fetches_and_deletes_probe(): void {
++		$this->configure_selfhosted();
++
++		$deleted   = array();
++		$intercept = $this->r2_intercept( $deleted );
++		add_filter( 'pre_http_request', $intercept, 10, 3 );
++		try {
++			$result = $this->tester( static fn() => array( 'status' => 200, 'format' => 'webp' ) )->run();
++		} finally {
++			remove_filter( 'pre_http_request', $intercept, 10 );
++		}
++
++		$this->assertSame( 'ok', $result['state'] );
++		$this->assertSame( 'webp', $result['format'] );
++		$this->assertNotEmpty( $deleted, 'The uploaded probe must be deleted after the test.' );
++	}
++
++	public function test_selfhosted_deletes_probe_even_when_delivery_fails(): void {
++		$this->configure_selfhosted();
++
++		$deleted   = array();
++		$intercept = $this->r2_intercept( $deleted );
++		add_filter( 'pre_http_request', $intercept, 10, 3 );
++		try {
++			$result = $this->tester( static fn() => array( 'status' => 404, 'format' => '' ) )->run();
++		} finally {
++			remove_filter( 'pre_http_request', $intercept, 10 );
++		}
++
++		$this->assertSame( 'error', $result['state'] );
++		$this->assertNotEmpty( $deleted, 'The probe must be deleted even when delivery fails.' );
++	}
++
++	public function test_selfhosted_unconfigured_without_credentials(): void {
++		update_option( CdnSettings::OPTION_PROVIDER, 'selfhosted' );
++		update_option( SelfHostedSettings::OPTION_HOST, 'cdn.example.com' );
++		// No bucket/account/keys -> can_upload() is false.
++
++		$result = $this->tester( static fn() => array( 'status' => 200, 'format' => 'webp' ) )->run();
++
++		$this->assertSame( 'unconfigured', $result['state'] );
++	}
++
+ 	/**
+ 	 * Intercept the Cloudflare REST calls: answer every upload POST with a fresh
+ 	 * image id (so each test uploads a distinct image) + a variant, and record
+ 	 * each DELETE url.
+ 	 *
+
+Report only defects that violate the rules above in the changed lines. Output ONLY JSON lines, one object per finding, with keys file, line, rule, severity (high|medium|low), message. Output nothing if there are no findings.

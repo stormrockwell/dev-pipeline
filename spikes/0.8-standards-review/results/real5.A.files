@@ -1,0 +1,2 @@
+src/Features/Cdn/CdnTester.php
+tests/Integration/Cdn/CdnTesterTest.php
