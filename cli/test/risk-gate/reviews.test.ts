@@ -10,15 +10,15 @@ const review = (login: string, state: Review["state"], at: string, extra: Partia
   ...extra,
 });
 
-const base = { headSha: HEAD, author: "dev", zoneApprovers: ["lead"], trusted: [] as string[] };
+const base = { headSha: HEAD, author: "dev" };
 
 describe("countApprovals", () => {
-  it("counts distinct approvers and the zone approvers among them", () => {
+  it("counts distinct approvers other than the author", () => {
     const result = countApprovals({
       ...base,
       reviews: [review("lead", "APPROVED", "2026-01-01T00:00:00Z"), review("peer", "APPROVED", "2026-01-01T00:01:00Z")],
     });
-    expect(result).toMatchObject({ total: 2, zone: 1, approvers: ["lead", "peer"] });
+    expect(result).toMatchObject({ total: 2, approvers: ["lead", "peer"] });
   });
 
   it("counts a person once, however many times they approve", () => {
@@ -30,7 +30,7 @@ describe("countApprovals", () => {
   });
 
   it("never counts the author", () => {
-    expect(countApprovals({ ...base, zoneApprovers: ["dev"], reviews: [review("dev", "APPROVED", "2026-01-01T00:00:00Z")] })).toMatchObject({ total: 0, zone: 0 });
+    expect(countApprovals({ ...base, reviews: [review("dev", "APPROVED", "2026-01-01T00:00:00Z")] }).total).toBe(0);
   });
 
   it("never counts a bot", () => {
@@ -75,13 +75,8 @@ describe("countApprovals", () => {
     expect(result.total).toBe(0);
   });
 
-  it("matches logins without regard to case", () => {
-    const result = countApprovals({ ...base, zoneApprovers: ["Lead"], reviews: [review("LEAD", "APPROVED", "2026-01-01T00:00:00Z")] });
-    expect(result).toMatchObject({ total: 1, zone: 1 });
+  it("matches the author's login without regard to case", () => {
+    expect(countApprovals({ ...base, reviews: [review("DEV", "APPROVED", "2026-01-01T00:00:00Z")] }).total).toBe(0);
   });
 
-  it("counts a trusted author as one approval that is not a zone approval", () => {
-    const result = countApprovals({ ...base, trusted: ["dev"], reviews: [] });
-    expect(result).toMatchObject({ total: 1, zone: 0, trustedAuthor: true });
-  });
 });

@@ -53,11 +53,6 @@ describe("higherRisk and riskFromLabels", () => {
 
 describe("APPROVALS", () => {
   it("matches the STRATEGY table", () => {
-    expect(APPROVALS).toEqual({
-      low: { total: 1, zone: 0 },
-      medium: { total: 1, zone: 0 },
-      high: { total: 1, zone: 1 },
-      critical: { total: 2, zone: 1 },
-    });
+    expect(APPROVALS).toEqual({ low: 1, medium: 1, high: 1, critical: 2 });
   });
 });

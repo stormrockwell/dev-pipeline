@@ -1,22 +1,20 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";
+import { pipeline, removeTemps, tempDir } from "../helpers/repo.ts";
 
 afterAll(removeTemps);
 
 function repo(): string {
-  const dir = tempDir();
-  write(dir, ".pipeline/sensitive.yml", "paths:\n  - '**/auth/**'\ncritical:\n  - '**/auth/**'\n");
-  return dir;
+  return tempDir();
 }
 
 describe("github", () => {
-  it("prints the ruleset from the repo's sensitive.yml", () => {
-    const result = pipeline(repo(), ["github", "ruleset", "--team-id", "9"]);
+  it("prints the ruleset", () => {
+    const result = pipeline(repo(), ["github", "ruleset"]);
     expect(result.status).toBe(0);
     const json = JSON.parse(result.stdout);
-    expect(json.rules.find((rule: { type: string }) => rule.type === "pull_request").parameters.required_reviewers[0].reviewer.id).toBe(9);
+    expect(json.rules.map((rule: { type: string }) => rule.type)).toContain("required_status_checks");
   });
 
   it("writes the ruleset to --out and prints nothing but a note", () => {
@@ -43,11 +41,5 @@ describe("github", () => {
     expect(pipeline(repo(), ["github", "commands"]).status).toBe(2);
     expect(pipeline(repo(), ["github", "bogus"]).status).toBe(2);
     expect(pipeline(repo(), ["github"]).status).toBe(2);
-  });
-
-  it("fails with exit 2 on an invalid sensitive.yml", () => {
-    const dir = tempDir();
-    write(dir, ".pipeline/sensitive.yml", "bogus: 1\n");
-    expect(pipeline(dir, ["github", "ruleset"]).status).toBe(2);
   });
 });

@@ -21,7 +21,8 @@ Recomputes a PR's risk from its diff, the way docs/STRATEGY.md describes the ris
   2. Adds a zone:<name> label for each zone the scan found.
   3. Fails when the PR body's Human review line disagrees with the scan. A body that says none while
      the scan found zones, or that omits a found zone, fails. A body that names an extra zone warns.
-  4. With --event, fails when the PR lacks the approvals its risk needs.
+  4. With --event, fails when the PR lacks the peer approvals its risk needs: 1, or 2 for risk:critical.
+     A peer is any human other than the author. Bots and approvals of an older commit do not count.
 
 The result never lowers a label the PR already carries.
 
@@ -31,9 +32,6 @@ Input:
   --event <file>            A pull_request event payload, as GITHUB_EVENT_PATH names it. Turns on the
                             approval check, which reads reviews with "gh api" and the ambient GH_TOKEN.
   --reviews <file>          Read reviews from this file (a JSON array) instead of calling "gh api".
-  --zone-approvers <list>   Comma separated logins of zone approvers. Defaults to $PIPELINE_ZONE_APPROVERS.
-  --trusted <list>          Comma separated logins whose own attestation counts as one approval. Defaults
-                            to $PIPELINE_TRUSTED.
   --labels <list>           Labels the PR carries, for a run without --event.
   --path <dir>              Repo to diff. Defaults to the current directory.
 
@@ -58,8 +56,7 @@ function formatText(result: GateResult): string {
   const edits = [`add ${result.labels.add.join(", ") || "nothing"}`, `remove ${result.labels.remove.join(", ") || "nothing"}`];
   out.push(`Labels: ${edits.join("; ")}`);
   if (result.approvals) {
-    const { have, required, zoneHave, zoneRequired } = result.approvals;
-    out.push(`Approvals: ${have} of ${required} required, ${zoneHave} of ${zoneRequired} from zone approvers`);
+    out.push(`Approvals: ${result.approvals.have} of ${result.approvals.required} required from people other than the author`);
   } else {
     out.push("Approvals: not checked, no --event given");
   }
@@ -78,8 +75,6 @@ async function run(argv: string[]): Promise<number> {
         "body-file": { type: "string" },
         event: { type: "string" },
         reviews: { type: "string" },
-        "zone-approvers": { type: "string" },
-        trusted: { type: "string" },
         labels: { type: "string" },
         path: { type: "string" },
         apply: { type: "boolean" },
@@ -127,8 +122,6 @@ async function run(argv: string[]): Promise<number> {
         reviews: reviewText !== null ? parseReviews(reviewText) : fetchReviews(event.repo, event.number),
         headSha: event.headSha,
         author: event.author,
-        zoneApprovers: list(values["zone-approvers"] ?? process.env.PIPELINE_ZONE_APPROVERS),
-        trusted: list(values.trusted ?? process.env.PIPELINE_TRUSTED),
       };
     } catch (error) {
       // The gate closes when it cannot read the reviews, because a pass without them proves nothing.

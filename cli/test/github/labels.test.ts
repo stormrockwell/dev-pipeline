@@ -27,7 +27,7 @@ describe("labelDefinitions", () => {
 
   it("states the approvals each risk label needs", () => {
     const text = Object.fromEntries(labels.map((label) => [label.name, label.description]));
-    expect(text["risk:high"]).toContain("zone approver");
-    expect(text["risk:critical"]).toContain("2 approvals");
+    expect(text["risk:high"]).toContain("1 peer approval");
+    expect(text["risk:critical"]).toContain("2 peer approvals");
   });
 });

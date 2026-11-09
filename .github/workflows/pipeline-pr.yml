@@ -14,16 +14,6 @@ on:
         required: false
         default: stormrockwell/dev-pipeline
         type: string
-      zone-approvers:
-        description: Comma separated logins of the people whose approval satisfies a zone.
-        required: false
-        default: ""
-        type: string
-      trusted-authors:
-        description: Comma separated logins whose own attestation counts as one approval.
-        required: false
-        default: ""
-        type: string
     secrets:
       CLI_TOKEN:
         description: A token that can read cli-repo. Needed while that repo is private.
@@ -107,8 +97,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PIPELINE_ZONE_APPROVERS: ${{ inputs.zone-approvers }}
-          PIPELINE_TRUSTED: ${{ inputs.trusted-authors }}
         run: |
           range="$(git merge-base "$BASE_SHA" "$HEAD_SHA")..$HEAD_SHA"
           "$PIPELINE" risk-gate --range "$range" --event "$GITHUB_EVENT_PATH" --apply

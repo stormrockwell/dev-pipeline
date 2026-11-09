@@ -9,10 +9,10 @@ export interface LabelDefinition {
 }
 
 const riskStyle: Record<Risk, { color: string; description: string }> = {
-  low: { color: "0e8a16", description: "T0 or T1 change. Needs 1 approval from someone other than the author." },
-  medium: { color: "fbca04", description: "T2 logic change. Needs 1 approval from someone other than the author." },
-  high: { color: "d93f0b", description: "T3 sensitive change. Needs 1 approval from a zone approver." },
-  critical: { color: "b60205", description: "T3 on a designated path. Needs 2 approvals, 1 from a zone approver." },
+  low: { color: "0e8a16", description: "T0 or T1 change. Needs 1 peer approval, never the author." },
+  medium: { color: "fbca04", description: "T2 logic change. Needs 1 peer approval, never the author." },
+  high: { color: "d93f0b", description: "T3 sensitive change. Needs 1 peer approval, never the author." },
+  critical: { color: "b60205", description: "T3 on a designated path. Needs 2 peer approvals, never the author." },
 };
 
 const zoneDescriptions: Record<Zone, string> = {

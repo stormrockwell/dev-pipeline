@@ -66,11 +66,16 @@ describe("risk-gate", () => {
       pull_request: { number: 7, title: "t", body: body("Human review: required, zone:auth (src/auth/login.php)."), user: { login: "dev" }, head: { sha: "bbbb" }, labels: [] },
       repository: { full_name: "acme/site" },
     }));
-    const args = ["risk-gate", "--range", range, "--event", "event.json", "--reviews", `${fixtures}reviews.json`, "--zone-approvers", "lead", "--json"];
+    const args = ["risk-gate", "--range", range, "--event", "event.json", "--reviews", `${fixtures}reviews.json`, "--json"];
     const passing = pipeline(repo, args);
     expect(passing.status).toBe(0);
-    expect(JSON.parse(passing.stdout).approvals).toEqual({ required: 1, zoneRequired: 1, have: 1, zoneHave: 1 });
-    const failing = pipeline(repo, [...args.slice(0, -3), "--zone-approvers", "someone", "--json"]);
+    expect(JSON.parse(passing.stdout).approvals).toEqual({ required: 1, have: 1 });
+    // The only current approval comes from "lead", who is the author here, so it does not count.
+    write(repo, "own.json", JSON.stringify({
+      pull_request: { number: 7, title: "t", body: body("Human review: required, zone:auth (src/auth/login.php)."), user: { login: "lead" }, head: { sha: "bbbb" }, labels: [] },
+      repository: { full_name: "acme/site" },
+    }));
+    const failing = pipeline(repo, ["risk-gate", "--range", range, "--event", "own.json", "--reviews", `${fixtures}reviews.json`]);
     expect(failing.status).toBe(1);
   });
 

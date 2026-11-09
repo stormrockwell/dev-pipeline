@@ -33,7 +33,7 @@ describe("parseEvent", () => {
 describe("parseReviews", () => {
   it("reads a JSON array", () => {
     const reviews = parseReviews(fixture("reviews.json"));
-    expect(countApprovals({ reviews, headSha: "bbbb", author: "dev", zoneApprovers: ["lead"], trusted: [] })).toMatchObject({ total: 1, zone: 1 });
+    expect(countApprovals({ reviews, headSha: "bbbb", author: "dev" }).total).toBe(1);
   });
 
   it("reads one JSON object per line, as gh api --jq prints", () => {

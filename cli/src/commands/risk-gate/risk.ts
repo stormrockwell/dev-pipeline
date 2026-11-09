@@ -6,13 +6,8 @@ export type Risk = "low" | "medium" | "high" | "critical";
 /** Ordered from least to most risk, so an index compares two risks. */
 export const RISKS: readonly Risk[] = ["low", "medium", "high", "critical"];
 
-/** Approvals each risk needs, from the "Labels and merge rules" table in docs/STRATEGY.md. */
-export const APPROVALS: Record<Risk, { total: number; zone: number }> = {
-  low: { total: 1, zone: 0 },
-  medium: { total: 1, zone: 0 },
-  high: { total: 1, zone: 1 },
-  critical: { total: 2, zone: 1 },
-};
+/** Peer approvals each risk needs, from the "Labels and merge rules" table in docs/STRATEGY.md. */
+export const APPROVALS: Record<Risk, number> = { low: 1, medium: 1, high: 1, critical: 2 };
 
 export const RISK_PREFIX = "risk:";
 export const ZONE_PREFIX = "zone:";

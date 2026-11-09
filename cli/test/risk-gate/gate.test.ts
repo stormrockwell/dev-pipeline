@@ -145,8 +145,6 @@ describe("approvals", () => {
     reviews,
     headSha: HEAD,
     author: "dev",
-    zoneApprovers: ["lead"],
-    trusted: [],
     ...extra,
   });
 
@@ -164,55 +162,51 @@ describe("approvals", () => {
     expect(evaluate(input({ approvals: approvalInput([approve("peer")]) })).ok).toBe(true);
   });
 
-  it("fails a zone PR approved only by a non zone approver", () => {
-    const result = evaluate(zonePr({ approvals: approvalInput([approve("peer")]) }));
+  it("fails a zone PR with no peer approval", () => {
+    const result = evaluate(zonePr({ approvals: approvalInput([]) }));
     expect(result.ok).toBe(false);
-    expect(result.failures).toEqual([expect.stringContaining("zone approver")]);
+    expect(result.failures).toEqual([expect.stringContaining("1 approval")]);
   });
 
-  it("passes a zone PR approved by a zone approver", () => {
-    expect(evaluate(zonePr({ approvals: approvalInput([approve("lead")]) })).ok).toBe(true);
+  it("passes a zone PR approved by any non-author developer", () => {
+    expect(evaluate(zonePr({ approvals: approvalInput([approve("peer")]) })).ok).toBe(true);
   });
 
-  it("fails a critical PR with one approval, even from a zone approver", () => {
+  it("fails a zone PR that only the author approved", () => {
+    expect(evaluate(zonePr({ approvals: approvalInput([approve("dev")]) })).ok).toBe(false);
+  });
+
+  it("fails a zone PR whose only approval is stale", () => {
+    const stale = { ...approve("peer"), commit_id: "aaaa" };
+    expect(evaluate(zonePr({ approvals: approvalInput([stale]) })).ok).toBe(false);
+  });
+
+  it("fails a critical PR with one non-author approval and passes it with two", () => {
     const critical = {
       scanZones: ["guardrails"],
       files: [{ file: ".github/a.yml", tier: "T3" as const }],
       body: body("Human review: required, zone:guardrails (.github/a.yml)."),
     };
-    const one = evaluate(zonePr({ ...critical, approvals: approvalInput([approve("lead")]) }));
+    const one = evaluate(zonePr({ ...critical, approvals: approvalInput([approve("peer")]) }));
     expect(one.ok).toBe(false);
     expect(one.failures).toEqual([expect.stringContaining("2 approvals")]);
     expect(evaluate(zonePr({ ...critical, approvals: approvalInput([approve("lead"), approve("peer")]) })).ok).toBe(true);
   });
 
-  it("fails a critical PR approved twice by non zone approvers", () => {
-    const result = evaluate(
-      zonePr({ labels: ["risk:critical"], approvals: approvalInput([approve("peer"), approve("other")]) }),
-    );
+  it("uses a risk:critical label a human raised to set the requirement", () => {
+    const result = evaluate(zonePr({ labels: ["risk:critical"], approvals: approvalInput([approve("peer")]) }));
     expect(result.ok).toBe(false);
-    expect(result.failures).toEqual([expect.stringContaining("zone approver")]);
-  });
-
-  it("fails a zone PR when no zone approvers are configured", () => {
-    const result = evaluate(zonePr({ approvals: approvalInput([approve("lead")], { zoneApprovers: [] }) }));
-    expect(result.ok).toBe(false);
-    expect(result.failures[0]).toContain("no zone approvers");
-  });
-
-  it("counts a trusted author's attestation as one approval but not a zone approval", () => {
-    expect(evaluate(input({ approvals: approvalInput([], { trusted: ["dev"] }) })).ok).toBe(true);
-    expect(evaluate(zonePr({ approvals: approvalInput([], { trusted: ["dev"] }) })).ok).toBe(false);
+    expect(result.failures).toEqual([expect.stringContaining("2 approvals")]);
   });
 
   it("uses the higher of the computed risk and the label to set the requirement", () => {
-    const result = evaluate(input({ labels: ["risk:high"], approvals: approvalInput([approve("peer")]) }));
-    expect(result.risk).toBe("high");
+    const result = evaluate(input({ labels: ["risk:critical"], approvals: approvalInput([approve("peer")]) }));
+    expect(result.risk).toBe("critical");
     expect(result.ok).toBe(false);
   });
 
   it("reports the counts", () => {
     const result = evaluate(zonePr({ approvals: approvalInput([approve("lead")]) }));
-    expect(result.approvals).toEqual({ required: 1, zoneRequired: 1, have: 1, zoneHave: 1 });
+    expect(result.approvals).toEqual({ required: 1, have: 1 });
   });
 });

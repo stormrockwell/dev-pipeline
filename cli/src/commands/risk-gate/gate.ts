@@ -34,7 +34,7 @@ export interface GateResult {
   risk: Risk;
   zones: string[];
   labels: { add: string[]; remove: string[] };
-  approvals: { required: number; zoneRequired: number; have: number; zoneHave: number } | null;
+  approvals: { required: number; have: number } | null;
   failures: string[];
   warnings: string[];
 }
@@ -73,24 +73,14 @@ function compareBody(body: string, scanZones: string[]): { failures: string[]; w
 
 function checkApprovals(risk: Risk, approvals: ApprovalInput): { failures: string[]; counts: NonNullable<GateResult["approvals"]> } {
   const required = APPROVALS[risk];
-  const count = countApprovals(approvals);
-  const failures: string[] = [];
-  if (count.total < required.total) {
-    failures.push(`${riskLabel(risk)} needs ${plural(required.total)} from people other than the author, found ${count.total}.`);
-  }
-  if (count.zone < required.zone) {
-    failures.push(
-      approvals.zoneApprovers.length === 0
-        ? `${riskLabel(risk)} needs ${plural(required.zone)} from a zone approver, but no zone approvers are configured.`
-        : `${riskLabel(risk)} needs ${plural(required.zone)} from a zone approver, found ${count.zone}.`,
-    );
-  }
-  return { failures, counts: { required: required.total, zoneRequired: required.zone, have: count.total, zoneHave: count.zone } };
+  const have = countApprovals(approvals).total;
+  const failures = have < required ? [`${riskLabel(risk)} needs ${plural(required)} from people other than the author, found ${have}.`] : [];
+  return { failures, counts: { required, have } };
 }
 
 /**
  * Recomputes risk from the diff and takes the higher of that and the PR's labels, so removing a label
- * never lowers the requirement. Labels only ever go up, because lowering is a zone approver's action.
+ * never lowers the requirement. Labels only ever go up, because lowering is a peer reviewer's action.
  */
 export function evaluate(input: GateInput): GateResult {
   const body = compareBody(input.body, input.scanZones);
