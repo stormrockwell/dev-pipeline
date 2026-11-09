@@ -3,3 +3,5 @@ node_modules/
 .pipeline/runs/
 .pipeline/work/
 .DS_Store
+.env*
+!.env.example
