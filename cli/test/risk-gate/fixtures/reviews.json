@@ -1,0 +1,4 @@
+[
+  { "user": { "login": "lead", "type": "User" }, "state": "APPROVED", "commit_id": "bbbb", "submitted_at": "2026-01-01T00:00:00Z" },
+  { "user": { "login": "peer", "type": "User" }, "state": "APPROVED", "commit_id": "aaaa", "submitted_at": "2026-01-01T00:01:00Z" }
+]

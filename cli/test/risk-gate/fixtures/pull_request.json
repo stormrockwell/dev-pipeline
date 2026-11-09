@@ -1,0 +1,14 @@
+{
+  "action": "synchronize",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "feat(auth): add login throttle",
+    "body": "## Risk\nHuman review: required, zone:authz (src/auth/throttle.php).\n",
+    "user": { "login": "dev", "type": "User" },
+    "head": { "sha": "bbbb" },
+    "base": { "sha": "aaaa" },
+    "labels": [{ "name": "risk:low" }, { "name": "bug" }]
+  },
+  "repository": { "full_name": "acme/site" }
+}

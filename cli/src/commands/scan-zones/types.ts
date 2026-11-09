@@ -40,6 +40,8 @@ export interface ZoneConfig {
   packs: string[];
   paths: PathRule[];
   signals: Signal[];
+  /** Globs of designated paths, where a T3 change needs two approvals. */
+  critical: string[];
 }
 
 export interface RemovedLine {
