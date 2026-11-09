@@ -160,3 +160,27 @@ The security reviewer's zone call is the second layer for the cases the heuristi
 - Signals are one line at a time, so a statement split over lines can miss a pattern that spans the break.
 - Test files and `dist/` copies are scanned like any other file. Fixtures that plant a vulnerability will show up as zones.
 - A new minified or vendored file is not yet detected as `third-party`, and the reach check for callers of changed functions is a separate task.
+
+## Classifying a change
+
+`pipeline classify` assigns the risk tier that `docs/STRATEGY.md` section 6 defines, using the same scan.
+
+```
+pipeline classify <file>...                # named paths, content read from the working tree
+pipeline classify --staged                 # the staged diff
+pipeline classify --range <from>..<to>     # the net change between two commits
+pipeline classify --json ...               # machine-readable result
+```
+
+Each file gets a tier, and the change gets the highest tier of any file.
+
+| Tier | Rule |
+|---|---|
+| T3 Sensitive | The file matches a path rule, has a content signal on an added line, or has a removed line that matched a signal. A guardrail path is T3 whatever its file type. |
+| T2 Logic | Code and configuration of any other type, and any template that echoes variables, such as `.php`, `.phtml`, `.twig`, `.ejs`, `.hbs`, or an `.html` file that holds `<?php`, `{{`, `{%` or `<%`. |
+| T1 Presentation | Stylesheets (`.css`, `.scss`), static markup, images and fonts. |
+| T0 Docs | Markdown, text and reStructuredText files, and README, LICENSE and CHANGELOG. |
+
+An empty change is T0. The output lists the tier, the zones, and the reasons that set the final tier, each with its file, line and rule (`file-type`, `template`, `path`, `zone` or `removed-signal`). The JSON also holds a `files` list with the tier of every file, so a PR split can see which files are low risk.
+
+The classifier only raises a tier from rules. Anyone can raise a tier by hand, and only a zone approver lowers a T3 task or removes a zone, so the command has no option that lowers a result. An unknown file type is T2, because rules should fail toward more review. The orchestrator and the security reviewer add the later layers that section 6 describes.
