@@ -8,6 +8,26 @@ import { scanText } from "../../src/commands/scan-zones/scan.ts";
 const dirs: string[] = [];
 afterAll(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
+describe("critical", () => {
+  it("defaults to the guardrail directories", () => {
+    expect(parseConfig("paths:\n  - 'a/**'\n").critical).toEqual([".github/**", ".pipeline/**", ".claude/**"]);
+    expect(builtinConfig().critical).toEqual([".github/**", ".pipeline/**", ".claude/**"]);
+  });
+
+  it("reads a list of globs", () => {
+    expect(parseConfig("critical:\n  - '**/payments/**'\n").critical).toEqual(["**/payments/**"]);
+  });
+
+  it("allows an empty list to turn designated paths off", () => {
+    expect(parseConfig("critical:\n").critical).toEqual([]);
+  });
+
+  it("rejects a value that is not a list of globs", () => {
+    expect(() => parseConfig("critical: yes\n")).toThrow(/critical: must be a list/);
+    expect(() => parseConfig("critical:\n  - 'a/{b'\n")).toThrow(/critical\[0\]/);
+  });
+});
+
 describe("parseConfig", () => {
   it("reads paths and signals in the documented shape", () => {
     const config = parseConfig(`

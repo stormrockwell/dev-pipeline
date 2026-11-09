@@ -7,7 +7,10 @@ import { parseYaml, type YamlValue } from "./yaml.ts";
 
 export const CONFIG_PATH = ".pipeline/sensitive.yml";
 
-const TOP_KEYS = ["packs", "paths", "signals"];
+const TOP_KEYS = ["packs", "paths", "signals", "critical"];
+
+/** The guardrail paths that STRATEGY names as designated, used when a sensitive.yml omits `critical`. */
+export const DEFAULT_CRITICAL = [".github/**", ".pipeline/**", ".claude/**"];
 const SIGNAL_KEYS = ["pattern", "zone", "near", "only", "flags"];
 const PATH_KEYS = ["path", "zone"];
 
@@ -120,6 +123,21 @@ function parsePacks(value: YamlValue | undefined): string[] {
   });
 }
 
+function parseCritical(value: YamlValue | undefined): string[] {
+  if (value === undefined) return DEFAULT_CRITICAL;
+  if (value === null) return [];
+  if (!Array.isArray(value)) return fail("critical", "must be a list of globs.");
+  return value.map((item, index) => {
+    const glob = asString(`critical[${index}]`, "glob", item);
+    try {
+      globToRegExp(glob);
+    } catch (error) {
+      fail(`critical[${index}]`, error instanceof Error ? error.message : String(error));
+    }
+    return glob;
+  });
+}
+
 function unique<T>(items: T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -130,10 +148,11 @@ function unique<T>(items: T[], key: (item: T) => string): T[] {
   });
 }
 
-function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[], signals: Signal[]): ZoneConfig {
+function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[], signals: Signal[], critical: string[]): ZoneConfig {
   const chosen = names.map((name) => packs[name]!);
   return {
     source,
+    critical,
     packs: names,
     paths: unique([...paths, ...chosen.flatMap((pack) => pack.paths)], (rule) => `${rule.glob}\0${rule.zone}`),
     signals: unique(
@@ -145,7 +164,7 @@ function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[
 
 /** Every built-in pack, which is what a repo without a sensitive.yml gets. */
 export function builtinConfig(): ZoneConfig {
-  return combine("builtin", Object.keys(packs), [], []);
+  return combine("builtin", Object.keys(packs), [], [], DEFAULT_CRITICAL);
 }
 
 export function parseConfig(text: string): ZoneConfig {
@@ -157,7 +176,7 @@ export function parseConfig(text: string): ZoneConfig {
   }
   if (!isMap(doc)) return fail("document", "must be a mapping with packs, paths and signals.");
   checkKeys("document", doc, TOP_KEYS);
-  return combine("file", parsePacks(doc.packs), parsePaths(doc.paths), parseSignals(doc.signals));
+  return combine("file", parsePacks(doc.packs), parsePaths(doc.paths), parseSignals(doc.signals), parseCritical(doc.critical));
 }
 
 export function loadConfig(root: string): ZoneConfig {

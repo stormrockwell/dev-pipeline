@@ -81,6 +81,7 @@ signals:
 | `packs` | list of names | Built-in packs to include, from `wordpress` and `node`. |
 | `paths` | list | Path rules, each a glob string or a map with `path` and `zone`. |
 | `signals` | map of group to list | Content signals. Groups are `php`, `js`, `markup`, `css`, `sql` and `suppressions`. |
+| `critical` | list of globs | Designated paths, where a T3 change is `risk:critical` and needs two approvals. Omit the key for `.github/**`, `.pipeline/**` and `.claude/**`, and leave it empty for none. |
 
 Any other key is an error, so a typo does not silently disable a rule.
 
@@ -183,4 +184,4 @@ Each file gets a tier, and the change gets the highest tier of any file.
 
 An empty change is T0. The output lists the tier, the zones, and the reasons that set the final tier, each with its file, line and rule (`file-type`, `template`, `path`, `zone` or `removed-signal`). The JSON also holds a `files` list with the tier of every file, so a PR split can see which files are low risk.
 
-The classifier only raises a tier from rules. Anyone can raise a tier by hand, and only a zone approver lowers a T3 task or removes a zone, so the command has no option that lowers a result. An unknown file type is T2, because rules should fail toward more review. The orchestrator and the security reviewer add the later layers that section 6 describes.
+The classifier only raises a tier from rules. Anyone can raise a tier by hand, and only a peer reviewer, never the author, lowers a T3 task or removes a zone, so the command has no option that lowers a result. An unknown file type is T2, because rules should fail toward more review. The orchestrator and the security reviewer add the later layers that section 6 describes.
