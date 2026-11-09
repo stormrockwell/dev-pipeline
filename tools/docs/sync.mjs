@@ -34,6 +34,20 @@ function collectMdFiles(dir, baseDir = dir) {
   return files;
 }
 
+function collectHtmlFiles(dir, baseDir = dir) {
+  const files = [];
+  for (const entry of fs.readdirSync(dir)) {
+    if (isExcluded(entry)) continue;
+    const fullPath = path.join(dir, entry);
+    if (fs.statSync(fullPath).isDirectory()) {
+      files.push(...collectHtmlFiles(fullPath, baseDir));
+    } else if (entry.endsWith('.html')) {
+      files.push(path.relative(baseDir, fullPath));
+    }
+  }
+  return files;
+}
+
 function performSync() {
   // Empty content directory
   if (fs.existsSync(contentDir)) {
@@ -81,6 +95,14 @@ function performSync() {
       title,
       link: '/' + mdFile.replace(/\.md$/, '')
     });
+  }
+
+  // Standalone pages, such as the flow chart, go to public/ so VitePress serves them as they are.
+  const htmlFiles = fs.existsSync(docsPath) ? collectHtmlFiles(docsPath) : [];
+  for (const htmlFile of htmlFiles) {
+    const destFile = path.join(contentDir, 'public', htmlFile);
+    fs.mkdirSync(path.dirname(destFile), { recursive: true });
+    fs.copyFileSync(path.join(docsPath, htmlFile), destFile);
   }
 
   // Sort with STRATEGY.md first

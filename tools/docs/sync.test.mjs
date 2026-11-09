@@ -114,6 +114,21 @@ describe('sync.mjs', () => {
       expect(fs.existsSync(path.join(contentDir, 'guides', 'style.css'))).toBe(false);
       expect(fs.existsSync(path.join(contentDir, 'guides', 'config.yaml'))).toBe(false);
     });
+
+    it('serves standalone HTML pages from docs as they are', () => {
+      const srcDir = path.join(tempDir, 'src');
+      fs.mkdirSync(path.join(srcDir, 'docs', 'charts'), { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'docs', 'flow.html'), '<title>Flow</title>');
+      fs.writeFileSync(path.join(srcDir, 'docs', 'charts', 'tiers.html'), '<title>Tiers</title>');
+      fs.writeFileSync(path.join(srcDir, 'top.html'), '<title>Top</title>');
+
+      const result = runSync(srcDir);
+
+      expect(result.status).toBe(0);
+      expect(fs.readFileSync(path.join(contentDir, 'public', 'flow.html'), 'utf8')).toBe('<title>Flow</title>');
+      expect(fs.existsSync(path.join(contentDir, 'public', 'charts', 'tiers.html'))).toBe(true);
+      expect(fs.existsSync(path.join(contentDir, 'public', 'top.html'))).toBe(false);
+    });
   });
 
   describe('excluded directories', () => {
