@@ -91,13 +91,13 @@ export const wordpress: Pack = {
 
 const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
 
-/** The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`. */
+// The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`.
 const operator = "(?:===?|!==?)(?!=)\\s*(?=\\S)";
 
-/** A comparison against null, undefined or an empty string is a presence check, not a signature check. */
+// A comparison against null, undefined or an empty string is a presence check, not a signature check.
 const notAbsent = "(?!null\\b|undefined\\b|['\"]{2})";
 
-/** Either side of a loose or strict comparison names a signature. */
+// Either side of a loose or strict comparison names a signature.
 const signatureComparison = [
   `\\b${signatureName}\\s*${operator}${notAbsent}\\S`,
   `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,
