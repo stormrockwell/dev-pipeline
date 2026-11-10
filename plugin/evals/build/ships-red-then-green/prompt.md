@@ -1,6 +1,6 @@
 ---
-max_turns: 40
-timeout_seconds: 1200
+max_turns: 80
+timeout_seconds: 2400
 allowed_tools: [Read, Glob, Grep, Skill, Agent, Write, Edit, Bash(pipeline *), Bash(git *), Bash(npm *), Bash(node *)]
 ---
 
