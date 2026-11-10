@@ -5,4 +5,4 @@ disable-model-invocation: true
 argument-hint: "[scope]"
 ---
 
-Open with `Route: review, because /review forces it.` This plugin version ships no reviewer agents, so say that, then offer the report route's audit of this scope instead: $ARGUMENTS
+Open with `Route: review, because /review forces it.` When the scope is a task of a work order in `.pipeline/work/`, review it with the dev-pipeline:review-loop skill. The reviewers check a diff against the work order that asked for it, so for any other scope, offer the report route's audit instead: $ARGUMENTS
