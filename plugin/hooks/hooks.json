@@ -9,6 +9,16 @@
             "command": "cat \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.json\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10,
+            "async": true
+          }
+        ]
       }
     ],
     "SubagentStop": [
@@ -19,6 +29,73 @@
             "type": "command",
             "command": "pipeline task-check --hook",
             "timeout": 120
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline run-log --hook",
+            "timeout": 10
           }
         ]
       }

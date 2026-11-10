@@ -47,13 +47,27 @@ test("the implementer works from its brief and the report contract", () => {
 
 test("the Stop hook runs task-check for the implementer only", () => {
   const { hooks } = JSON.parse(read("hooks/hooks.json"));
-  assert.equal(hooks.Stop, undefined, "a Stop hook would fire for every session");
+  const blocking = Object.values(hooks).flat().flatMap((entry) => entry.hooks).filter((hook) => hook.command.includes("task-check"));
+  assert.equal(blocking.length, 1, "task-check can block, so it runs from one hook only");
   const [entry] = hooks.SubagentStop;
   assert.equal(entry.matcher, "^dev-pipeline:implementer$");
   const [hook] = entry.hooks;
   assert.equal(hook.type, "command");
   assert.equal(hook.command, "pipeline task-check --hook");
   assert.ok(hook.timeout > 0 && hook.timeout <= 120, "fast checks carry a hard timeout");
+});
+
+test("the run log hooks every session event, bounded, and in the background where it fires often", () => {
+  const { hooks } = JSON.parse(read("hooks/hooks.json"));
+  const events = ["SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SubagentStop", "Stop", "SessionEnd"];
+  for (const event of events) {
+    const logs = (hooks[event] ?? []).filter((entry) => entry.matcher === undefined).flatMap((entry) => entry.hooks).filter((hook) => hook.command === "pipeline run-log --hook");
+    assert.equal(logs.length, 1, `${event} runs the run log once for every matcher`);
+    assert.ok(logs[0].timeout > 0 && logs[0].timeout <= 10, `${event} bounds the run log`);
+  }
+  for (const event of ["PostToolUse", "PostToolUseFailure", "UserPromptSubmit"]) {
+    assert.equal(hooks[event][0].hooks[0].async, true, `${event} fires often, so its log write runs in the background`);
+  }
 });
 
 test("the build skill drives the deterministic commands for each task", () => {
@@ -66,6 +80,9 @@ test("the build skill drives the deterministic commands for each task", () => {
   assert.match(body, /dev-pipeline:implementer/);
   assert.match(body, /pipeline task-check --task/);
   assert.match(body, /BLOCKED/);
+  assert.match(body, /pipeline ledger \.pipeline\/work\/<slug>\/work-order\.md/, "a resumed build reads the ledger first");
+  assert.match(body, /pipeline ledger rule/, "decisions taken for the developer are recorded");
+  assert.match(body, /pipeline gate-record/);
   assert.ok(words(body) <= 600, `build body is ${words(body)} words`);
 });
 
