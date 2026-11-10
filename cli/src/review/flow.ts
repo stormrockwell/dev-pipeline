@@ -302,12 +302,17 @@ export function overrule(ctx: Context, loserId: string, winnerId: string): Merge
  * Waives a finding with a reason the human reviewer sees, so it leaves the fix list
  *
  * A security finding is never waived here, because the cap on rounds never parks one: a peer
- * accepts it on the PR or the work goes back to planning.
+ * accepts it on the PR or the work goes back to planning. The lower finding of a contest goes
+ * through overrule, so precedence always leaves a ruling.
  */
 export function dismiss(ctx: Context, id: string, reason: string): MergeOutcome | null {
   const finding = findAccepted(ctx, id);
   if (finding.axis === "security") throw new ReviewError(`${id} is a security finding, which only a peer reviewer can accept on the PR.`, 1);
   const { dir, round } = currentRoundOrLast(ctx);
+  const contest = readMerged(dir)?.contests.find((entry) => entry.low === id);
+  if (contest) {
+    throw new ReviewError(`${id} is in a contest with ${contest.high}, which outranks it on the same lines. When they pull opposite ways, overrule it, so the ruling is recorded. When they do not, leave both on the list.`, 1);
+  }
   if (!round.dismissed.includes(id)) round.dismissed.push(id);
   writeRound(dir, round);
   appendEntry(ctx.workOrder, { kind: "accepted", at: new Date().toISOString(), task: ctx.task.id, gate: reviewerGate(finding.reviewer, ctx.task.gates), finding: `${id}: ${finding.title.replace(/\.+$/, "")}`, reason: reason.trim().replace(/\.+$/, "") });

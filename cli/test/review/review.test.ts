@@ -121,6 +121,7 @@ describe("pipeline review merge", () => {
     const { stdout } = firstRound(repo, [strict], [inline]);
     expect(stdout).toContain("Contest   spec-1.1 (correctness) and simplifier-1.1 (readability) both change src/shipping.js:1");
     expect(review(repo, "overrule", ["--finding", "spec-1.1", "--over", "simplifier-1.1"]).status).toBe(1);
+    expect(review(repo, "dismiss", ["--finding", "simplifier-1.1", "--reason", "conflicts with spec"]).stderr).toContain("overrule it, so the ruling is recorded");
     const ruled = review(repo, "overrule", ["--finding", "simplifier-1.1", "--over", "spec-1.1"]);
     expect(ruled.status).toBe(0);
     expect(ruled.stdout).toContain("1 to fix (correctness 1)");
