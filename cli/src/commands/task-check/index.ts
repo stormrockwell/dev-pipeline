@@ -2,6 +2,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
+import { appendEntry } from "../../ledger/ledger.ts";
+import { gitOut } from "../../task/git.ts";
 import { findTask, TASK_DIR, taskPaths } from "../../task/record.ts";
 import { checkTask, type CheckResult } from "./checks.ts";
 
@@ -16,6 +18,9 @@ Checks a briefed task against the implementer's report contract:
   Files      every changed file is owned by the task or named in the report.
   Evidence   on a TDD tier, a red run came before a green run, and the green run tested HEAD's code.
   Comments   comment-lint finds no temporal, reviewer-addressed or dashed comments in the commits.
+
+A pass, outside --draft, records the task's status, branch and commits in the work order's ledger
+at .pipeline/work/<slug>/ledger.jsonl, which \`pipeline ledger\` prints.
 
 The report is the implementer's final reply. Claude Code refuses report files written by a subagent,
 so the SubagentStop hook saves the reply to ${TASK_DIR}/report.md.
@@ -49,6 +54,25 @@ function summary(result: CheckResult, draft: boolean): string {
 
 function problems(result: CheckResult): string {
   return [`task-check: task ${result.record.id} is not ready`, ...[...result.problems, ...result.notes].map((problem) => `- ${problem}`)].join("\n");
+}
+
+/**
+ * Records a passing check in the work order's ledger, so an orchestrator that lost its context knows the task is settled
+ */
+function settle(result: CheckResult): void {
+  const { record, status } = result;
+  if (status === null || !existsSync(record.workOrder)) return;
+  const done = status === "DONE" || status === "DONE_WITH_CONCERNS";
+  appendEntry(record.workOrder, {
+    kind: "task",
+    at: new Date().toISOString(),
+    task: record.id,
+    status,
+    branch: gitOut(record.worktree, ["branch", "--show-current"]) || null,
+    base: record.base,
+    head: gitOut(record.worktree, ["rev-parse", "HEAD"]),
+    evidence: !done ? "handed back" : record.tdd.required ? "red then green" : `TDD not required: ${record.tdd.reason}`,
+  });
 }
 
 async function readStdin(): Promise<string> {
@@ -102,6 +126,7 @@ async function hook(task: string | undefined): Promise<number> {
   const result = checkTask(worktree);
   if (result.problems.length === 0) {
     rmSync(paths.blocks, { force: true });
+    settle(result);
     return 0;
   }
   const blocks = (existsSync(paths.blocks) ? Number(readFileSync(paths.blocks, "utf8")) || 0 : 0) + 1;
@@ -135,6 +160,7 @@ async function run(argv: string[]): Promise<number> {
   }
   const draft = values.draft === true;
   const result = checkTask(worktree, draft);
+  if (result.problems.length === 0 && !draft) settle(result);
   console.log(result.problems.length === 0 ? summary(result, draft) : problems(result));
   return result.problems.length === 0 ? 0 : 1;
 }

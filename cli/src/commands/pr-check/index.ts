@@ -410,7 +410,13 @@ function checkTitle(title: string | undefined): CheckResult {
   };
 }
 
-async function runChecks(body: string, title?: string): Promise<CheckResult[]> {
+/**
+ * Runs every check on the body a reader sees
+ *
+ * HTML comments, such as the gate record, never render, so the checks read the body without them.
+ */
+async function runChecks(source: string, title?: string): Promise<CheckResult[]> {
+  const body = source.replace(/<!--[\s\S]*?-->\n?/g, "");
   return [
     checkSections(body),
     checkLength(body),
