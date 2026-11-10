@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SPAWN_TIMEOUT } from "./helpers/repo.ts";
 
-const tmpDir = join("/tmp", "pr-check-test");
+// A fresh directory per run, because parallel suites in other worktrees share /tmp.
+const tmpDir = mkdtempSync(join(tmpdir(), "pr-check-test-"));
 const bin = join(__dirname, "..", "bin", "pipeline");
 
 function cleanup() {
@@ -11,7 +14,7 @@ function cleanup() {
 }
 
 function pipeline(...args: string[]) {
-  const result = spawnSync(bin, args, { encoding: "utf8", timeout: 20_000 });
+  const result = spawnSync(bin, args, { encoding: "utf8", timeout: SPAWN_TIMEOUT });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 

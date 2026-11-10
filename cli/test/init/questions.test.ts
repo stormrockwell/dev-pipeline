@@ -1,11 +1,10 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { detectProfile, type Detection } from "../../src/commands/init/detect.ts";
 import { MissingAnswers, parseAnswerFlags, parseAnswersFile, resolveAnswers } from "../../src/commands/init/questions.ts";
 import { removeTemps, tempDir, write } from "../helpers/repo.ts";
 import { nodeSiteRepo, wordpressPluginRepo } from "./fixtures.ts";
 
 // Fixtures run many git commands, which slow down when the whole suite runs in parallel.
-vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 afterAll(removeTemps);
 

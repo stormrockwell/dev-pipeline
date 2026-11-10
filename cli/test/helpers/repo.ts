@@ -10,6 +10,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
+
+// Spawned CLI runs slow down when the suite shares the machine with agents, and a kill shows up as empty output.
+export const SPAWN_TIMEOUT = 45_000;
 import { fileURLToPath } from "node:url";
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -77,7 +80,7 @@ export function sh(
     input: options.input,
     env: testEnv(options.env),
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: SPAWN_TIMEOUT,
   });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }

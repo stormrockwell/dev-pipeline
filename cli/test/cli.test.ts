@@ -3,13 +3,14 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { SPAWN_TIMEOUT } from "./helpers/repo.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bin = join(root, "bin", "pipeline");
 const commandsDir = join(root, "src", "commands");
 
 function pipeline(...args: string[]) {
-  const result = spawnSync(bin, args, { encoding: "utf8", timeout: 20_000 });
+  const result = spawnSync(bin, args, { encoding: "utf8", timeout: SPAWN_TIMEOUT });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 
