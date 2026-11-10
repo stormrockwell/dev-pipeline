@@ -117,7 +117,7 @@ async function run(argv: string[]): Promise<number> {
   if (!pr) return fail(`the plan has no PR ${values.pr}.`);
 
   const draft = parseDraft(readFileSync(draftFile, "utf8"));
-  if (draft.title === null) return fail("the draft has no `Title:` line with the PR title.");
+  if (draft.title === null) return fail("the draft has no `Title:` line. Its first line is `Title: type(scope): subject`, so add it to the draft with Edit and run pr-body again.");
 
   const recordArgs = ["gate-record", file, ...(plan.prs.length > 1 ? ["--pr", pr.name] : []), "--comment"];
   const recorded = pipeline(recordArgs, dir);

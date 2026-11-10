@@ -10,34 +10,36 @@ afterAll(removeTemps);
 
 const order = ".pipeline/work/ship/work-order.md";
 
-const draft = `Title: fix(shipping): ship free at exactly the threshold
-
-## What changed
-
-- An order of exactly 75 now ships free.
-
-## Why this approach
-
-The comparison was off by one, so it now includes the threshold.
-
-## How to verify
-
-\`\`\`
-node --test
-\`\`\`
-
-## Risk
-
-Door: two-way.
-Blast radius: the free shipping check.
-Human review: none.
-
-## Auditors
-
-- Ran: everything
-
-Co-Authored using AI
-`;
+const draft = [
+  "Title: fix(shipping): ship free at exactly the threshold",
+  "",
+  "## What changed",
+  "",
+  "- An order of exactly 75 now ships free.",
+  "",
+  "## Why this approach",
+  "",
+  "The comparison was off by one, so it now includes the threshold.",
+  "",
+  "## How to verify",
+  "",
+  "```",
+  "node --test",
+  "```",
+  "",
+  "## Risk",
+  "",
+  "Door: two-way.",
+  "Blast radius: the free shipping check.",
+  "Human review: none.",
+  "",
+  "## Auditors",
+  "",
+  "- Ran: everything",
+  "",
+  "Co-Authored using AI",
+  "",
+].join("\n");
 
 describe("auditors", () => {
   const record = (gates: RecordJson["gates"], extra: Partial<RecordJson> = {}): RecordJson => ({
