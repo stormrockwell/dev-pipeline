@@ -3,13 +3,14 @@ import { cwd } from "node:process";
 import { resolve } from "node:path";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SPAWN_TIMEOUT } from "./helpers/repo.ts";
 import { parseDocsArgs } from "../src/commands/docs/index.ts";
 
 const root = join(import.meta.dirname, "..");
 const bin = join(root, "bin", "pipeline");
 
 function pipeline(...args: string[]) {
-  const result = spawnSync(bin, args, { encoding: "utf8", timeout: 20_000 });
+  const result = spawnSync(bin, args, { encoding: "utf8", timeout: SPAWN_TIMEOUT });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 
@@ -175,12 +176,12 @@ describe("docs CLI command", () => {
       const { stderr, status } = pipeline("docs", "invalid");
       expect(status).toBe(1);
       expect(stderr).toContain("unknown subcommand");
-    }, 15_000);
+    });
 
     it("outputs error for invalid port", () => {
       const { stderr, status } = pipeline("docs", "--port", "invalid");
       expect(status).toBe(1);
       expect(stderr).toContain("Invalid port number");
-    }, 15_000);
+    });
   });
 });

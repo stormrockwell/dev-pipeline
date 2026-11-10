@@ -2,7 +2,7 @@ import { createServer } from "node:net";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { openRepo } from "../../src/commands/worktree/context.ts";
 import { createWorktree } from "../../src/commands/worktree/create.ts";
 import { mergeWorktree } from "../../src/commands/worktree/merge.ts";
@@ -12,10 +12,9 @@ import { git, makeFixture, MemoryDatabase, put, readEnv, removeFixtures } from "
 afterAll(removeFixtures);
 
 // Each case builds a fixture repo and runs real git, which is slow while the whole suite shares the CPU.
-vi.setConfig({ testTimeout: 60_000 });
 
-// A high range keeps the tests away from ports a developer's own servers use.
-const config = { ports: { base: 47100, size: 10, slots: 40 } };
+// A high range keeps the tests away from ports a developer's own servers use, and the pid spreads parallel suites apart.
+const config = { ports: { base: 40000 + (process.pid % 50) * 400, size: 10, slots: 40 } };
 
 async function open(repo: string, database = new MemoryDatabase(), extra = {}) {
   const ctx = await openRepo(repo, { config, database, timeoutMs: 30_000, lockTimeoutMs: 30_000, ...extra });
@@ -98,7 +97,7 @@ describe("createWorktree", () => {
     expect(git(repo, "worktree", "list", "--porcelain")).not.toContain("task-a");
     expect(git(repo, "branch", "--list", "wt/task-a")).toBe("");
     const retry = await createWorktree(ctx, { name: "task-a", base: "main" });
-    expect(retry.ports.base).toBe(47100);
+    expect(retry.ports.base).toBe(config.ports.base);
   });
 });
 

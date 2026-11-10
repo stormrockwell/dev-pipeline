@@ -1,12 +1,11 @@
 import { existsSync, lstatSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { cloneDependencies } from "../../src/commands/worktree/deps.ts";
 import { makeFixture, put, removeFixtures } from "./fixture.ts";
 
 afterAll(removeFixtures);
 
-vi.setConfig({ testTimeout: 60_000 });
 
 describe("cloneDependencies", () => {
   it("copies each existing directory and leaves the source untouched when the copy changes", async () => {
