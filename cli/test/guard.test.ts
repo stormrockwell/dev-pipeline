@@ -4,6 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SPAWN_TIMEOUT } from "./helpers/repo.ts";
 import { decideBash } from "../src/commands/guard/bash.ts";
 import { decideTool } from "../src/commands/guard/decide.ts";
 import { parseShell } from "../src/commands/guard/shell.ts";
@@ -671,7 +672,7 @@ describe("file tool decisions", () => {
 
 describe("pipeline guard hook protocol", () => {
   function guard(args: string[], input?: string) {
-    const result = spawnSync(bin, ["guard", ...args], { encoding: "utf8", input, timeout: 20_000 });
+    const result = spawnSync(bin, ["guard", ...args], { encoding: "utf8", input, timeout: SPAWN_TIMEOUT });
     return { stdout: result.stdout, stderr: result.stderr, status: result.status };
   }
 
@@ -732,7 +733,7 @@ describe("pipeline guard --explain", () => {
   function explain(command: string, cwd = featureRepo) {
     const result = spawnSync(bin, ["guard", "--explain", command, "--cwd", cwd], {
       encoding: "utf8",
-      timeout: 20_000,
+      timeout: SPAWN_TIMEOUT,
     });
     return { stdout: result.stdout, status: result.status };
   }

@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { findOnPath, git } from "./helpers/repo.ts";
+import { findOnPath, git, SPAWN_TIMEOUT } from "./helpers/repo.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bin = join(root, "bin", "pipeline");
@@ -97,7 +97,7 @@ function check(...args: string[]) {
     encoding: "utf8",
     cwd: repo,
     env: { PATH: fakes, HOME: scratch },
-    timeout: 30_000,
+    timeout: SPAWN_TIMEOUT,
   });
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
@@ -208,7 +208,7 @@ describe("detection", () => {
       encoding: "utf8",
       cwd: other,
       env: { PATH: fakes },
-      timeout: 30_000,
+      timeout: SPAWN_TIMEOUT,
     });
     expect(run.status).toBe(0);
     expect(calls(psalm)[0].cwd).toBe(realpathSync(repo));

@@ -1,14 +1,13 @@
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { parseConfig } from "../../src/commands/scan-zones/config.ts";
 import { parseYaml, type YamlValue } from "../../src/commands/scan-zones/yaml.ts";
 import { git, pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";
 import { nodeSiteRepo, wordpressPluginRepo } from "./fixtures.ts";
 
 // Fixtures run many git commands, which slow down when the whole suite runs in parallel.
-vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 afterAll(removeTemps);
 
