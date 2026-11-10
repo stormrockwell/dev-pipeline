@@ -1,0 +1,7 @@
+#!/bin/sh
+# The eval sandbox blocks the macOS /usr/bin/git shim, because xcrun writes a cache outside the sandbox, so this runs the developer tools' git directly.
+dev="$(xcode-select -p 2>/dev/null)"
+[ -n "$dev" ] && [ -x "$dev/usr/bin/git" ] && exec "$dev/usr/bin/git" "$@"
+here="$(cd "$(dirname "$0")" && pwd)"
+PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -vxF "$here" | paste -sd: -)"
+exec git "$@"

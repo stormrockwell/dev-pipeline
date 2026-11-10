@@ -1,5 +1,5 @@
 ---
 type: regex
-target: files
-pattern: '\btest\('
+target: trace
+pattern: '"name":"(Write|Edit)","input":\{[^\n]*"file_path":"[^"]*/test/[^"]*\.test\.js"'
 ---

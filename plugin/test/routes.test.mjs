@@ -107,9 +107,9 @@ test("route cases grant per route and link the shared permission grader", () => 
   const routeCases = caseDirs(join(root, "evals/routes"));
   assert.ok(routeCases.length >= 4, "scenarios 3 and 4, quick change and spike");
   for (const dir of routeCases) {
-    const grader = join(dir, "graders/no-permission-refusal.md");
+    const grader = join(dir, "graders/no-refused-call.md");
     assert.ok(lstatSync(grader).isSymbolicLink(), `${relative(root, dir)} links the shared grader`);
-    assert.equal(realpathSync(grader), join(realpathSync(root), "evals/shared-graders/no-permission-refusal.md"));
+    assert.equal(realpathSync(grader), join(realpathSync(root), "evals/shared-graders/no-refused-call.md"));
     const scaffold = join(dir, "scaffold.sh");
     assert.ok(statSync(scaffold).mode & 0o111, `${relative(root, dir)} has an executable scaffold`);
   }
@@ -117,6 +117,6 @@ test("route cases grant per route and link the shared permission grader", () => 
 
 test("the sandbox shims for git and pipeline are executable", () => {
   for (const name of ["git", "pipeline"]) {
-    assert.ok(statSync(join(root, "evals/bin", name)).mode & 0o111, `${name} shim is executable`);
+    assert.ok(statSync(join(root, "../tools/eval-bin", name)).mode & 0o111, `${name} shim is executable`);
   }
 });

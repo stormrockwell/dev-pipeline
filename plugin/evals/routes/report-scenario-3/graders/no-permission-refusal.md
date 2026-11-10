@@ -1,1 +1,0 @@
-../../../shared-graders/no-permission-refusal.md

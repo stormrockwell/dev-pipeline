@@ -2,8 +2,8 @@
 /**
  * Runs the plugin evals. `claude plugin eval` grants a gated tool only when both the case's
  * allowed_tools and the operator's --allow-tools name it, so this passes the union the cases
- * ask for and each case narrows it to its own route. bin/ goes first on PATH because the
- * sandboxed agent needs the git and pipeline shims there.
+ * ask for and each case narrows it to its own route. tools/eval-bin goes first on PATH because the
+ * sandboxed agent needs the git and pipeline shims there, and the sandbox hides the eval dir.
  *
  * Usage: node plugin/evals/run.mjs --runs 3 --model sonnet --case 'routes-*'
  */
@@ -57,7 +57,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     "--allow-tools",
     ...operatorGrants(),
   ];
-  const env = { ...process.env, PATH: [join(evalsDir, "bin"), process.env.PATH].join(delimiter) };
+  const env = { ...process.env, PATH: [resolve(evalsDir, "../../tools/eval-bin"), process.env.PATH].join(delimiter) };
   const result = spawnSync("claude", args, { stdio: "inherit", env });
   process.exit(result.status ?? 1);
 }

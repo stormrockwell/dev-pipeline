@@ -16,7 +16,7 @@ Pick the lightest route that fits, name it, then start it.
 | answer | a question about code, a hook, a file or the project | `${CLAUDE_PLUGIN_ROOT}/skills/answer/SKILL.md` |
 | report | explain how a codebase works, or audit it, as a document | `${CLAUDE_PLUGIN_ROOT}/skills/report/SKILL.md` |
 | quick change | a copy fix, a typo, a one-line style or config tweak with no change in behavior | `${CLAUDE_PLUGIN_ROOT}/skills/quick-change/SKILL.md` |
-| change | a feature, a refactor, or any change to behavior, data or permissions | Explore, then draft a work order of tasks and owned files. Wait for confirmation before editing code. |
+| change | a feature, a refactor, or any change to behavior, data or permissions | Explore, then draft a work order of tasks and owned files with the `dev-pipeline:work-order` skill. Wait for confirmation before editing code. |
 | debug | something broken, failing or erroring | `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` |
 | new project | a site, plugin or app from scratch | Ask what you cannot infer, such as scope and where it runs. Write nothing until answered, then bootstrap and build each feature as a change. |
 | spike | prototype, try out, see how something feels | `${CLAUDE_PLUGIN_ROOT}/skills/spike/SKILL.md` |

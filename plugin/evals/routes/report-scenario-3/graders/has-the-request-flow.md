@@ -1,6 +1,6 @@
 ---
 type: regex
-target: files
-pattern: 'request flow'
+target: trace
+pattern: '"name":"Write","input":\{"file_path":"[^"]*/reports/[^"]*\.md","content":"(?:[^"\\]|\\.)*?request flow'
 flags: 'i'
 ---

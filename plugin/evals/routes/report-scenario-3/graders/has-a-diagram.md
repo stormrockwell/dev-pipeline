@@ -1,5 +1,5 @@
 ---
 type: regex
-target: files
-pattern: '```mermaid'
+target: trace
+pattern: '"name":"Write","input":\{"file_path":"[^"]*/reports/[^"]*\.md","content":"(?:[^"\\]|\\.)*?```mermaid'
 ---

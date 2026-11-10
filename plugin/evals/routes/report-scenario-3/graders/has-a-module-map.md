@@ -1,6 +1,6 @@
 ---
 type: regex
-target: files
-pattern: 'module map'
+target: trace
+pattern: '"name":"Write","input":\{"file_path":"[^"]*/reports/[^"]*\.md","content":"(?:[^"\\]|\\.)*?module map'
 flags: 'i'
 ---

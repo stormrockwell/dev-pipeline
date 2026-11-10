@@ -1,6 +1,6 @@
 ---
 type: regex
-target: files
-pattern: '^#+ .*risk'
-flags: 'im'
+target: trace
+pattern: '"name":"Write","input":\{"file_path":"[^"]*/reports/[^"]*\.md","content":"(?:[^"\\]|\\.)*?#+ [^\\]*risk'
+flags: 'i'
 ---

@@ -1,5 +1,5 @@
 #!/bin/sh
 # The eval sandbox cannot read this checkout's cli/, so scaffolds copy the CLI into the run's home and this prefers that copy.
 cli="$HOME/.pipeline-cli/bin/pipeline"
-[ -f "$cli" ] || cli="$(dirname "$0")/../../../cli/bin/pipeline"
+[ -f "$cli" ] || cli="$(dirname "$0")/../../cli/bin/pipeline"
 exec node "$cli" "$@"

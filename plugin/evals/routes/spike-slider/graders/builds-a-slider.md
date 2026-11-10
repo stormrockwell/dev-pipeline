@@ -1,6 +1,6 @@
 ---
 type: regex
-target: files
-pattern: 'slider|carousel|slide'
+target: trace
+pattern: '"name":"(Write|Edit)","input":\{[^\n]*slide'
 flags: 'i'
 ---
