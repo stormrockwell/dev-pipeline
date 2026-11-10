@@ -39,6 +39,8 @@ function render(record: GateRecord, path: string): string {
     const gates = record.gates.filter((gate) => gate.task === task.id).map((gate) => `${gate.gate} ${gate.result}`);
     lines.push(`${label(`Task ${task.id}`)}${task.status ?? "not done"}, ${task.tier}${gates.length > 0 ? `. ${gates.join(", ")}` : ""}`);
   }
+  for (const waived of record.accepted) lines.push(`${label("Waived")}task ${waived.task} ${waived.gate}, ${waived.finding}: ${waived.reason}`);
+  if (record.findings.opened > 0) lines.push(`${label("Findings")}${record.findings.opened} opened, ${record.findings.fixed} fixed, ${record.findings.accepted} waived`);
   const k = (tokens: number) => `${Math.round(tokens / 1000)}k`;
   const parts = [
     `main ${record.cost.main.model ?? "unknown"} ${k(record.cost.main.tokens)}`,

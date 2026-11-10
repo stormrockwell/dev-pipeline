@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
-import { appendEntry, complete, type Entry, type GateResult, lastTask, ledgerPath, readLedger } from "../../ledger/ledger.ts";
+import { appendEntry, complete, type Entry, type GateResult, lastTask, ledgerPath, readLedger, rounds } from "../../ledger/ledger.ts";
 import type { Plan } from "../schedule/plan.ts";
 import { parseWorkOrder, type WorkOrder } from "../schedule/work-order.ts";
 
@@ -13,11 +13,13 @@ const usage = `Usage: pipeline ledger <work-order.md>
 The ledger is the build's memory, kept beside the work order at .pipeline/work/<slug>/ledger.jsonl.
 It outlives a compacted context, so trust it and git log over what you remember.
 
-  (no verb)   Print each task's latest result, the rulings, the gate results and the next task.
+  (no verb)   Print each task's latest result, the rulings, the gate results, the waived findings,
+              the review rounds and the next task.
   rule        Record a decision taken on the developer's behalf, why, and what it costs if wrong.
   gate        Record a gate's result for a task, such as a review that passed or a skip with its reason.
 
-\`pipeline task-check\` records each task's result when its check passes.
+\`pipeline task-check\` records each task's result when its check passes, and \`pipeline review\`
+records review rounds, gate results, overrules and waived findings.
 
 Exit codes: 0 on success, 2 for bad usage or a work order it cannot read.`;
 
@@ -56,6 +58,12 @@ function render(file: string, order: WorkOrder, entries: Entry[]): string {
   for (const entry of entries) {
     if (entry.kind === "ruling") lines.push(`${label("Ruling")}${entry.task ? `task ${entry.task}: ` : ""}${entry.decided}. Why: ${entry.why}. Cost if wrong: ${entry.cost}.`);
     if (entry.kind === "gate") lines.push(`${label("Gate")}task ${entry.task} ${entry.gate} ${entry.result}${entry.note ? `: ${entry.note}` : ""}`);
+    if (entry.kind === "accepted") lines.push(`${label("Waived")}task ${entry.task} ${entry.gate}, ${entry.finding}. Reason: ${entry.reason}.`);
+  }
+  for (const id of ids) {
+    for (const round of rounds(entries, id).values()) {
+      lines.push(`${label("Review")}task ${id} round ${round.round} (${round.scope}) at ${round.head.slice(0, 7)}, ${round.opened} opened, ${round.fixed} fixed`);
+    }
   }
   const done = (id: string) => complete(lastTask(entries, id));
   const needs = new Map(order.tasks.map((task) => [task.id, task.needs]));
