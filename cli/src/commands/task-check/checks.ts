@@ -31,21 +31,20 @@ export function reportStatus(report: string): Status | null {
  */
 function evidenceProblems(record: TaskRecord, headTree: string): string[] {
   const runs = readRuns(record.worktree);
-  const test = record.test ?? "<test command>";
   const green = runs.map((run) => run.phase === "green" && run.ok).lastIndexOf(true);
   const red = runs.slice(0, green === -1 ? runs.length : green).findLastIndex((run) => run.phase === "red" && run.ok);
   const problems: string[] = [];
   if (red === -1) {
     problems.push(
       green === -1
-        ? `no red run, so write the failing test and run \`pipeline tdd red --task ${record.worktree} -- ${test}\``
-        : `no red run before the green one, so the test never failed first. Make it fail, run \`pipeline tdd red --task ${record.worktree} -- ${test}\`, then green again`,
+        ? `no red run, so write the failing test and run \`pipeline tdd red --task ${record.worktree}\``
+        : `no red run before the green one, so the test never failed first. Make it fail, run \`pipeline tdd red --task ${record.worktree}\`, then green again`,
     );
   }
   if (green === -1) {
-    problems.push(`no green run, so commit the passing code and run \`pipeline tdd green --task ${record.worktree} -- ${test}\``);
+    problems.push(`no green run, so commit the passing code and run \`pipeline tdd green --task ${record.worktree}\``);
   } else if (runs[green]!.tree !== headTree) {
-    problems.push(`the last green run tested other code than HEAD, so run \`pipeline tdd green --task ${record.worktree} -- ${test}\` again after your last commit`);
+    problems.push(`the last green run tested other code than HEAD, so run \`pipeline tdd green --task ${record.worktree}\` again after your last commit`);
   } else if (red !== -1 && runs[red]!.tree === runs[green]!.tree) {
     problems.push("the red and green runs tested the same code, so the change never turned the test green");
   }

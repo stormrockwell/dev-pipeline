@@ -2,7 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { git, pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";
-import { brief, taskRepo } from "./fixture.ts";
+import { brief, taskRepo, testCommand } from "./fixture.ts";
 
 afterAll(removeTemps);
 
@@ -21,10 +21,11 @@ describe("pipeline brief", () => {
     expect(text).toMatch(/^# Task 1: Free shipping at the threshold\n/);
     expect(text).toContain("An order of exactly 75 ships free. Test it through freeShipping(total).");
     expect(text).not.toContain("Say the threshold is 75.");
-    expect(text).toContain("Owned files  src/shipping.js, test/shipping.test.js");
-    expect(text).toContain("Tier         T2");
-    expect(text).toContain(`pipeline tdd red --task ${repo} -- npm test`);
-    expect(text).toContain(`pipeline tdd green --task ${repo} -- npm test`);
+    expect(text).toMatch(/^Owned files +src\/shipping\.js, test\/shipping\.test\.js$/m);
+    expect(text).toMatch(/^Tier +T2$/m);
+    expect(text).toContain(`Test command  ${testCommand}`);
+    expect(text).toContain(`pipeline tdd red --task ${repo}\``);
+    expect(text).toContain(`pipeline tdd green --task ${repo}\``);
     expect(text).toContain(`pipeline task-check --task ${repo}`);
     expect(text).toContain(`git -C ${repo} <command>`);
     expect(text).toContain("Comment only why, and keep comments evergreen.");
@@ -32,7 +33,7 @@ describe("pipeline brief", () => {
     expect(text).toContain(`Task: ${repo}`);
 
     const saved = record(repo);
-    expect(saved).toMatchObject({ id: "1", tier: "T2", files: ["src/shipping.js", "test/shipping.test.js"], tdd: { required: true, reason: null }, test: "npm test" });
+    expect(saved).toMatchObject({ id: "1", tier: "T2", files: ["src/shipping.js", "test/shipping.test.js"], tdd: { required: true, reason: null }, test: testCommand });
     expect(saved.base).toBe(git(repo, "rev-parse", "HEAD").stdout.trim());
   });
 
@@ -55,7 +56,7 @@ describe("pipeline brief", () => {
     const repo = taskRepo();
     expect(pipeline(repo, ["brief", ".pipeline/work/ship/work-order.md", "2"]).status).toBe(0);
     expect(record(repo).tdd).toEqual({ required: false, reason: "T0 has no TDD gate" });
-    expect(readFileSync(briefPath(repo), "utf8")).toContain("TDD          not required, because T0 has no TDD gate");
+    expect(readFileSync(briefPath(repo), "utf8")).toMatch(/^TDD +not required, because T0 has no TDD gate$/m);
 
     const other = taskRepo();
     expect(brief(other, ["--no-tdd", "the developer declined a harness"]).status).toBe(0);
@@ -89,6 +90,24 @@ describe("pipeline brief", () => {
     const { status, stderr } = brief(repo);
     expect(status).toBe(2);
     expect(stderr).toContain('no "## Task 1" section');
+  });
+
+  it("needs a test command for a TDD task", () => {
+    const repo = taskRepo();
+    const { status, stderr } = pipeline(repo, ["brief", ".pipeline/work/ship/work-order.md", "1"]);
+    expect(status).toBe(2);
+    expect(stderr).toContain("--test");
+  });
+
+  it("refuses a test command that is not one plain command, or that the guard would stop", () => {
+    const repo = taskRepo();
+    const chained = brief(repo, [], "npm test && git push");
+    expect(chained.status).toBe(2);
+    expect(chained.stderr).toContain("one plain command");
+    const forced = brief(repo, [], "git push --force origin main");
+    expect(forced.status).toBe(2);
+    expect(forced.stderr).toContain("pipeline guard");
+    expect(existsSync(briefPath(repo))).toBe(false);
   });
 
   it("refuses a worktree that already holds another task", () => {

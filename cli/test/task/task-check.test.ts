@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";
-import { brief, commitAll, fixShipping, taskRepo, testCommand, writeTest } from "./fixture.ts";
+import { brief, commitAll, fixShipping, taskRepo, writeTest } from "./fixture.ts";
 
 afterAll(removeTemps);
 
@@ -13,10 +13,10 @@ function shipped(): string {
   const repo = taskRepo();
   brief(repo);
   writeTest(repo);
-  expect(pipeline(repo, ["tdd", "red", "--", ...testCommand]).status).toBe(0);
+  expect(pipeline(repo, ["tdd", "red"]).status).toBe(0);
   fixShipping(repo);
   commitAll(repo);
-  expect(pipeline(repo, ["tdd", "green", "--", ...testCommand]).status).toBe(0);
+  expect(pipeline(repo, ["tdd", "green"]).status).toBe(0);
   write(repo, ".pipeline/task/report.md", report());
   return repo;
 }
@@ -74,7 +74,7 @@ describe("pipeline task-check", () => {
     writeTest(repo);
     fixShipping(repo);
     commitAll(repo);
-    pipeline(repo, ["tdd", "green", "--", ...testCommand]);
+    pipeline(repo, ["tdd", "green"]);
     write(repo, ".pipeline/task/report.md", report());
     expect(check(repo).stdout).toContain("no red run before the green one");
   });
@@ -90,7 +90,7 @@ describe("pipeline task-check", () => {
     const repo = shipped();
     write(repo, "src/cart.js", "export const cart = [];\n");
     commitAll(repo, "feat(cart): add a cart");
-    pipeline(repo, ["tdd", "green", "--", ...testCommand]);
+    pipeline(repo, ["tdd", "green"]);
     expect(check(repo).stdout).toContain("src/cart.js is not an owned file");
 
     write(repo, ".pipeline/task/report.md", report("DONE_WITH_CONCERNS", "\n## Unplanned\nsrc/cart.js, because checkout reads it.\n"));
@@ -112,7 +112,7 @@ describe("pipeline task-check", () => {
     const repo = shipped();
     write(repo, "src/shipping.js", "// Changed the threshold, previously it was 50.\nexport const freeShipping = (total) => total >= 75;\n");
     commitAll(repo, "docs(shipping): explain the threshold");
-    pipeline(repo, ["tdd", "green", "--", ...testCommand]);
+    pipeline(repo, ["tdd", "green"]);
     const { status, stdout } = check(repo);
     expect(status).toBe(1);
     expect(stdout).toContain("src/shipping.js:1  temporal");

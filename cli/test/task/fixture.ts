@@ -43,10 +43,12 @@ export function taskRepo(): string {
 }
 
 // Passes when shipping.js says an order of 75 ships free.
-export const testCommand = ["node", "-e", "import('./src/shipping.js').then((m) => process.exit(m.freeShipping(75) ? 0 : 1))"];
+export const testCommand = `node -e "import('./src/shipping.js').then((m) => process.exit(m.freeShipping(75) ? 0 : 1))"`;
 
-export function brief(repo: string, args: string[] = []) {
-  return pipeline(repo, ["brief", ".pipeline/work/ship/work-order.md", "1", "--test", "npm test", ...args]);
+export const testWords = ["node", "-e", "import('./src/shipping.js').then((m) => process.exit(m.freeShipping(75) ? 0 : 1))"];
+
+export function brief(repo: string, args: string[] = [], test = testCommand) {
+  return pipeline(repo, ["brief", ".pipeline/work/ship/work-order.md", "1", "--test", test, ...args]);
 }
 
 export function fixShipping(repo: string): void {

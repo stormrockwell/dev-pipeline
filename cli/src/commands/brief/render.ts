@@ -7,7 +7,6 @@ import type { Task } from "../schedule/work-order.ts";
  */
 export function renderBrief(record: TaskRecord, task: Task, section: string, orderTitle: string): string {
   const paths = taskPaths(record.worktree);
-  const test = record.test ?? "<the repo's test command>";
   // A subagent's shell can start in the main checkout, so every command names the worktree.
   const at = `--task ${record.worktree}`;
   const body = section.replace(/^#+\s+Task\s+\S+?:?\s*.*\n?/, "").trim();
@@ -17,6 +16,7 @@ export function renderBrief(record: TaskRecord, task: Task, section: string, ord
     ["Owned files", record.files.join(", ")],
     ["Tier", record.zones.length > 0 ? `${record.tier}, zones ${record.zones.join(", ")}` : record.tier],
     ["Gates", record.gates.join(", ")],
+    ...(record.test !== null ? [["Test command", record.test]] : []),
     ...(task.needs.length > 0 ? [["Builds on", `task ${task.needs.join(", ")}, already in your base`]] : []),
     ...((task.interfaces ?? []).length > 0 ? [["Interfaces", task.interfaces!.join(", ")]] : []),
     ...((task.state ?? []).length > 0 ? [["Shared state", task.state!.join(", ")]] : []),
@@ -28,9 +28,9 @@ export function renderBrief(record: TaskRecord, task: Task, section: string, ord
     ? [
         "## Test first",
         "",
-        `1. Write the test that proves the task, then run \`pipeline tdd red ${at} -- ${test}\`. It runs the command in the worktree, records the run, and refuses a command that passes or never ran. Read the failure and check it fails for the reason you expect.`,
+        `1. Write the test that proves the task, then run \`pipeline tdd red ${at}\`. It runs the test command in the worktree, records the run, and refuses a run that passes or never ran. Words after \`--\` are added to the test command, such as a test file to narrow the run. Read the failure and check it fails for the reason you expect.`,
         "2. Write the code that makes it pass, run the focused test while you work, and commit.",
-        `3. Run \`pipeline tdd green ${at} -- ${test}\` on the committed code. A green run on code you change afterwards does not count, so run it again after the last commit.`,
+        `3. Run \`pipeline tdd green ${at}\` on the committed code. A green run on code you change afterwards does not count, so run it again after the last commit.`,
         "",
       ]
     : [];

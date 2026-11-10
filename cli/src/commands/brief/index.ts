@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { gitOut } from "../../task/git.ts";
 import { findTask, readRecord, TASK_DIR, taskPaths, writeRecord, type TaskRecord } from "../../task/record.ts";
+import { testCommand } from "../../task/test-command.ts";
 import type { Plan } from "../schedule/plan.ts";
 import { parseWorkOrder } from "../schedule/work-order.ts";
 import { git, repoTop } from "../secrets/git.ts";
@@ -19,7 +20,8 @@ the test-first steps, the rules and the report contract. Git ignores ${TASK_DIR}
 
 Options:
   --worktree <dir>     Where the implementer works. Defaults to the current repo.
-  --test <command>     The command that runs the task's tests, written into the TDD steps.
+  --test <command>     The command that runs the task's tests, which \`pipeline tdd\` runs. Needed on a TDD
+                       tier. It must be one plain command that \`pipeline guard\` allows.
   --no-tdd <reason>    Drop the TDD steps on a TDD tier, such as when the developer declined a harness.
 
 Exit codes: 0 when the brief is written, 2 for bad usage, an unscheduled work order or a task it cannot brief.`;
@@ -91,6 +93,15 @@ async function run(argv: string[]): Promise<number> {
 
   const tddGate = planned.gates.some((gate) => gate.startsWith("TDD"));
   const declined = values["no-tdd"]?.trim();
+  const test = values.test?.trim() || null;
+  if (tddGate && !declined && test === null) return fail(`task ${id} is ${planned.tier} with TDD, so give the command that runs its tests with --test.`);
+  if (test !== null) {
+    try {
+      testCommand(test, [], worktree);
+    } catch (error) {
+      return fail(`${error instanceof Error ? error.message : String(error)}.`);
+    }
+  }
   const record: TaskRecord = {
     workOrder: file,
     id,
@@ -100,7 +111,7 @@ async function run(argv: string[]): Promise<number> {
     gates: planned.gates,
     files: planned.files,
     tdd: tddGate && !declined ? { required: true, reason: null } : { required: false, reason: declined || `${planned.tier} has no TDD gate` },
-    test: values.test?.trim() || null,
+    test,
     base,
     worktree,
   };

@@ -3,22 +3,29 @@ import { resolve } from "node:path";
 import type { Command } from "../../command.ts";
 import { appendRun, type Phase, type Run } from "../../task/evidence.ts";
 import { gitOut, workingTree } from "../../task/git.ts";
-import { findTask, TASK_DIR } from "../../task/record.ts";
+import { findTask, readRecord, TASK_DIR } from "../../task/record.ts";
+import { testCommand } from "../../task/test-command.ts";
 
-const usage = `Usage: pipeline tdd <red|green> [--task <dir>] [--timeout <secs>] -- <test command> [args...]
+const usage = `Usage: pipeline tdd <red|green> [--task <dir>] [--timeout <secs>] [-- <args>...]
 
-Runs the task's test command and records the run in ${TASK_DIR}/evidence.jsonl: the phase, the
-command, its exit code, the last lines of output, HEAD and the working tree's id.
+Runs the test command \`pipeline brief --test\` recorded for the task, in its worktree, and records
+the run in ${TASK_DIR}/evidence.jsonl: the phase, the command, its exit code, the last lines of
+output, HEAD and the working tree's id.
 
   red     The command must fail. A command that passes, never ran or timed out proves nothing.
   green   The command must pass. \`pipeline task-check\` counts a green run only when it tested the
           code HEAD holds, so run green after the last commit.
 
+Words after -- are appended to the test command as plain arguments, such as a test file to narrow
+the run, and no shell reads them. The command runs only when it is one plain command that
+\`pipeline guard\` allows.
+
 Options:
   --task <dir>       The task's worktree. Defaults to the repo holding the current directory.
   --timeout <secs>   Hard limit for the command. Defaults to 600. A timeout is never a red run.
 
-Exit codes: 0 when the run is what its phase needs, 1 when it is not, 2 for bad usage or no briefed task.`;
+Exit codes: 0 when the run is what its phase needs, 1 when it is not, 2 for bad usage, no briefed task,
+or a test command it will not run.`;
 
 const TAIL_LINES = 40;
 // Shells exit 126 for a command that is not executable and 127 for one that does not exist.
@@ -30,11 +37,11 @@ function fail(message: string): number {
 }
 
 /**
- * Splits the CLI's own options from the test command after the first `--`
+ * Splits the CLI's own options from the words after the first `--`
  */
-function split(argv: string[]): { own: string[]; command: string[] } {
+function split(argv: string[]): { own: string[]; appended: string[] } {
   const at = argv.indexOf("--");
-  return at === -1 ? { own: argv, command: [] } : { own: argv.slice(0, at), command: argv.slice(at + 1) };
+  return at === -1 ? { own: argv, appended: [] } : { own: argv.slice(0, at), appended: argv.slice(at + 1) };
 }
 
 /**
@@ -72,7 +79,7 @@ function refusal(phase: Phase, run: Run, error: Error | undefined): string | nul
 }
 
 async function run(argv: string[]): Promise<number> {
-  const { own, command } = split(argv);
+  const { own, appended } = split(argv);
   let parsed;
   try {
     parsed = options(own);
@@ -81,14 +88,24 @@ async function run(argv: string[]): Promise<number> {
   }
   const { phase, task, timeout, extra } = parsed;
   if (phase !== "red" && phase !== "green") return fail('give the phase, "red" or "green".');
-  if (extra.length > 0) return fail(`put the test command after --, as in \`pipeline tdd ${phase} -- npm test\`.`);
-  if (command.length === 0) return fail(`give the test command after --, as in \`pipeline tdd ${phase} -- npm test\`.`);
+  if (extra.length > 0) return fail(`put extra test arguments after --, as in \`pipeline tdd ${phase} -- test/cart.test.js\`.`);
 
   const worktree = findTask(resolve(task ?? process.cwd()));
   if (worktree === null) return fail(`no briefed task in ${task ?? process.cwd()}, so run \`pipeline brief\` for the task first.`);
+  const recorded = readRecord(worktree).test;
+  if (recorded === null) return fail("the brief recorded no test command, so rerun `pipeline brief` with --test.");
 
-  const result = spawnSync(command[0]!, command.slice(1), {
+  let resolved;
+  try {
+    resolved = testCommand(recorded, appended, worktree);
+  } catch (error) {
+    return fail(`${error instanceof Error ? error.message : String(error)}.`);
+  }
+  const words = resolved.argv;
+
+  const result = spawnSync(words[0]!, words.slice(1), {
     cwd: worktree,
+    env: { ...process.env, ...resolved.env },
     encoding: "utf8",
     timeout: timeout * 1000,
     maxBuffer: 64 * 1024 * 1024,
@@ -99,7 +116,7 @@ async function run(argv: string[]): Promise<number> {
   const timedOut = (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
   const entry: Run = {
     phase,
-    command,
+    command: words,
     exit: result.status,
     signal: result.signal,
     timedOut,
