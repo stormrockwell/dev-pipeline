@@ -72,7 +72,7 @@ test("work order eval cases each grade a permission refusal", () => {
   assert.ok(cases.length >= 5, `${cases.length} cases`);
   for (const name of cases) {
     const graders = readdirSync(join(root, "evals/work-order", name, "graders"));
-    assert.ok(graders.includes("no-permission-refusal.md"), `${name} grades refusals`);
+    assert.ok(graders.includes("no-refused-tool.md"), `${name} grades refusals`);
     assert.match(read(`evals/work-order/${name}/prompt.md`), /^allowed_tools: \[/m, `${name} grants its own tools`);
   }
 });
