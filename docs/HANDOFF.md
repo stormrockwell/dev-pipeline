@@ -91,11 +91,13 @@ Phase 1 is complete. In Phase 2, these are merged:
 - #42, test timeouts and shared fixtures
 - #43, 2.3 work order and `pipeline schedule`
 - #44, 2.9 the other routes
+- #45, this handoff page
+- #46, 2.4 implementer, TDD evidence and the Stop hook check
 
 ## Next
 
-1. Wave C: 2.4 implementer and Stop hook, then 2.7 ledger, run log and gate record.
-2. Wave D: 2.6 reviewers and the fix loop, and 2.8 finish and PR writing.
+1. 2.7 ledger, run log and gate record, open as its own PR until it merges.
+2. Wave D: 2.6 reviewers and the fix loop, and 2.8 finish and PR writing. Reviewers record results with `pipeline ledger gate`, and finish puts `pipeline gate-record --comment` at the end of the PR body and generates the Auditors list from it.
 3. 2.10 evals in CI, once the user adds a `CLAUDE_CODE_OAUTH_TOKEN` repo secret.
 4. Run one Opus agent at a time. Two Opus agents running evals in parallel hit the plan limit twice, which is the usage signal spike 0.7 could not measure.
 
