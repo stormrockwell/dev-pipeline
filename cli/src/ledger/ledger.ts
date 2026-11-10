@@ -8,9 +8,9 @@ export type Entry =
   | { kind: "task"; at: string; task: string; status: Status; branch: string | null; base: string; head: string; evidence: string }
   | { kind: "ruling"; at: string; task: string | null; decided: string; why: string; cost: string }
   | { kind: "gate"; at: string; task: string; gate: string; result: GateResult; note: string | null }
-  // A finding dismissed instead of fixed, with the reason the human reviewer sees.
+  // A waived finding, with the reason the human reviewer sees.
   | { kind: "accepted"; at: string; task: string; gate: string; finding: string; reason: string }
-  // One merged review round: the findings it opened and the earlier ones it found fixed.
+  // One merged review round, with the findings it opened and the open ones the fix resolved.
   | { kind: "round"; at: string; task: string; round: number; scope: "full" | "fix"; head: string; opened: number; fixed: number };
 
 /**

@@ -12,7 +12,7 @@ export interface GateRecord {
   pr: string | null;
   tasks: { id: string; title: string; tier: string; zones: string[]; status: Status | null; branch: string | null; commits: string | null; rounds: number }[];
   gates: { task: string; gate: string; result: GateResult | "pending"; note: string | null }[];
-  // Findings dismissed instead of fixed, each with the reason the human reviewer reads.
+  // Waived findings, each with the reason the human reviewer reads.
   accepted: { task: string; gate: string; finding: string; reason: string }[];
   findings: { opened: number; fixed: number; accepted: number };
   rulings: { task: string | null; decided: string; why: string; cost: string }[];

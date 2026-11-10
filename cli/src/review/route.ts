@@ -22,7 +22,7 @@ export interface RouteInput {
   base: string;
   // Null for the first round.
   from: string | null;
-  // The size of the first round's diff in changed lines, null for the first round.
+  // The first round's diff size in added and removed lines, null for the first round.
   original: number | null;
   gates: string[];
   open: Finding[];
@@ -41,7 +41,7 @@ export interface Routing {
 
 // Lines either side of a finding that a fix may still touch without changing behavior beyond it.
 const SLACK = 3;
-// A fix diff with more changed lines than this counts as substantial for the simplifier and standards.
+// A fix diff past this many added and removed lines counts as substantial for the simplifier and standards.
 const SUBSTANTIAL = 20;
 
 const FUNCTION = /\bfunction\b|=>|^\s*(?:public|private|protected|static|async)\s+[\w$]+\s*\(|^\s*def\s|\bclass\s+[\w$]/;
