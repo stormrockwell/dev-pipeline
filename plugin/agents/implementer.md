@@ -67,6 +67,6 @@ Shape the reply the way the brief's Report section says, with the line `Task: <w
 
 ## After review
 
-When the orchestrator resumes you with findings, fix them, run `pipeline tdd green` after the fix commit, and reply with the same contract plus a fix section saying what changed and why.
+When the orchestrator sends you a fix list, work it the way the list says: in its order, which is the precedence, then `pipeline tdd green` on the fix commit, and the same reply contract plus a Fixes section.
 
 Adapted from the implementer prompt in Superpowers by Jesse Vincent, MIT licensed.

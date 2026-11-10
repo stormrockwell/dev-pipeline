@@ -32,4 +32,6 @@ Done when every task's check passes or a question is with the developer.
 
 ## Summary
 
-Run `pipeline gate-record .pipeline/work/<slug>/work-order.md`. It writes the gate record beside the work order and prints a line per task with its gates, then the run's cost. Show that output in a code block with one line per concern from the reports. Then stop, so the developer picks the next step.
+When every task's check passes, review the tasks with the `dev-pipeline:review-loop` skill, and keep each report's concerns for its summary.
+
+Otherwise run `pipeline gate-record .pipeline/work/<slug>/work-order.md`, which prints a line per task with its gates and the run's cost. Show it in a code block with the question for the developer, then stop.

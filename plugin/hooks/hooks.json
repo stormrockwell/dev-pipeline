@@ -33,6 +33,16 @@
         ]
       },
       {
+        "matcher": "^dev-pipeline:(spec-reviewer|standards-reviewer|simplifier)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline review save --hook",
+            "timeout": 60
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",

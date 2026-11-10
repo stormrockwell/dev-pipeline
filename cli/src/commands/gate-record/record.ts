@@ -1,5 +1,5 @@
 import { basename, dirname } from "node:path";
-import { type Entry, gateResults, type GateResult, lastTask } from "../../ledger/ledger.ts";
+import { type Entry, gateResults, type GateResult, lastTask, rounds } from "../../ledger/ledger.ts";
 import { totalTokens } from "../../run/log.ts";
 import type { RunSummary } from "../../run/summary.ts";
 import type { Status } from "../task-check/checks.ts";
@@ -10,8 +10,11 @@ export interface GateRecord {
   work: string;
   title: string;
   pr: string | null;
-  tasks: { id: string; title: string; tier: string; zones: string[]; status: Status | null; branch: string | null; commits: string | null }[];
+  tasks: { id: string; title: string; tier: string; zones: string[]; status: Status | null; branch: string | null; commits: string | null; rounds: number }[];
   gates: { task: string; gate: string; result: GateResult | "pending"; note: string | null }[];
+  // Waived findings, each with the reason the human reviewer reads.
+  accepted: { task: string; gate: string; finding: string; reason: string }[];
+  findings: { opened: number; fixed: number; accepted: number };
   rulings: { task: string | null; decided: string; why: string; cost: string }[];
   cost: {
     tokens: number;
@@ -39,9 +42,10 @@ function gateResult(gate: string, entries: Entry[], task: string): { result: Gat
 /**
  * The gate record of a work order, or of one of its PRs
  *
- * Gates come from the plan's tiers, results from the ledger, and spend from the run logs of the
- * sessions that touched the work. The main session's spend covers each such session whole, so a
- * session that also worked on something else counts in full.
+ * Gates come from the plan's tiers, and results, waived findings and review rounds from the
+ * ledger. Spend comes from the run logs of the sessions that touched the work. The main session's
+ * spend covers each such session whole, so a session that also worked on something else counts
+ * in full.
  */
 export function buildRecord(workOrder: string, plan: Plan, entries: Entry[], runs: RunSummary | null, pr: string | null): GateRecord {
   const prTasks = pr === null ? null : (plan.prs.find((entry) => entry.name === pr)?.tasks ?? []);
@@ -61,6 +65,11 @@ export function buildRecord(workOrder: string, plan: Plan, entries: Entry[], run
     .map((dispatch) => ({ type: dispatch.type, model: dispatch.model, task: dispatch.task, turns: dispatch.turns, tokens: totalTokens(dispatch.tokens) }));
   const main = runs ? { model: runs.main.model, turns: runs.main.turns, tokens: totalTokens(runs.main.tokens) } : { model: null, turns: 0, tokens: 0 };
 
+  const accepted = entries
+    .filter((entry): entry is Extract<Entry, { kind: "accepted" }> => entry.kind === "accepted" && ids.includes(entry.task))
+    .map(({ task, gate, finding, reason }) => ({ task, gate, finding, reason }));
+  const reviewRounds = ids.flatMap((id) => [...rounds(entries, id).values()]);
+
   return {
     version: 1,
     work: basename(dirname(workOrder)),
@@ -76,9 +85,16 @@ export function buildRecord(workOrder: string, plan: Plan, entries: Entry[], run
         status: settled?.status ?? null,
         branch: settled?.branch ?? null,
         commits: settled && settled.base !== settled.head ? `${settled.base.slice(0, 12)}..${settled.head.slice(0, 12)}` : null,
+        rounds: rounds(entries, task.id).size,
       };
     }),
     gates,
+    accepted,
+    findings: {
+      opened: reviewRounds.reduce((sum, round) => sum + round.opened, 0),
+      fixed: reviewRounds.reduce((sum, round) => sum + round.fixed, 0),
+      accepted: accepted.length,
+    },
     rulings: entries
       .filter((entry): entry is Extract<Entry, { kind: "ruling" }> => entry.kind === "ruling")
       .filter((entry) => prTasks === null || entry.task === null || ids.includes(entry.task))
