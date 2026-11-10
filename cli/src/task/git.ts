@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 /**
  * Runs git in a directory and returns its stdout without the trailing newline, or throws with stderr
@@ -37,4 +37,17 @@ export function workingTree(cwd: string): string {
  */
 export function lines(output: string): string[] {
   return output === "" ? [] : output.split("\n");
+}
+
+/**
+ * Adds a pattern to the repo's exclude file unless git already ignores the probe path
+ *
+ * Worktrees share one exclude file, so a line written from any worktree covers them all.
+ */
+export function excludeLocally(repo: string, pattern: string, probe: string): void {
+  if (spawnSync("git", ["check-ignore", "-q", probe], { cwd: repo }).status === 0) return;
+  const exclude = resolve(repo, gitOut(repo, ["rev-parse", "--git-path", "info/exclude"]));
+  mkdirSync(dirname(exclude), { recursive: true });
+  const current = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
+  appendFileSync(exclude, `${current === "" || current.endsWith("\n") ? "" : "\n"}${pattern}\n`);
 }
