@@ -33,7 +33,7 @@ At most three sentences on why this approach and what it trades off.
 
 ## How to verify
 
-The exact commands or steps, with the evidence the tests give.
+The exact commands, such as the test script from package.json or composer.json, and what their output shows. Manual steps only where no test covers the change.
 
 ## Risk
 
@@ -44,7 +44,7 @@ Blast radius: one phrase.
 - The title is a conventional commit for the whole PR, because a squash merge makes it the commit on the default branch.
 - Lead each part with what the reviewer must decide or check, and stop when it is complete. 250 words is a ceiling, not a target.
 - Door is one-way when the change cannot be undone by a revert, such as a data migration, a deleted option, a sent email or a published release. Otherwise two-way.
-- Leave out the Human review line, the review list, Auditors and the closing AI line. A script writes those from the scan and the gate record, so a version from you would be replaced.
+- Leave out the Human review line, the review list, Auditors and the closing AI line. A script writes those from the scan and the gate record, so a version from you would be replaced. For the same reason the prose never lists gates or their results, and never mentions the record or the ledger.
 - Write the way people talk. Use plain sentences with commas and full stops, keep dashes out of the middle of sentences, and give no time estimates.
 
 ## When the script sends you back
