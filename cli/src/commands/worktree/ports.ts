@@ -12,10 +12,21 @@ export interface PortConfig {
   slots: number;
 }
 
+/**
+ * Whether a port counts as free after a failed bind
+ *
+ * A sandbox that forbids binding answers EPERM or EACCES for every port, which says nothing about
+ * whether another process holds it, so the worktree registry alone decides. Below 1024 EACCES means
+ * a privileged port that a dev server cannot bind either.
+ */
+export function freeAfterBindError(code: string | undefined, port: number): boolean {
+  return code === "EPERM" || (code === "EACCES" && port >= 1024);
+}
+
 function listenOnce(port: number, host?: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
-    server.once("error", () => resolve(false));
+    server.once("error", (error: NodeJS.ErrnoException) => resolve(freeAfterBindError(error.code, port)));
     server.listen(port, host, () => server.close(() => resolve(true)));
   });
 }
