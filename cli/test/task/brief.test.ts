@@ -23,8 +23,10 @@ describe("pipeline brief", () => {
     expect(text).not.toContain("Say the threshold is 75.");
     expect(text).toContain("Owned files  src/shipping.js, test/shipping.test.js");
     expect(text).toContain("Tier         T2");
-    expect(text).toContain("pipeline tdd red -- npm test");
-    expect(text).toContain("pipeline tdd green -- npm test");
+    expect(text).toContain(`pipeline tdd red --task ${repo} -- npm test`);
+    expect(text).toContain(`pipeline tdd green --task ${repo} -- npm test`);
+    expect(text).toContain(`pipeline task-check --task ${repo}`);
+    expect(text).toContain(`git -C ${repo} <command>`);
     expect(text).toContain("Comment only why, and keep comments evergreen.");
     expect(text).toContain(join(repo, ".pipeline/task/report.md"));
     expect(text).toContain(`Task: ${repo}`);

@@ -99,7 +99,7 @@ async function hook(task: string | undefined): Promise<number> {
     console.log(JSON.stringify({ systemMessage }));
     return 0;
   }
-  const reason = `${problems(result)}\n\nFix these, run \`pipeline task-check\` until it passes, then finish. If you are stuck, set the report's status to BLOCKED or NEEDS_CONTEXT and say why.`;
+  const reason = `${problems(result)}\n\nFix these, run \`pipeline task-check --task ${worktree}\` until it passes, then finish. If you are stuck, set the report's status to BLOCKED or NEEDS_CONTEXT and say why.`;
   console.log(JSON.stringify({ decision: "block", reason }));
   return 0;
 }

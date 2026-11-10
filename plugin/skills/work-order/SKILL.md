@@ -63,7 +63,7 @@ Anyone can raise a tier or add a zone. Only a peer reviewer lowers a tier or rem
 
 ## 4. Confirm
 
-Show the `pipeline schedule` output in a code block as the whole confirmation. Add at most three lines below it, and only for decisions the output lacks: a review a signal calls for (performance on queries or loops over data, accessibility on markup), the scale assumption, or a TDD question in an existing codebase with no suite (`TDD  no suite yet; recommended for task 2. Use TDD? (Y/n)`). Owned files, interfaces and reasons stay in the file. Then stop until the developer replies.
+Show the `pipeline schedule` output in a code block as the whole confirmation. Add at most three lines below it, and only for decisions the output lacks: a review a signal calls for (performance on queries or loops over data, accessibility on markup), the scale assumption, or a TDD question in an existing codebase with no suite (`TDD  no suite yet; recommended for task 2. Use TDD? (Y/n)`). Owned files, interfaces and reasons stay in the file. Then stop until the developer replies. On "go", or `Confirm  skipped`, build with the `dev-pipeline:build` skill.
 
 Involvement level, written as `level`: the request, else `involvement` in `.pipeline/profile.yml`, else `confirm`. A repo floor in the profile wins over a lighter level.
 
