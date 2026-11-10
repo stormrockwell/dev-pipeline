@@ -943,7 +943,7 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 
 1. **Decided.** The pipeline lives under the stormrockwell GitHub account, built by one person and shared once complete.
 2. **Decided.** Any developer other than the PR author approves a human review zone, so there is no zone team or approver role. `risk-gate` enforces one peer approval, or two on designated paths.
-3. **Decided.** Agents commit and push feature branches. Only the implementer opens a PR, in the finish step after reviews pass, and reviewer agents report findings without opening PRs. Only humans merge.
+3. **Decided.** Agents commit and push feature branches. The orchestrator opens each PR as a draft in the finish step, after reviews pass and the developer agrees to push, because a PR that joins several tasks has no single implementer. Implementers and reviewers never open PRs. Only humans merge.
 4. Which environment profile is the default for new developers, native or container?
 5. Where does compounding data live, in hidden JSON in PR bodies (no infrastructure) or in a central repo?
 6. Does agent review run in CI from the start? It would run Claude Code in GitHub Actions with a plan OAuth token, drawing on the same plan limits as local work.

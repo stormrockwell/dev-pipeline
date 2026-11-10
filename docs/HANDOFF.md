@@ -69,7 +69,7 @@ The standards fork in use is `stormrockwell/coding-standards`.
 
 ## Rules that stay in force
 
-- Agents commit, push feature branches and open PRs. Only the implementer opens a PR, after reviews. Agents never merge, never force push, never push to main and never edit permission settings. Only the user merges.
+- Agents commit, push feature branches and open PRs. Only the orchestrator opens a PR, as a draft in the finish step after reviews. Agents never merge, never force push, never push to main and never edit permission settings. Only the user merges.
 - No Anthropic API keys. Every model call goes through Claude Code on the plan.
 - Never commit sensitive data. Ask before `gh repo create`, global installs, outward-facing GitHub settings, or any work on the demanddrive org.
 - The pilot repos are test beds, never examples. Media on Autopilot is read-only, and any work on a pilot happens in a separate fresh clone, never in the user's own working checkouts, which hold uncommitted work.
