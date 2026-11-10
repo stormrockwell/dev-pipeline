@@ -1,6 +1,6 @@
 import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
-import { allocatePorts, probePort } from "../../src/commands/worktree/ports.ts";
+import { allocatePorts, freeAfterBindError, probePort } from "../../src/commands/worktree/ports.ts";
 
 const free = async () => true;
 
@@ -51,5 +51,18 @@ describe("probePort", () => {
     expect(await probePort(port)).toBe(false);
     await new Promise<void>((resolve) => server.close(() => resolve()));
     expect(await probePort(port)).toBe(true);
+  });
+});
+
+describe("freeAfterBindError", () => {
+  it("leaves a port to the registry when a sandbox forbids binding", () => {
+    expect(freeAfterBindError("EPERM", 4100)).toBe(true);
+    expect(freeAfterBindError("EACCES", 4100)).toBe(true);
+  });
+
+  it("keeps a port in use or a privileged port off the list", () => {
+    expect(freeAfterBindError("EADDRINUSE", 4100)).toBe(false);
+    expect(freeAfterBindError("EACCES", 80)).toBe(false);
+    expect(freeAfterBindError(undefined, 4100)).toBe(false);
   });
 });

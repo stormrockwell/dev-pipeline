@@ -1,5 +1,7 @@
 ---
-type: regex
-target: { source: file, path: includes/shipping.php }
-pattern: 'return 75;'
+type: tool_used
+tool: Skill
+input_match: '"skill"\s*:\s*"(?:[\w-]+:)?build"'
 ---
+
+Autopilot below T3 goes from the schedule straight to the build skill, with no confirmation in between.

@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: build-ships-red-then-green
+tags: [build]
+context:
+  scaffold_script: scaffold.sh

@@ -10,6 +10,18 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^dev-pipeline:implementer$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pipeline task-check --hook",
+            "timeout": 120
+          }
+        ]
+      }
     ]
   }
 }

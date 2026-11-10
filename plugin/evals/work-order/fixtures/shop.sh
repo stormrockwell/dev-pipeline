@@ -16,6 +16,8 @@ printf '#!/bin/sh\nexec node "$(dirname "$0")/../pipeline-cli/bin/pipeline" "$@"
 real_git="$(xcrun --find git 2>/dev/null || command -v git)"
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_git" > .tools/bin/git
 chmod +x .tools/bin/pipeline .tools/bin/git
+# run.mjs puts tools/eval-bin first on PATH, and its pipeline shim reads the copy in the run's home.
+source "$(dirname "${BASH_SOURCE[0]}")/../../fixtures/pipeline-cli.sh"
 
 printf '.tools/\n.pipeline/work/\n' > .gitignore
 mkdir -p includes templates assets tests
