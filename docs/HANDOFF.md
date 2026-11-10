@@ -94,11 +94,14 @@ Phase 1 is complete. In Phase 2, these are merged:
 - #45, this handoff page
 - #46, 2.4 implementer, TDD evidence and the Stop hook check
 - #47, 2.7 ledger, run log and gate record
+- #48, parallel Opus agents allowed
+- #49, 2.8 finish, the docs agent, `pipeline pr-body` and `pipeline version-sync`
+- #50, 2.6 reviewers, the precedence merge and the routed fix loop
 
 ## Next
 
-1. Wave D: 2.6 reviewers and the fix loop, and 2.8 finish and PR writing. Reviewers record results with `pipeline ledger gate`, and finish puts `pipeline gate-record --comment` at the end of the PR body and generates the Auditors list from it.
-2. 2.10 evals in CI, once the user adds a `CLAUDE_CODE_OAUTH_TOKEN` repo secret.
+1. 2.10 evals in CI, once the user adds a `CLAUDE_CODE_OAUTH_TOKEN` repo secret.
+2. The Phase 2 exit in `docs/PLAN.md`: the four scenarios as plugin evals, one real feature on Media on Autopilot through the change route in a separate clone, and a zone PR on the MCP server.
 
 ## Running plugin evals
 
@@ -123,4 +126,5 @@ What the harness taught us:
 - `check --json` truncates findings, which blocks a baseline.
 - `pipeline doctor` prints "not built yet" and exits 2, so `pipeline check` is the only setup check.
 - Docs sync tests do not run in CI. The standards repo needs failing fixtures. Proposal 3 is on hold. Stylelint 16 migration. The ConditionalAlternateSyntax for-loop gap. setup-php always runs in the floor job.
+- For the user: decide whether to install Open Code Review. The standards reviewer pins `@alibaba-group/open-code-review@1.13.3` and falls back to its vendored rules without it.
 - For the user: mark the rows in `docs/spikes/0.6-zone-scan.md`, pick a license before sharing, and note that Media on Autopilot has a stale composer.lock with 3 dev advisories, a gitleaks test literal and no ESLint config.
