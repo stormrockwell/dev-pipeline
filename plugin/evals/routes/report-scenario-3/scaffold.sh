@@ -1,0 +1,1 @@
+../../fixtures/wp-shop-in-subdir.sh

@@ -1,1 +1,1 @@
-../fixtures/wp-shop.sh
+../../fixtures/wp-shop-with-cli.sh
