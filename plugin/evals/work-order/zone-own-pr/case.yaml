@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: work-order-zone-own-pr
+tags: [work-order]
+context:
+  scaffold_script: scaffold.sh
