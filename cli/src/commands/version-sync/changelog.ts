@@ -115,7 +115,7 @@ export function writeChangelog(dir: string, entries: Entries): string[] {
       const at = heading.index + heading[0].length;
       body = `${body.slice(0, at)}${bullets}\n${body.slice(at)}`;
     } else {
-      // A missing section goes in before the first later one, so the order stays Added, Changed, Fixed.
+      // Sections keep Keep a Changelog's order, so a missing one goes above any section that follows it.
       const later = SECTIONS.slice(SECTIONS.indexOf(section) + 1)
         .map((name) => new RegExp(`^### ${name}$`, "m").exec(body)?.index)
         .find((index) => index !== undefined);
