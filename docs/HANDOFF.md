@@ -11,9 +11,9 @@ This page lets a new Claude Code session, on any machine, pick up the build wher
 | Claude Code | 2.1.322 or later | the plugin, agents and `claude plugin eval` |
 | gh | 2.95 or later, logged in with `gh auth login` | PRs, checks and labels |
 | git | 2.50 or later | worktrees |
-| PHP | 8.3 CLI (WordPress plugins target 8.0 and up) | phpcs and the WordPress fixtures |
+| PHP | 8.3 CLI or later, and the suites pass on 8.5 (WordPress plugins target 8.0 and up) | phpcs and the WordPress fixtures |
 | Composer | 2.10 | PHP dependency installs and `composer audit` |
-| Python | 3, for a venv | installing semgrep |
+| Python | 3.10 or later, for a venv | installing semgrep |
 | semgrep | 1.184.0, the version CI pins | the floor's static analysis |
 | gitleaks | 8.30.1, the version CI pins | the floor's secret scan |
 | MySQL client | optional | the one worktree test that skips without it |
@@ -22,18 +22,22 @@ On macOS with Homebrew:
 
 ```sh
 brew install node@24 gh php composer gitleaks
-python3 -m venv ~/.venvs/semgrep && ~/.venvs/semgrep/bin/pip install semgrep==1.184.0
-ln -s ~/.venvs/semgrep/bin/semgrep /usr/local/bin/semgrep  # or add the venv bin to PATH
+brew install python@3.13
+/opt/homebrew/bin/python3.13 -m venv ~/.venvs/semgrep && ~/.venvs/semgrep/bin/pip install semgrep==1.184.0
+ln -s ~/.venvs/semgrep/bin/semgrep /opt/homebrew/bin/semgrep
 npm install -g @anthropic-ai/claude-code
 gh auth login
 ```
+
+macOS ships Python 3.9 as `/usr/bin/python3`, and pip offers it nothing newer than semgrep 1.136.0, so the venv needs Homebrew's Python. `/usr/local/bin` is owned by root on Apple silicon, so link semgrep into `/opt/homebrew/bin` instead.
+
+When nvm manages Node, run `nvm install 24 && nvm alias default 24` in place of `node@24`. A Claude Code session started before that keeps the old Node on its PATH, and the CLI then fails with `ERR_UNKNOWN_FILE_EXTENSION` on `main.ts`. Restart the session, or put `~/.nvm/versions/node/v24.*/bin` first on PATH.
 
 Check that Homebrew's gitleaks matches 8.30.1, and install the release binary from GitHub if it does not. Then, in the repo:
 
 ```sh
 cd cli && npm ci && cd ..
 cd tools/docs && npm ci && cd ..
-cli/bin/pipeline doctor   # reports any floor tool that is missing
 cli/bin/pipeline check    # should print 4 passed, 0 failed, 0 missing
 cd cli && npx vitest run  # the CLI suite
 node --test plugin/test/*.test.mjs
@@ -86,12 +90,11 @@ Phase 1 is complete. In Phase 2, these are merged:
 - #41, 2.2 `pipeline init`
 - #42, test timeouts and shared fixtures
 - #43, 2.3 work order and `pipeline schedule`
-
-Open for the user: #44, 2.9 the other routes, which carries zone:input on `plugin/evals/run.mjs`.
+- #44, 2.9 the other routes
 
 ## Next
 
-1. After #44 merges, start Wave C: 2.4 implementer and Stop hook, then 2.7 ledger, run log and gate record.
+1. Wave C: 2.4 implementer and Stop hook, then 2.7 ledger, run log and gate record.
 2. Wave D: 2.6 reviewers and the fix loop, and 2.8 finish and PR writing.
 3. 2.10 evals in CI, once the user adds a `CLAUDE_CODE_OAUTH_TOKEN` repo secret.
 4. Run one Opus agent at a time. Two Opus agents running evals in parallel hit the plan limit twice, which is the usage signal spike 0.7 could not measure.
@@ -117,5 +120,6 @@ What the harness taught us:
 - The hooks `--help` text suggests a `prepare` script that fails in CI before the CLI is installed.
 - comment-lint: the `restates` rule misfires on `/** */` openers, and the commented-code rule misfires too.
 - `check --json` truncates findings, which blocks a baseline.
+- `pipeline doctor` prints "not built yet" and exits 2, so `pipeline check` is the only setup check.
 - Docs sync tests do not run in CI. The standards repo needs failing fixtures. Proposal 3 is on hold. Stylelint 16 migration. The ConditionalAlternateSyntax for-loop gap. setup-php always runs in the floor job.
 - For the user: mark the rows in `docs/spikes/0.6-zone-scan.md`, pick a license before sharing, and note that Media on Autopilot has a stale composer.lock with 3 dev advisories, a gitleaks test literal and no ESLint config.
