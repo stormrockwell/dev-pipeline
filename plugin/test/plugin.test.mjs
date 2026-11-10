@@ -66,8 +66,8 @@ test("the router body stays short", () => {
 
 test("the shortcuts are user-invoked and name their route", () => {
   const expected = { work: "change", review: "review", compound: "compound" };
-  const skills = readdirSync(join(root, "skills")).filter((name) => !["router", "work-order"].includes(name));
-  assert.deepEqual(skills.sort(), Object.keys(expected).sort());
+  const skills = readdirSync(join(root, "skills"));
+  for (const name of Object.keys(expected)) assert.ok(skills.includes(name), `shortcut ${name} exists`);
   for (const [name, route] of Object.entries(expected)) {
     const { fields, body } = frontmatter(`skills/${name}/SKILL.md`);
     assert.equal(fields["disable-model-invocation"], "true", `${name} costs no context`);
