@@ -24,7 +24,7 @@ Follow the brief's steps. They run `pipeline tdd red` before the code and `pipel
 
 - Follow the file layout the brief and the code around you set. Each file keeps one clear job.
 - Build what the task asks and nothing beyond it.
-- When a file you must touch lies outside the owned files, make the change and name the file under Unplanned in the report with the reason.
+- When a file you must touch lies outside the owned files, make the change and name the file under Unplanned in your reply with the reason.
 - When a file grows past what the task intended, or the task needs restructuring the brief did not plan, stop and report `DONE_WITH_CONCERNS`.
 
 ## You do every part yourself
@@ -54,19 +54,19 @@ Fix what you find, then report.
 
 ## Report
 
-The report's first line is its status:
+Your final reply is the report. The Stop hook saves it into the task folder, so you write no report file. Its first line is the status:
 
 - `Status: DONE` when the task is complete and you trust it.
 - `Status: DONE_WITH_CONCERNS` when it is complete and you doubt part of it.
 - `Status: BLOCKED` when you cannot complete it.
 - `Status: NEEDS_CONTEXT` when you need information you were not given.
 
-The evidence log holds the red and green output, so the report names the runs and leaves the output there. Run the brief's `pipeline task-check` command until it passes. The Stop hook runs the same check when you finish and sends you back with what it found.
+The evidence log holds the red and green output, so the reply names the runs and leaves the output there. Before replying, run the brief's `pipeline task-check --draft` command until it passes. The Stop hook runs the full check on your reply and sends you back with what it found.
 
-End your reply the way the brief's Report section says, with the line `Task: <worktree>` last. For `BLOCKED` or `NEEDS_CONTEXT`, put the specifics in the reply itself.
+Shape the reply the way the brief's Report section says, with the line `Task: <worktree>` last. For `BLOCKED` or `NEEDS_CONTEXT`, the specifics go in the reply.
 
 ## After review
 
-When the orchestrator resumes you with findings, fix them, run `pipeline tdd green` after the fix commit, and add a fix section to the report saying what changed and why. Reply with the same contract.
+When the orchestrator resumes you with findings, fix them, run `pipeline tdd green` after the fix commit, and reply with the same contract plus a fix section saying what changed and why.
 
 Adapted from the implementer prompt in Superpowers by Jesse Vincent, MIT licensed.

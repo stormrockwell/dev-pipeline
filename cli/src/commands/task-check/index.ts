@@ -7,7 +7,7 @@ import { checkTask, type CheckResult } from "./checks.ts";
 
 const MAX_BLOCKS = 3;
 
-const usage = `Usage: pipeline task-check [--task <dir>] [--hook]
+const usage = `Usage: pipeline task-check [--task <dir>] [--draft | --hook]
 
 Checks a briefed task against the implementer's report contract:
 
@@ -17,11 +17,16 @@ Checks a briefed task against the implementer's report contract:
   Evidence   on a TDD tier, a red run came before a green run, and the green run tested HEAD's code.
   Comments   comment-lint finds no temporal, reviewer-addressed or dashed comments in the commits.
 
+The report is the implementer's final reply. Claude Code refuses report files written by a subagent,
+so the SubagentStop hook saves the reply to ${TASK_DIR}/report.md.
+
 Options:
   --task <dir>   The task's worktree. Defaults to the repo holding the current directory.
+  --draft        Check the work before the final reply exists, leaving out the report.
   --hook         Run as a Claude Code SubagentStop hook. It reads the hook JSON on stdin, finds the
-                 task from its cwd or the reply's "Task: <worktree>" line, and blocks the stop with the
-                 problems. After ${MAX_BLOCKS} blocks in a row it lets the implementer stop, so a stuck agent hands back.
+                 task from its cwd or the reply's "Task: <worktree>" line, saves the reply as the
+                 report, and blocks the stop with the problems. After ${MAX_BLOCKS} blocks in a row it lets
+                 the implementer stop, so a stuck agent hands back.
 
 Exit codes: 0 when the task passes, 1 when it has problems, 2 for bad usage or no briefed task.
 With --hook it always exits 0 and answers in JSON.`;
@@ -32,15 +37,18 @@ interface HookInput {
   last_assistant_message?: string;
 }
 
-function summary(result: CheckResult): string {
+function summary(result: CheckResult, draft: boolean): string {
   const { record, status } = result;
+  if (draft) {
+    return ["task-check: the work passes, so start your final reply with its Status line, which becomes the report", ...result.notes.map((note) => `- ${note}`)].join("\n");
+  }
   if (status === "BLOCKED" || status === "NEEDS_CONTEXT") return `task-check: passed, task ${record.id} is ${status}, so it hands back to the orchestrator`;
   const evidence = record.tdd.required ? "with red then green evidence" : `TDD not required because ${record.tdd.reason}`;
   return `task-check: passed, task ${record.id} is ${status}${record.tdd.required ? " " : ", "}${evidence}`;
 }
 
 function problems(result: CheckResult): string {
-  return [`task-check: task ${result.record.id} is not ready`, ...result.problems.map((problem) => `- ${problem}`)].join("\n");
+  return [`task-check: task ${result.record.id} is not ready`, ...[...result.problems, ...result.notes].map((problem) => `- ${problem}`)].join("\n");
 }
 
 async function readStdin(): Promise<string> {
@@ -66,8 +74,9 @@ function hookTask(input: HookInput, task: string | undefined): string | null {
 /**
  * Answers a SubagentStop hook
  *
- * A failing task counts its blocks in the task folder, and the count bounds the loop where
- * stop_hook_active alone would allow one retry. A passing task resets it.
+ * The latest reply replaces the saved report on every stop, so the check always reads what the
+ * implementer said last. A failing task counts its blocks in the task folder, and the count bounds
+ * the loop where stop_hook_active alone would allow one retry. A passing task resets it.
  */
 async function hook(task: string | undefined): Promise<number> {
   let input: HookInput;
@@ -80,26 +89,29 @@ async function hook(task: string | undefined): Promise<number> {
   if (worktree === null) {
     if (!input.stop_hook_active) {
       const reason =
-        "pipeline task-check could not find your task. End your reply with the line `Task: <worktree>` from your brief, or run `pipeline task-check --task <worktree>` and fix what it finds.";
+        "pipeline task-check could not find your task. End your reply with the line `Task: <worktree>` from your brief, and run `pipeline task-check --task <worktree> --draft` to fix what it finds.";
       console.log(JSON.stringify({ decision: "block", reason }));
     }
     return 0;
   }
 
+  const paths = taskPaths(worktree);
+  const reply = input.last_assistant_message?.trim();
+  if (reply) writeFileSync(paths.report, `${reply}\n`);
+
   const result = checkTask(worktree);
-  const counter = taskPaths(worktree).blocks;
   if (result.problems.length === 0) {
-    rmSync(counter, { force: true });
+    rmSync(paths.blocks, { force: true });
     return 0;
   }
-  const blocks = (existsSync(counter) ? Number(readFileSync(counter, "utf8")) || 0 : 0) + 1;
-  writeFileSync(counter, String(blocks));
+  const blocks = (existsSync(paths.blocks) ? Number(readFileSync(paths.blocks, "utf8")) || 0 : 0) + 1;
+  writeFileSync(paths.blocks, String(blocks));
   if (blocks > MAX_BLOCKS) {
     const systemMessage = `pipeline task-check still fails for task ${result.record.id} after ${MAX_BLOCKS} tries, so the implementer stopped with:\n${result.problems.map((problem) => `- ${problem}`).join("\n")}`;
     console.log(JSON.stringify({ systemMessage }));
     return 0;
   }
-  const reason = `${problems(result)}\n\nFix these, run \`pipeline task-check --task ${worktree}\` until it passes, then finish. If you are stuck, set the report's status to BLOCKED or NEEDS_CONTEXT and say why.`;
+  const reason = `${problems(result)}\n\nFix these, run \`pipeline task-check --task ${worktree} --draft\` until it passes, then reply again. Your reply is the report, so it starts with the Status line. If you are stuck, start it with \`Status: BLOCKED\` or \`Status: NEEDS_CONTEXT\` and say why.`;
   console.log(JSON.stringify({ decision: "block", reason }));
   return 0;
 }
@@ -107,7 +119,7 @@ async function hook(task: string | undefined): Promise<number> {
 async function run(argv: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: { task: { type: "string" }, hook: { type: "boolean" } } });
+    parsed = parseArgs({ args: argv, options: { task: { type: "string" }, draft: { type: "boolean" }, hook: { type: "boolean" } } });
   } catch (error) {
     console.error(`pipeline task-check: ${error instanceof Error ? error.message : String(error)}. Run "pipeline task-check --help".`);
     return 2;
@@ -121,8 +133,9 @@ async function run(argv: string[]): Promise<number> {
     console.error(`pipeline task-check: no briefed task in ${where}, so run \`pipeline brief\` for the task first.`);
     return 2;
   }
-  const result = checkTask(worktree);
-  console.log(result.problems.length === 0 ? summary(result) : problems(result));
+  const draft = values.draft === true;
+  const result = checkTask(worktree, draft);
+  console.log(result.problems.length === 0 ? summary(result, draft) : problems(result));
   return result.problems.length === 0 ? 0 : 1;
 }
 

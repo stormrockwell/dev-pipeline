@@ -11,6 +11,8 @@ export interface CheckResult {
   record: TaskRecord;
   status: Status | null;
   problems: string[];
+  // Reminders for a draft check that do not fail it.
+  notes: string[];
 }
 
 const bin = fileURLToPath(new URL("../../../bin/pipeline", import.meta.url));
@@ -72,20 +74,26 @@ function commentProblems(record: TaskRecord): string[] {
 /**
  * Checks a briefed task against the report contract
  *
- * A BLOCKED or NEEDS_CONTEXT report may stop at once, so a stuck implementer can hand its question
+ * The report is the implementer's final reply, which the SubagentStop hook saves. A draft check runs
+ * before that reply exists, so it skips the report and lists the files the reply must name. A
+ * BLOCKED or NEEDS_CONTEXT report may stop at once, so a stuck implementer can hand its question
  * back. Every other status needs committed work inside the owned files, test-first evidence when the
  * tier calls for it, and comments that pass the writing rules.
  */
-export function checkTask(worktree: string): CheckResult {
+export function checkTask(worktree: string, draft = false): CheckResult {
   const record = readRecord(worktree);
   const paths = taskPaths(worktree);
-  const report = existsSync(paths.report) ? readFileSync(paths.report, "utf8") : null;
+  const report = !draft && existsSync(paths.report) ? readFileSync(paths.report, "utf8") : null;
   const status = report === null ? null : reportStatus(report);
   const problems: string[] = [];
+  const notes: string[] = [];
 
-  if (report === null) problems.push(`write the report at ${paths.report}, starting with a Status line`);
-  else if (status === null) problems.push("the report has no Status line, so start it with `Status: DONE`, `DONE_WITH_CONCERNS`, `BLOCKED` or `NEEDS_CONTEXT`");
-  if (status === "BLOCKED" || status === "NEEDS_CONTEXT") return { record, status, problems };
+  if (!draft && report === null) {
+    problems.push(`no report at ${paths.report}. The Stop hook saves the implementer's final reply there, so the reply starts with a Status line`);
+  } else if (!draft && status === null) {
+    problems.push("the final reply has no Status line, so start it with `Status: DONE`, `DONE_WITH_CONCERNS`, `BLOCKED` or `NEEDS_CONTEXT`");
+  }
+  if (status === "BLOCKED" || status === "NEEDS_CONTEXT") return { record, status, problems, notes };
 
   const dirty = lines(gitOut(worktree, ["status", "--porcelain", "--untracked-files=all"])).map((line) => line.slice(3));
   if (dirty.length > 0) problems.push(`commit or revert the uncommitted changes: ${dirty.join(", ")}`);
@@ -96,10 +104,11 @@ export function checkTask(worktree: string): CheckResult {
   const changed = lines(gitOut(worktree, ["diff", "--name-only", `${record.base}..HEAD`]));
   for (const file of changed) {
     if (ownsFile(record.files, file) || (report ?? "").includes(file)) continue;
-    problems.push(`${file} is not an owned file, so revert it or name it under Unplanned in the report with the reason`);
+    if (draft) notes.push(`${file} is not an owned file, so name it under Unplanned in your reply with the reason`);
+    else problems.push(`${file} is not an owned file, so revert it or name it under Unplanned in the reply with the reason`);
   }
 
   if (record.tdd.required) problems.push(...evidenceProblems(record, gitOut(worktree, ["rev-parse", "HEAD^{tree}"])));
   if (commits > 0) problems.push(...commentProblems(record));
-  return { record, status, problems };
+  return { record, status, problems, notes };
 }

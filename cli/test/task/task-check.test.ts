@@ -1,3 +1,4 @@
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";
@@ -39,13 +40,25 @@ describe("pipeline task-check", () => {
   it("needs the report and its status line", () => {
     const repo = shipped();
     write(repo, ".pipeline/task/report.md", "I fixed it.\n");
-    expect(check(repo).stdout).toContain("the report has no Status line");
+    expect(check(repo).stdout).toContain("the final reply has no Status line");
 
     const missing = taskRepo();
     brief(missing);
     const { status, stdout } = check(missing);
     expect(status).toBe(1);
-    expect(stdout).toContain(`write the report at ${join(missing, ".pipeline/task/report.md")}`);
+    expect(stdout).toContain(`no report at ${join(missing, ".pipeline/task/report.md")}`);
+  });
+
+  it("checks the work without the report in draft mode, before the reply exists", () => {
+    const repo = shipped();
+    rmSync(join(repo, ".pipeline/task/report.md"));
+    const { status, stdout } = check(repo, ["--draft"]);
+    expect(stdout).toBe("task-check: the work passes, so start your final reply with its Status line, which becomes the report\n");
+    expect(status).toBe(0);
+
+    const unready = taskRepo();
+    brief(unready);
+    expect(check(unready, ["--draft"]).stdout).not.toContain("no report");
   });
 
   it("lets a blocked task stop without commits or evidence", () => {
@@ -129,30 +142,44 @@ describe("pipeline task-check --hook", () => {
   const hook = (cwd: string, input: Record<string, unknown>) =>
     pipeline(cwd, ["task-check", "--hook"], { input: JSON.stringify({ hook_event_name: "SubagentStop", cwd, stop_hook_active: false, ...input }) });
 
-  it("lets a passing task stop silently", () => {
+  it("saves the reply as the report and lets a passing task stop silently", () => {
     const repo = shipped();
-    const { status, stdout } = hook(repo, {});
+    rmSync(join(repo, ".pipeline/task/report.md"));
+    const reply = `Status: DONE\n\nShips free at 75, red then green.\n\nTask: ${repo}`;
+    const { status, stdout } = hook(repo, { last_assistant_message: reply });
     expect(status).toBe(0);
     expect(stdout).toBe("");
+    expect(readFileSync(join(repo, ".pipeline/task/report.md"), "utf8")).toBe(`${reply}\n`);
   });
 
   it("blocks a failing task with the problems as the next instruction", () => {
     const repo = taskRepo();
     brief(repo);
-    const { status, stdout } = hook(repo, {});
+    const { status, stdout } = hook(repo, { last_assistant_message: `Status: DONE\nTask: ${repo}` });
     expect(status).toBe(0);
     const decision = JSON.parse(stdout);
     expect(decision.decision).toBe("block");
-    expect(decision.reason).toContain("write the report at");
-    expect(decision.reason).toContain("pipeline task-check");
+    expect(decision.reason).toContain("no commit since the brief");
+    expect(decision.reason).toContain(`pipeline task-check --task ${repo} --draft`);
+  });
+
+  it("blocks a reply that does not open with a Status line", () => {
+    const repo = shipped();
+    const { stdout } = hook(repo, { last_assistant_message: `All done.\nTask: ${repo}` });
+    expect(JSON.parse(stdout).reason).toContain("Status line");
+  });
+
+  it("lets a task stop that hands back a question", () => {
+    const repo = taskRepo();
+    brief(repo);
+    expect(hook(repo, { last_assistant_message: `Status: NEEDS_CONTEXT\n\nWhich threshold applies to wholesale?\nTask: ${repo}` }).stdout).toBe("");
   });
 
   it("finds the task from the Task line when the hook runs elsewhere", () => {
     const repo = taskRepo();
     brief(repo);
-    const elsewhere = tempDir();
-    const { stdout } = hook(elsewhere, { last_assistant_message: `Status: DONE\nTask: ${repo}` });
-    expect(JSON.parse(stdout).reason).toContain("write the report at");
+    const { stdout } = hook(tempDir(), { last_assistant_message: `Status: DONE\nTask: ${repo}` });
+    expect(JSON.parse(stdout).reason).toContain("no commit since the brief");
   });
 
   it("asks for the Task line once when it cannot find the task", () => {
