@@ -1004,4 +1004,15 @@ Human review: none.
       cleanup();
     });
   });
+
+  describe("hidden comments", () => {
+    it("reads the body without them, so a gate record counts for nothing wherever it sits", () => {
+      const record = `<!-- pipeline:gate-record\n${JSON.stringify({ note: "word ".repeat(300) })}\n-->`;
+      const body = bodyWithRisk("Door: two-way.\nBlast radius: docs.\nHuman review: none.").replace("Approach.\n", `Approach.\n${record}\n`);
+      const result = pipeline("pr-check", "--file", writeTestFile("hidden.md", body));
+      expect(result.stdout).toBe("");
+      expect(result.status).toBe(0);
+      cleanup();
+    });
+  });
 });

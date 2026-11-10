@@ -9,6 +9,12 @@ Build is step 5 of the change route. Its input is the confirmed work order at `.
 
 Each Bash call is one plain `pipeline` or `git` command, with no `;`, `&&`, pipes or `$(...)`, because permission rules match whole commands.
 
+## The ledger
+
+Run `pipeline ledger .pipeline/work/<slug>/work-order.md` before the first task and whenever you resume. It lists each task's latest result and names the next task. A task it shows as `DONE` is built, so skip it: after compaction, trust the ledger and `git log` over what you remember. `pipeline task-check` writes each task's result there.
+
+When you decide something on the developer's behalf, such as answering `NEEDS_CONTEXT` from the code or splitting a task, record it before you act: `pipeline ledger rule .pipeline/work/<slug>/work-order.md --task <id> --decided "<what>" --why "<why>" --cost "<what it costs if wrong>"`.
+
 ## Each task
 
 Take the tasks in the order the schedule's `Order` line gives. Tasks it lists together in one wave may run at once, up to three, and every other task waits for the one it needs.
@@ -26,4 +32,4 @@ Done when every task's check passes or a question is with the developer.
 
 ## Summary
 
-Show one line per task: its id, branch, commits, check result and any concern. Then stop, so the developer picks the next step.
+Run `pipeline gate-record .pipeline/work/<slug>/work-order.md`. It writes the gate record beside the work order and prints a line per task with its gates, then the run's cost. Show that output in a code block with one line per concern from the reports. Then stop, so the developer picks the next step.

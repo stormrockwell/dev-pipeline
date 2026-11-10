@@ -1,13 +1,13 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
-import { gitOut } from "../../task/git.ts";
+import { excludeLocally, gitOut } from "../../task/git.ts";
 import { findTask, readRecord, TASK_DIR, taskPaths, writeRecord, type TaskRecord } from "../../task/record.ts";
 import { testCommand } from "../../task/test-command.ts";
 import type { Plan } from "../schedule/plan.ts";
 import { parseWorkOrder } from "../schedule/work-order.ts";
-import { git, repoTop } from "../secrets/git.ts";
+import { repoTop } from "../secrets/git.ts";
 import { renderBrief } from "./render.ts";
 import { taskSection } from "./section.ts";
 
@@ -29,19 +29,6 @@ Exit codes: 0 when the brief is written, 2 for bad usage, an unscheduled work or
 function fail(message: string): number {
   console.error(`pipeline brief: ${message}`);
   return 2;
-}
-
-/**
- * Adds the task folder to the repo's exclude file unless git already ignores it
- *
- * Worktrees share one exclude file, so a line written from any worktree covers them all.
- */
-function ignoreTaskDir(worktree: string): void {
-  if (git(worktree, ["check-ignore", "-q", `${TASK_DIR}/task.json`]).ok) return;
-  const exclude = resolve(worktree, gitOut(worktree, ["rev-parse", "--git-path", "info/exclude"]));
-  mkdirSync(dirname(exclude), { recursive: true });
-  const current = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
-  appendFileSync(exclude, `${current === "" || current.endsWith("\n") ? "" : "\n"}${TASK_DIR}/\n`);
 }
 
 async function run(argv: string[]): Promise<number> {
@@ -116,7 +103,7 @@ async function run(argv: string[]): Promise<number> {
     worktree,
   };
 
-  ignoreTaskDir(worktree);
+  excludeLocally(worktree, `${TASK_DIR}/`, `${TASK_DIR}/task.json`);
   writeRecord(record);
   const paths = taskPaths(worktree);
   writeFileSync(paths.brief, renderBrief(record, task, section, order.title));
