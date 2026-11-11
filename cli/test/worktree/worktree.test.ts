@@ -86,7 +86,9 @@ describe("createWorktree", () => {
     const { repo } = makeFixture();
     const database = new MemoryDatabase();
     let fail = true;
+    // The probe always answers free, because Linux can lend a port in this range to an outgoing connection and the test is about the freed slot.
     const { ctx } = await open(repo, database, {
+      isPortFree: async () => true,
       afterDatabase: async () => {
         if (fail) throw new Error("injected failure");
       },
