@@ -6,6 +6,7 @@ import { gitOut, lines } from "../task/git.ts";
 import type { Finding, Reviewer } from "./findings.ts";
 import { REVIEWER_AXES } from "./findings.ts";
 import type { Candidate } from "./security.ts";
+import { describeScale, type Scale } from "./scale.ts";
 import { roundPaths, type Round } from "./state.ts";
 
 /**
@@ -37,12 +38,16 @@ const JOBS: Record<Exclude<Reviewer, "security">, string[]> = {
     "Simplify the code in the diff and the code it directly calls, by your four questions. Commit each simplification with `refactor(<scope>): <subject>`, then run `pipeline tdd green --task {worktree}` on the last commit, and revert any change that turns it red.",
     "In the zone files listed below, change nothing: report each simplification as a finding instead, for a person to review.",
   ],
+  performance: [
+    "Find waste in the diff, a slower version of something that has a faster and no less simple one, and report each with that fix. Read the diff and the code it reaches.",
+    "Find scale in the diff, speed bought with complexity, and report its breaking point against the Scale row above as a finding that asks. Add no pagination, batching, job or table.",
+  ],
 };
 
 /**
  * The package one reviewer reads: the diff to review, the task, its open findings and the reply contract
  */
-export function renderPackage(reviewer: Exclude<Reviewer, "security">, round: Round, record: TaskRecord, section: string, guides: string[], open: Finding[]): string {
+export function renderPackage(reviewer: Exclude<Reviewer, "security">, round: Round, record: TaskRecord, section: string, guides: string[], open: Finding[], scale?: Scale): string {
   const paths = roundPaths(join(dirname(record.workOrder), "review", `task-${round.task}`, `round-${round.round}`));
   const fill = (text: string) => text.replaceAll("{worktree}", record.worktree).replaceAll("{from}", round.from);
   const mine = open.filter((finding) => finding.reviewer === reviewer);
@@ -57,6 +62,7 @@ export function renderPackage(reviewer: Exclude<Reviewer, "security">, round: Ro
     ["Report", `${taskPaths(record.worktree).report}, claims to verify`],
     ["Evidence", taskPaths(record.worktree).evidence],
     ["Why you", round.reasons[reviewer] ?? "the task's tier calls for you"],
+    ...(reviewer === "performance" && scale ? [["Scale", describeScale(scale)]] : []),
   ];
   const width = Math.max(...facts.map(([label]) => label!.length)) + 2;
   return [

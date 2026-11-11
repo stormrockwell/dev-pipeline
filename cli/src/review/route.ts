@@ -106,12 +106,16 @@ function zoneFiles(worktree: string, from: string): string[] {
 
 /**
  * The reviewers a task's gates name, simplifier first because it edits before the rest read
+ *
+ * Performance joins when its gate is named or when the diff gives a signal and the task has logic
+ * to review, which is every tier that has a spec gate.
  */
-function reviewersFor(gates: string[]): Reviewer[] {
+function reviewersFor(gates: string[], signalled: boolean): Reviewer[] {
   return [
     ...(gates.some((gate) => gate.startsWith("simplifier")) ? (["simplifier"] as const) : []),
     ...(gates.includes("spec") ? (["spec"] as const) : []),
     ...(gates.includes("standards") ? (["standards"] as const) : []),
+    ...(gates.includes("performance") || (signalled && gates.includes("spec")) ? (["performance"] as const) : []),
     ...(securityPlan(gates) !== null ? (["security"] as const) : []),
   ];
 }
@@ -153,26 +157,34 @@ function beyondFindings(hunk: Hunk, open: Finding[]): boolean {
  * standards when it adds functions or branches or runs past about twenty lines.
  */
 export function route(input: RouteInput): Routing {
-  const applicable = reviewersFor(input.gates);
   const start = input.from ?? input.base;
   const hunks = diffHunks(input.worktree, start);
   const changed = hunks.reduce((sum, hunk) => sum + hunk.added.length + hunk.removed.length, 0);
   const zones = zoneFiles(input.worktree, start);
   const unbuilt: Routing["unbuilt"] = [];
   const added = hunks.flatMap((hunk) => hunk.added.map((entry) => ({ file: hunk.file, ...entry })));
-  if (added.some((entry) => PERFORMANCE.test(entry.text))) unbuilt.push({ gate: "performance", reason: "the diff has queries, loops or remote calls, and the performance reviewer ships in 3.5" });
+  const config = loadConfig(input.worktree);
+  const isTest = (file: string) => config.testPaths.some((glob) => matchesGlob(glob, file));
   if (hunks.some((hunk) => groupsFor(hunk.file).some((group) => group === "markup" || group === "css") || FRONT_END.test(hunk.file))) {
     unbuilt.push({ gate: "accessibility", reason: "the diff touches markup, CSS or front-end code, and the accessibility pass ships in 3.6" });
   }
 
   const newFiles = input.from === null ? [] : lines(gitOut(input.worktree, ["diff", "--name-only", "--diff-filter=A", "--no-renames", start, "HEAD"]));
   const full = input.from === null || input.original === null || changed * 3 > input.original || newFiles.length > 0;
+  // A full round judges the whole task diff, and a fix round only the lines the fix added.
+  const scanned = full && input.from !== null ? diffHunks(input.worktree, input.base) : hunks;
+  const hot = full ? scanned.find((hunk) => !isTest(hunk.file) && hunk.added.some((entry) => PERFORMANCE.test(entry.text))) : hunks.find((hunk) => !isTest(hunk.file) && grows(hunk, PERFORMANCE));
+  const hotAt = hot === undefined ? null : `${hot.file}:${hot.added.find((entry) => PERFORMANCE.test(entry.text))?.line ?? hot.oldStart}`;
+  const performanceOpen = input.open.some((finding) => finding.reviewer === "performance");
+  const applicable = reviewersFor(input.gates, hot !== undefined || performanceOpen);
   if (full) {
     const why = input.from === null ? "the first round reviews the whole diff" : newFiles.length > 0 ? `the fix adds ${newFiles.join(", ")}, so it counts as new code` : `the fix changes ${changed} lines, over a third of the ${input.original}-line original`;
     // A full round reviews the whole task diff, so the simplifier's zone files come from all of it.
     const wholeZones = input.from === null ? zones : zoneFiles(input.worktree, input.base);
     const security = applicable.includes("security") ? securityDiff(input.worktree, input.base) : null;
-    return { scope: "full", reviewers: applicable, reasons: Object.fromEntries(applicable.map((reviewer) => [reviewer, why])), unbuilt, zoneFiles: wholeZones, changed, fixLines: null, security };
+    const reasons = Object.fromEntries(applicable.map((reviewer) => [reviewer, why])) as Partial<Record<Reviewer, string>>;
+    if (applicable.includes("performance") && hotAt !== null) reasons.performance = `the diff has queries, loops or remote calls at ${hotAt}`;
+    return { scope: "full", reviewers: applicable, reasons, unbuilt, zoneFiles: wholeZones, changed, fixLines: null, security };
   }
 
   const reasons: Partial<Record<Reviewer, string>> = {};
@@ -180,8 +192,6 @@ export function route(input: RouteInput): Routing {
     const ids = input.open.filter((finding) => finding.reviewer === reviewer).map((finding) => finding.id);
     if (ids.length > 0) reasons[reviewer] = `checks whether the fix addressed ${ids.join(", ")}`;
   }
-  const config = loadConfig(input.worktree);
-  const isTest = (file: string) => config.testPaths.some((glob) => matchesGlob(glob, file));
   const beyond = hunks.find((hunk) => !isTest(hunk.file) && beyondFindings(hunk, input.open));
   if (applicable.includes("spec") && beyond) reasons.spec ??= `the fix changes ${beyond.file} near line ${beyond.oldStart}, beyond the lines a finding named`;
   const shape = hunks.find((hunk) => grows(hunk, FUNCTION) || grows(hunk, BRANCH));
@@ -189,6 +199,8 @@ export function route(input: RouteInput): Routing {
   if (substantial) {
     for (const reviewer of ["simplifier", "standards"] as const) if (applicable.includes(reviewer)) reasons[reviewer] ??= substantial;
   }
+
+  if (applicable.includes("performance") && hotAt !== null) reasons.performance ??= `the fix adds queries, loops or remote calls at ${hotAt}`;
 
   // Security re-reviews every fix, and a fix in zone code can open a hole anywhere in the task.
   let security: Routing["security"] = null;

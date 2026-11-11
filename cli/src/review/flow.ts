@@ -10,6 +10,7 @@ import { AGENT_TYPES, type Finding, rank, type ReportedFinding, type Reviewer, v
 import { mergeRound, place, renderFixList } from "./merge.ts";
 import { renderHunterPackage, renderPackage, renderVerifierPackage, reviewGuides } from "./package.ts";
 import { diffSize, route } from "./route.ts";
+import { readScale } from "./scale.ts";
 import { asFinding, type Candidate, gatherCandidates, HUNTER_AGENT, renderGuide, type SecurityOutcome, securityPlan, tally, validateHunter, validateVerdicts, type VerdictEntry, VERIFIER_AGENT } from "./security.ts";
 import { guidePath, hunterNames, type Merged, openFindings, readMerged, readRound, type Round, roundDir, roundNumbers, roundPaths, verifierNames, writeRound } from "./state.ts";
 
@@ -170,7 +171,7 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
   writeRound(dir, round);
   const section = taskSection(readFileSync(ctx.workOrder, "utf8"), ctx.task.id) ?? `## Task ${ctx.task.id}: ${ctx.task.title}`;
   const guides = reviewGuides(ctx.record.worktree, round.from);
-  for (const reviewer of round.reviewers) if (reviewer !== "security") writeFileSync(roundPaths(dir).package(reviewer), renderPackage(reviewer, round, ctx.record, section, guides, open));
+  for (const reviewer of round.reviewers) if (reviewer !== "security") writeFileSync(roundPaths(dir).package(reviewer), renderPackage(reviewer, round, ctx.record, section, guides, open, readScale(ctx.record.worktree)));
   if (round.security) {
     if (round.security.php) copyFileSync(COMPANION, roundPaths(dir).companion);
     const mine = open.filter((finding) => finding.reviewer === "security");
