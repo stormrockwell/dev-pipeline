@@ -3,9 +3,10 @@ import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { collectFiles, collectRange, collectStaged, type Collected } from "../scan-zones/collect.ts";
 import { loadConfig } from "../scan-zones/config.ts";
+import { reachFinder } from "./reach.ts";
 import { classifyInputs, type Classification, type Reason } from "./tier.ts";
 
-const usage = `Usage: pipeline classify (<file>... | --staged | --range <from>..<to>) [--path <dir>] [--json]
+const usage = `Usage: pipeline classify (<file>... | --staged | --range <from>..<to>) [--path <dir>] [--no-reach] [--json]
 
 Assigns a risk tier from file types, human review zones and guardrail paths.
 
@@ -13,7 +14,8 @@ Assigns a risk tier from file types, human review zones and guardrail paths.
   T1 Presentation  CSS, SCSS, static markup and static assets.
   T2 Logic         Code and configuration, and templates that echo variables.
   T3 Sensitive     Any zone match: a path rule, a content signal on an added line, or a removed
-                   signal such as a deleted capability check. Guardrail paths are T3.
+                   signal such as a deleted capability check, or a changed function that zone code
+                   calls (reach). Guardrail paths are T3.
 
 Input:
   <file>...              Classify these paths. Content is read from the working tree.
@@ -23,6 +25,8 @@ Input:
 Options:
   --path <dir>           Directory that holds the files, or the repo to diff. Defaults to the current
                          directory. Rules come from .pipeline/sensitive.yml there, or the built-in packs.
+  --no-reach             Skip the reach check. By default, a changed function that zone code calls
+                         raises the change to T3 with those zones, found by a text search of the repo.
   --json                 Print the result as JSON.
 
 The rules only raise a tier. Lowering a tier is a human action and is not offered here. A tier is the
@@ -43,7 +47,9 @@ function where(reason: Reason): string {
 }
 
 function label(reason: Reason): string {
-  return reason.zone ? `${reason.rule === "removed-signal" ? "removed " : ""}zone:${reason.zone}` : reason.rule;
+  if (!reason.zone) return reason.rule;
+  const prefix = reason.rule === "removed-signal" ? "removed " : reason.rule === "reach" ? "reach " : "";
+  return `${prefix}zone:${reason.zone}`;
 }
 
 function formatText(result: Classification): string {
@@ -64,6 +70,7 @@ async function run(argv: string[]): Promise<number> {
         staged: { type: "boolean" },
         range: { type: "string" },
         path: { type: "string" },
+        "no-reach": { type: "boolean" },
         json: { type: "boolean" },
       },
       allowPositionals: true,
@@ -90,7 +97,7 @@ async function run(argv: string[]): Promise<number> {
 
   let result: Classification;
   try {
-    result = classifyInputs(loadConfig(collected.root), collected.inputs);
+    result = classifyInputs(loadConfig(collected.root), collected.inputs, values["no-reach"] ? undefined : reachFinder(collected.root));
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
