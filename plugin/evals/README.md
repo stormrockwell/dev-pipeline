@@ -14,3 +14,7 @@ A kept temp dir (`--keep-temp`) is sealed. Open it with `chmod 700` on the paths
 - semgrep cannot start inside the sandbox, so route skills report it as not run.
 - Compound shell commands get refused under narrow grants, so skills ask for one plain command per Bash call and use Edit, Glob, Grep and Read where they fit.
 - The haiku judge failed a correct diagnosis three times out of three, so prefer deterministic graders where a rubric can be written as checks.
+
+## Planted vulnerability suite
+
+`plugin/evals/security/` holds 5 planted cases with 4 holes each and 2 clean controls, all seeded by `security/fixtures/security-in-review.sh` into review round 1 at quick depth, so a run dispatches only the security hunter and verifier. Run it with `node plugin/evals/run.mjs --runs 1 --model sonnet --tag security`, then score the run with `node plugin/evals/security-recall.mjs <aggregate-result.json>...`. A missed hole is a recall result, never a reason to edit the hole. Run cases one invocation at a time, because parallel invocations can collide on the results directory.

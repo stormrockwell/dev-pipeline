@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 import { affectedTags } from "../evals/affected.mjs";
 
 const plugin = join(dirname(fileURLToPath(import.meta.url)), "..");
-const all = ["build", "finish", "review", "routes", "routing", "work-order"];
+const all = ["build", "finish", "review", "routes", "routing", "security", "work-order"];
 
 test("a skill or agent change selects only the cases that run it", () => {
   assert.deepEqual(affectedTags(["plugin/skills/review-loop/SKILL.md"]), ["review"]);
   assert.deepEqual(affectedTags(["plugin/agents/docs.md"]), ["finish"]);
+  assert.deepEqual(affectedTags(["plugin/agents/security-hunter.md"]), ["review", "security"]);
+  assert.deepEqual(affectedTags(["plugin/agents/security-verifier.md"]), ["review", "security"]);
   assert.deepEqual(affectedTags(["plugin/skills/quick-change/SKILL.md"]), ["routes", "routing"]);
 });
 

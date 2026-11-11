@@ -1,0 +1,19 @@
+name: Release by comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/release')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cut the release
+        run: ./scripts/release.sh "${{ github.event.comment.body }}"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
