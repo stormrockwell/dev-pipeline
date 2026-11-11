@@ -33,7 +33,7 @@
         ]
       },
       {
-        "matcher": "^dev-pipeline:(spec-reviewer|standards-reviewer|simplifier)$",
+        "matcher": "^dev-pipeline:(spec-reviewer|standards-reviewer|simplifier|security-hunter|security-verifier)$",
         "hooks": [
           {
             "type": "command",

@@ -786,6 +786,40 @@ Human review: none.
       cleanup();
     });
 
+    it("leaves the generated Human review required section out of the narration check", () => {
+      const body = `## What changed
+- Added feature
+
+## Why this approach
+Approach.
+
+## How to verify
+Test.
+
+## Risk
+Door: one-way.
+Blast radius: local.
+Human review: required, zone:authz (src/api.php).
+
+## Human review required
+- \`src/api.php\` lines 4 (zone:authz)
+
+<details>
+<summary>Rejected candidates (1)</summary>
+
+- The route was initially public: after trying it, the capability check holds.
+</details>
+
+## Auditors
+- Ran: security (quick)
+`;
+      const file = writeTestFile("narration-generated.md", body);
+      const result = pipeline("pr-check", "--file", file);
+      expect(result.stdout).not.toContain("Found process narration");
+      expect(result.status).toBe(0);
+      cleanup();
+    });
+
     it("fails with 'after trying' narration", () => {
       const body = `## What changed
 - Added feature

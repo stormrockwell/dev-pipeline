@@ -2,14 +2,16 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
-import { AXES, REVIEWERS, replyJson, type Reviewer } from "../../review/findings.ts";
-import { dismiss, loadContext, MAX_ROUNDS, type MergeOutcome, mergeTask, overrule, ReviewError, saveReply, type Started, startRound } from "../../review/flow.ts";
+import { AXES, REVIEWERS, replyJson } from "../../review/findings.ts";
+import { dismiss, loadContext, MAX_ROUNDS, type MergeOutcome, mergeTask, overrule, ReviewError, saveReply, securityReplyFailed, type Started, startRound, type Verifying } from "../../review/flow.ts";
 import { NIT_CAP, place } from "../../review/merge.ts";
 import { fileRules, OCR_PACKAGE, OCR_VERSION, renderFileRules } from "../../review/rules.ts";
 import { roundPaths } from "../../review/state.ts";
 import { findTask } from "../../task/record.ts";
 
 const MAX_BLOCKS = 3;
+// A security reply gets one retry, so its second failure fails the security gate and never passes it.
+const MAX_SECURITY_BLOCKS = 1;
 
 const usage = `Usage: pipeline review start <work-order.md> --task <id> [--worktree <dir>] [--continue <reason>]
        pipeline review merge <work-order.md> --task <id> [--worktree <dir>]
@@ -18,25 +20,33 @@ const usage = `Usage: pipeline review start <work-order.md> --task <id> [--workt
        pipeline review files --task <worktree> --from <ref> [--json]
        pipeline review save --hook
 
-Runs the review rounds of one task, step 6 of the change route. Reviewers: spec, standards and the
-simplifier, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
+Runs the review rounds of one task, step 6 of the change route. Reviewers: spec, standards, the
+simplifier and security, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
+Security runs at the depth its gate names: light and quick send one hunter and one verifier, and full
+sends three hunters on opus and a vote of three verifiers.
 
   start     Open the next round and write a package per reviewer it routes to. The first round, a
             fix diff over a third of the original, and a fix that adds files get every reviewer the
             tier names. A smaller fix goes to each reviewer whose findings it fixes, to spec when it
             changes code beyond the named lines, and to the simplifier and standards when it adds a
             function or branch or runs past about twenty lines. Gates for reviewers this version does
-            not ship are recorded as skipped. Past ${MAX_ROUNDS} rounds it needs --continue with the developer's reason.
+            not ship are recorded as skipped. Security re-reviews every fix, and the whole task diff when
+            the fix touches zone code. Past ${MAX_ROUNDS} rounds it needs --continue with the developer's reason.
   merge     Merge the round's findings: drop duplicates, send pre-existing ones and, in a fix round,
             ones off the fix diff to the backlog, cap nits at ${NIT_CAP}, list contests between axes on
             the same lines, write the fix list in precedence order, and record each reviewer's gate.
+            When the security hunters reported candidates, it first writes the verifiers' packages,
+            prints Verify lines and stops. With the verdicts in, a candidate a majority confirmed is
+            an Important security finding with its tests on the fix list, and the rest go to the
+            review guide. A missing or broken security reply fails the security gate.
   overrule  Take the lower finding of a contest off the fix list, recording the ruling.
   dismiss   Waive a finding with a reason the human reviewer sees. Security findings cannot be waived.
   files     The files to review and the rules for each, from OCR ${OCR_VERSION} delegation when \`ocr\`
             runs, and from the vendored OCR rules otherwise. PIPELINE_OCR names another ocr binary.
             Install the pinned CLI with \`npm install -g ${OCR_PACKAGE}@${OCR_VERSION}\`.
   save      The reviewers' SubagentStop hook. It saves the reply's findings block beside the package
-            the reply names, and blocks the stop until the block matches the schema.
+            the reply names, and blocks the stop until the block matches the schema. A security reply
+            that fails twice fails the security gate.
 
 The worktree defaults to .pipeline/work/<slug>/worktrees/<id>, where the build skill creates it.
 
@@ -72,12 +82,13 @@ function printStarted(started: Started): void {
     console.log([head, `${label("Done")}${started.done}`].join("\n"));
     return;
   }
-  const order = round.reviewers.includes("simplifier") && round.reviewers.length > 1 ? "the simplifier first, and the rest at once when it returns" : "every reviewer at once";
+  const order = started.dispatch.some((entry) => entry.reviewer === "simplifier") && started.dispatch.length > 1 ? "the simplifier first, and the rest at once when it returns" : "every reviewer at once";
   console.log(
     [
       head,
       `${label("Order")}${order}`,
-      ...started.dispatch.map((entry) => `${label("Dispatch")}${entry.agent} with ${entry.package}`),
+      ...started.dispatch.map((entry) => `${label("Dispatch")}${entry.agent}${entry.model ? ` on ${entry.model}` : ""} with ${entry.package}`),
+      ...(started.dispatch.length === 0 ? [`${label("Merge")}every reviewer replied, so run \`pipeline review merge\``] : []),
       ...round.reviewers.map((reviewer) => `${label("Why")}${reviewer}: ${round.reasons[reviewer]}`),
       ...started.skipped.map((skip) => `${label("Skipped")}${skip.gate}: ${skip.reason}`),
     ].join("\n"),
@@ -85,9 +96,19 @@ function printStarted(started: Started): void {
 }
 
 /**
- * Prints a merged round: counts, contests, gates and the fix list
+ * Prints a merged round: counts, contests, gates and the fix list, or the verifiers it waits on
  */
-function printMerged(outcome: MergeOutcome, workOrder: string): void {
+function printMerged(outcome: MergeOutcome | Verifying, workOrder: string): void {
+  if ("verify" in outcome) {
+    console.log(
+      [
+        `${label("Security")}task ${outcome.round.task} round ${outcome.round.round}: ${outcome.candidates} candidate${outcome.candidates === 1 ? "" : "s"} to verify`,
+        ...outcome.verify.map((entry) => `${label("Verify")}${entry.agent} with ${entry.package}`),
+        `${label("Then")}merge again once every verdict is saved`,
+      ].join("\n"),
+    );
+    return;
+  }
   const { merged, round, gates } = outcome;
   const byAxis = AXES.map((axis) => [axis, merged.accepted.filter((finding) => finding.axis === axis).length] as const).filter(([, count]) => count > 0);
   const byId = new Map(merged.accepted.map((finding) => [finding.id, finding]));
@@ -98,6 +119,7 @@ function printMerged(outcome: MergeOutcome, workOrder: string): void {
       return `${label("Contest")}${a.id} (${a.axis}) and ${b.id} (${b.axis}) both change ${place(b)}. Read both: when they pull opposite ways, run \`pipeline review overrule ${workOrder} --task ${round.task} --finding ${b.id} --over ${a.id}\`, and otherwise leave both on the list.`;
     }),
     ...gates.map((gate) => `${label("Gate")}${gate.gate} ${gate.result}${gate.open > 0 ? `, ${gate.open} open` : ""}`),
+    ...(outcome.guide ? [`${label("Guide")}${outcome.guide}`] : []),
     outcome.fixList ? `${label("Fix list")}${outcome.fixList}` : `${label("Done")}no open findings, so review is done for task ${round.task}`,
   ];
   console.log(lines.join("\n"));
@@ -117,22 +139,28 @@ async function hook(): Promise<number> {
     input = {};
   }
   const reply = input.last_assistant_message ?? "";
-  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier)\.md)\W*$/m.exec(reply);
+  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier|security-(?:hunter|verifier)-\d+)\.md)\W*$/m.exec(reply);
   if (!line) {
     if (!input.stop_hook_active) console.log(JSON.stringify({ decision: "block", reason: "End your reply with the findings as one ```json block, then the line `Package: <path>` from your package." }));
     return 0;
   }
-  const [path, reviewer] = [line[1]!, line[2] as Reviewer];
-  const problems = saveReply(reply, path, reviewer, replyJson);
-  const blocks = roundPaths(resolve(path, "..")).blocks(reviewer);
+  const [path, name] = [line[1]!, line[2]!];
+  const problems = saveReply(reply, path, name, replyJson);
+  const blocks = roundPaths(resolve(path, "..")).blocks(name);
   if (problems.length === 0) {
     rmSync(blocks, { force: true });
     return 0;
   }
   const count = (existsSync(blocks) ? Number(readFileSync(blocks, "utf8")) || 0 : 0) + 1;
   writeFileSync(blocks, String(count));
+  if (name.startsWith("security-") && count > MAX_SECURITY_BLOCKS) {
+    securityReplyFailed(path, name);
+    rmSync(blocks, { force: true });
+    console.log(JSON.stringify({ systemMessage: `pipeline review: the ${name} reply failed validation twice, so it failed the security gate. Dispatch it again with ${path}.\n${problems.map((problem) => `- ${problem}`).join("\n")}` }));
+    return 0;
+  }
   if (count > MAX_BLOCKS) {
-    console.log(JSON.stringify({ systemMessage: `pipeline review could not save the ${reviewer} findings after ${MAX_BLOCKS} tries:\n${problems.map((problem) => `- ${problem}`).join("\n")}` }));
+    console.log(JSON.stringify({ systemMessage: `pipeline review could not save the ${name} findings after ${MAX_BLOCKS} tries:\n${problems.map((problem) => `- ${problem}`).join("\n")}` }));
     return 0;
   }
   console.log(JSON.stringify({ decision: "block", reason: `Your findings block has problems:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nReply again with the corrected block and the Package line.` }));

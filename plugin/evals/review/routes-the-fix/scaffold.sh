@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Task 1's first review round left one standards nit, and the implementer's fix adds the comment it asked for and passes its check.
+# Task 1's first review round left one standards nit and a clean security pass, and the implementer's fix adds the comment it asked for and passes its check.
 set -euo pipefail
 here="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 source "$here/../../fixtures/node-shipping-built.sh"
@@ -7,6 +7,7 @@ source "$here/../../fixtures/node-shipping-built.sh"
 pipeline review start "$order" --task 1 > /dev/null
 reply simplifier '[]'
 reply spec '[]'
+reply security-hunter-1 '[]'
 reply standards '[{"axis": "readability", "tag": "Nit", "file": "src/shipping.js", "line": 4, "title": "The inclusive threshold is easy to miss", "detail": "The task turns on an order of exactly 75, and >= alone does not say so.", "fix": "Say in a comment that an order at the threshold ships free."}]'
 pipeline review merge "$order" --task 1 > /dev/null
 

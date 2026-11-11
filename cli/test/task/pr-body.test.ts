@@ -190,6 +190,61 @@ describe("pipeline pr-body", () => {
     expect(stdout).toContain("- task 2 is not started");
   });
 
+  const review = (repo: string, verb: string) => pipeline(repo, ["review", verb, order, "--task", "1", "--worktree", repo]);
+  const say = (repo: string, name: string, value: unknown) =>
+    pipeline(repo, ["review", "save", "--hook"], {
+      input: JSON.stringify({ last_assistant_message: `Checked.\n\n\`\`\`json\n${JSON.stringify(value)}\n\`\`\`\n\nPackage: ${join(repo, `.pipeline/work/ship/review/task-1/round-1/package-${name}.md`)}` }),
+    });
+  const boundary = { boundary: "a hook name reaches execFile", file: "src/shipping.js", line: 3, invariant: "only a fixed list of commands runs", tests: ["an unknown command is refused"] };
+
+  // Runs task 1's first round with every reviewer clean but security, which reports what it is given.
+  function reviewed(repo: string, hunter: unknown, verdict?: string): void {
+    expect(review(repo, "start").status).toBe(0);
+    for (const name of ["simplifier", "spec", "standards"]) say(repo, name, { findings: [] });
+    say(repo, "security-hunter-1", hunter);
+    review(repo, "merge");
+    if (verdict) {
+      say(repo, "security-verifier-1", { verdicts: [{ candidate: "security-1.1", verdict, reason: "Checked against HEAD." }] });
+      review(repo, "merge");
+    }
+  }
+
+  // Adds zone code to task 1 and passes its check again.
+  function zoned(repo: string): void {
+    write(repo, "src/shipping.js", "import { execFile } from 'node:child_process';\nexport const freeShipping = (total) => total >= 75;\nexport const run = (cmd) => execFile(cmd, []);\n");
+    commitAll(repo, "fix(shipping): run the hook");
+    expect(pipeline(repo, ["tdd", "green"]).status).toBe(0);
+    expect(pipeline(repo, ["task-check"]).status).toBe(0);
+  }
+
+  it("refuses while an Important security finding is open", () => {
+    const repo = shipped();
+    const hole = { file: "src/shipping.js", line: 1, title: "Anyone can change the threshold", boundary: "visitor to settings", result: "every order ships free", severity: "high", fix: "Check the capability.", tests: ["a subscriber is denied"] };
+    reviewed(repo, { findings: [hole] }, "confirmed");
+    const { status, stdout } = body(repo);
+    expect(status).toBe(1);
+    expect(stdout).toContain("- quick security review failed for task 1");
+  });
+
+  it("refuses when the security pass is older than the task's head", () => {
+    const repo = shipped();
+    reviewed(repo, { findings: [] });
+    zoned(repo);
+    const { status, stdout } = body(repo);
+    expect(status).toBe(1);
+    expect(stdout).toMatch(/- quick security review passed for task 1 at [0-9a-f]{7}, and the task is at [0-9a-f]{7}, so review it again/);
+  });
+
+  it("puts the security review guide in Human review required for a zone PR", () => {
+    const repo = shipped();
+    zoned(repo);
+    reviewed(repo, { findings: [], boundaries: [boundary] });
+    expect(body(repo).status).toBe(0);
+    const text = readFileSync(join(repo, `.pipeline/work/ship/pr-${prOf(repo, "1").name}.md`), "utf8");
+    expect(text.split("Human review required\n\n")[1]).toMatch(/^- `src\/shipping.js` lines [\d, ]+ \(zone:input\)\n\nSecurity review guide, task 1:\n\n- Read first: `src\/shipping.js` line 3\n- Boundary: a hook name reaches execFile at `src\/shipping.js:3`\. Invariant: only a fixed list of commands runs\. Tests: an unknown command is refused\./);
+    expect(text).toMatch(/- Ran: [^\n]*quick security review/);
+  });
+
   it("needs a draft with a title", () => {
     const repo = shipped();
     write(repo, ".pipeline/work/ship/draft.md", draft.replace(/^Title:.*\n/, ""));

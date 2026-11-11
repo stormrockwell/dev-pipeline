@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { taskSection } from "../commands/brief/section.ts";
 import type { Plan, PlannedTask } from "../commands/schedule/plan.ts";
 import { appendEntry, complete, gateResults, lastTask, readLedger } from "../ledger/ledger.ts";
@@ -7,9 +8,13 @@ import { gitOut } from "../task/git.ts";
 import { findTask, readRecord, type TaskRecord } from "../task/record.ts";
 import { AGENT_TYPES, type Finding, rank, type ReportedFinding, type Reviewer, validateFindings } from "./findings.ts";
 import { mergeRound, place, renderFixList } from "./merge.ts";
-import { renderPackage, reviewGuides } from "./package.ts";
+import { renderHunterPackage, renderPackage, renderVerifierPackage, reviewGuides } from "./package.ts";
 import { diffSize, route } from "./route.ts";
-import { type Merged, openFindings, readMerged, readRound, type Round, roundDir, roundNumbers, roundPaths, writeRound } from "./state.ts";
+import { asFinding, type Candidate, gatherCandidates, HUNTER_AGENT, renderGuide, type SecurityOutcome, securityPlan, tally, validateHunter, validateVerdicts, type VerdictEntry, VERIFIER_AGENT } from "./security.ts";
+import { guidePath, hunterNames, type Merged, openFindings, readMerged, readRound, type Round, roundDir, roundNumbers, roundPaths, verifierNames, writeRound } from "./state.ts";
+
+// The WordPress attack classes a hunter reads when the diff holds PHP, copied beside the round's packages.
+const COMPANION = fileURLToPath(new URL("./wordpress-security.md", import.meta.url));
 
 // Rounds before the orchestrator stops and asks whether the approach needs rethinking.
 export const MAX_ROUNDS = 3;
@@ -61,6 +66,7 @@ export function loadContext(workOrder: string, taskId: string, worktree: string 
  */
 export function reviewerGate(reviewer: Reviewer, gates: string[]): string {
   if (reviewer === "simplifier") return gates.find((gate) => gate.startsWith("simplifier")) ?? "simplifier";
+  if (reviewer === "security") return securityPlan(gates)?.gate ?? "security";
   return reviewer;
 }
 
@@ -84,17 +90,20 @@ function stillOpen(ctx: Context, before = Infinity): Finding[] {
 
 /**
  * Records a gate result unless the gate's latest result already says the same
+ *
+ * The security gate carries the commit it judged, so a later commit leaves it stale.
  */
-function recordGate(ctx: Context, gate: string, result: "pass" | "fail" | "skip", note: string): void {
+function recordGate(ctx: Context, gate: string, result: "pass" | "fail" | "skip", note: string, head?: string): void {
   const latest = gateResults(readLedger(ctx.workOrder), ctx.task.id).get(gate);
-  if (latest && latest.result === result && latest.note === note) return;
-  appendEntry(ctx.workOrder, { kind: "gate", at: new Date().toISOString(), task: ctx.task.id, gate, result, note });
+  if (latest && latest.result === result && latest.note === note && latest.head === head) return;
+  appendEntry(ctx.workOrder, { kind: "gate", at: new Date().toISOString(), task: ctx.task.id, gate, result, note, ...(head ? { head } : {}) });
 }
 
 export interface Started {
   round: Round;
   done: string | null;
-  dispatch: { reviewer: Reviewer; agent: string; package: string }[];
+  // A model is named when the dispatch overrides the agent's own.
+  dispatch: { reviewer: Reviewer; agent: string; package: string; model?: string }[];
   skipped: { gate: string; reason: string }[];
   changed: number;
 }
@@ -117,8 +126,10 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
     const dir = roundDir(ctx.workOrder, ctx.task.id, last);
     const merged = readMerged(dir);
     if (merged === null) return describe(ctx, readRound(dir), null);
-    if (merged.accepted.filter((finding) => !removedIds(ctx).includes(finding.id)).length === 0) return describe(ctx, readRound(dir), `every gate passed in round ${last}, so review is done for task ${ctx.task.id}`);
-    if (merged.head === ctx.head) throw new ReviewError(`no commits since round ${last} merged, so send the implementer the fix list at ${roundPaths(dir).fixList}.`, 1);
+    const clean = merged.accepted.filter((finding) => !removedIds(ctx).includes(finding.id)).length === 0;
+    // Security judges one commit, so a commit after a clean round opens a round for it.
+    if (clean && (merged.head === ctx.head || securityPlan(ctx.task.gates) === null)) return describe(ctx, readRound(dir), `every gate passed in round ${last}, so review is done for task ${ctx.task.id}`);
+    if (!clean && merged.head === ctx.head) throw new ReviewError(`no commits since round ${last} merged, so send the implementer the fix list at ${roundPaths(dir).fixList}.`, 1);
   }
   const number = (last ?? 0) + 1;
   if (number > MAX_ROUNDS) {
@@ -133,6 +144,7 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
   const original = firstHead === null ? null : diffSize(ctx.record.worktree, ctx.record.base, firstHead);
   const previous = last === undefined ? null : readMerged(roundDir(ctx.workOrder, ctx.task.id, last))!.head;
   const routing = route({ worktree: ctx.record.worktree, base: ctx.record.base, from: previous, original, gates: ctx.task.gates, open });
+  const depth = securityPlan(ctx.task.gates);
 
   const round: Round = {
     task: ctx.task.id,
@@ -144,8 +156,8 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
     startHead: ctx.head,
     reviewers: routing.reviewers,
     reasons: routing.reasons,
+    security: depth !== null && routing.security !== null ? { ...depth, ...routing.security } : null,
     skipped: [
-      ...ctx.task.gates.filter((gate) => /security (?:pass|review)/.test(gate)).map((gate) => ({ gate, reason: "the security reviewer ships in 3.1" })),
       ...ctx.task.gates.filter((gate) => gate === "axe").map((gate) => ({ gate, reason: "the accessibility check ships in 3.6" })),
       ...routing.unbuilt.filter((entry) => !(entry.gate === "accessibility" && ctx.task.gates.includes("axe"))),
     ],
@@ -158,7 +170,12 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
   writeRound(dir, round);
   const section = taskSection(readFileSync(ctx.workOrder, "utf8"), ctx.task.id) ?? `## Task ${ctx.task.id}: ${ctx.task.title}`;
   const guides = reviewGuides(ctx.record.worktree, round.from);
-  for (const reviewer of round.reviewers) writeFileSync(roundPaths(dir).package(reviewer), renderPackage(reviewer, round, ctx.record, section, guides, open));
+  for (const reviewer of round.reviewers) if (reviewer !== "security") writeFileSync(roundPaths(dir).package(reviewer), renderPackage(reviewer, round, ctx.record, section, guides, open));
+  if (round.security) {
+    if (round.security.php) copyFileSync(COMPANION, roundPaths(dir).companion);
+    const mine = open.filter((finding) => finding.reviewer === "security");
+    hunterNames(round).forEach((name, index) => writeFileSync(roundPaths(dir).package(name), renderHunterPackage(index + 1, round, ctx.record, section, mine)));
+  }
   for (const skip of round.skipped) recordGate(ctx, skip.gate, "skip", skip.reason);
   if (round.reviewers.length === 0) {
     writeMergedRound(ctx, round, { head: ctx.head, accepted: [], backlog: [], duplicates: [], contests: [], fixed: open.map((finding) => finding.id), opened: 0 });
@@ -168,14 +185,18 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
 }
 
 /**
- * The dispatch lines of a round, or the reason none are needed
+ * The dispatch lines of a round for the agents that have not replied, or the reason none are needed
  */
 function describe(ctx: Context, round: Round, done: string | null): Started {
   const paths = roundPaths(roundDir(ctx.workOrder, ctx.task.id, round.round));
+  const model = round.security?.model === "opus" ? { model: "opus" } : {};
+  const all = round.reviewers.flatMap((reviewer): { reviewer: Reviewer; name: string; agent: string; model?: string }[] =>
+    reviewer === "security" ? hunterNames(round).map((name) => ({ reviewer, name, agent: HUNTER_AGENT, ...model })) : [{ reviewer, name: reviewer, agent: AGENT_TYPES[reviewer] }],
+  );
   return {
     round,
     done,
-    dispatch: done ? [] : round.reviewers.map((reviewer) => ({ reviewer, agent: AGENT_TYPES[reviewer], package: paths.package(reviewer) })),
+    dispatch: done ? [] : all.filter((entry) => !existsSync(paths.findings(entry.name))).map(({ name, ...entry }) => ({ ...entry, package: paths.package(name) })),
     skipped: round.skipped,
     changed: 0,
   };
@@ -196,7 +217,7 @@ function currentRound(ctx: Context): { dir: string; round: Round } {
 /**
  * Reads and checks one reviewer's saved findings
  */
-function readReport(ctx: Context, dir: string, round: number, reviewer: Reviewer): ReportedFinding[] {
+function readReport(ctx: Context, dir: string, round: number, reviewer: Exclude<Reviewer, "security">): ReportedFinding[] {
   const path = roundPaths(dir).findings(reviewer);
   const openIds = stillOpen(ctx, round).filter((finding) => finding.reviewer === reviewer).map((finding) => finding.id);
   const { findings, problems } = validateFindings(reviewer, JSON.parse(readFileSync(path, "utf8")), openIds);
@@ -209,22 +230,108 @@ export interface MergeOutcome {
   merged: Merged;
   gates: { gate: string; result: "pass" | "fail"; open: number }[];
   fixList: string | null;
+  guide: string | null;
+}
+
+/**
+ * A round that stopped so the verifiers can judge the hunters' candidates
+ */
+export interface Verifying {
+  round: Round;
+  verify: { agent: string; package: string }[];
+  candidates: number;
+}
+
+/**
+ * Fails a round's security gate at HEAD with the reason, so a missing or broken reply never passes it
+ */
+function failSecurity(ctx: Context, round: Round, why: string): void {
+  if (round.security) recordGate(ctx, round.security.gate, "fail", `round ${round.round}, ${why}`, ctx.head);
 }
 
 /**
  * Merges the current round's findings, writes the fix list, and records the round and each reviewer's gate
+ *
+ * Security takes two steps. With every hunter in and candidates to judge, merge writes the
+ * verifiers' packages and stops. With the verdicts in, the confirmed candidates join the other
+ * findings, and the rest go to the review guide.
  */
-export function mergeTask(ctx: Context): MergeOutcome {
+export function mergeTask(ctx: Context): MergeOutcome | Verifying {
   const { dir, round } = currentRound(ctx);
-  const missing = round.reviewers.filter((reviewer) => !existsSync(roundPaths(dir).findings(reviewer)));
+  const paths = roundPaths(dir);
+  const others = round.reviewers.filter((reviewer): reviewer is Exclude<Reviewer, "security"> => reviewer !== "security");
+  const missing = [...others.map((reviewer) => ({ name: reviewer as string, agent: AGENT_TYPES[reviewer] })), ...hunterNames(round).map((name) => ({ name, agent: HUNTER_AGENT }))].filter((entry) => !existsSync(paths.findings(entry.name)));
   if (missing.length > 0) {
-    throw new ReviewError(`no findings yet from ${missing.join(", ")}. Dispatch ${missing.map((reviewer) => AGENT_TYPES[reviewer]).join(", ")} with ${missing.map((reviewer) => roundPaths(dir).package(reviewer)).join(", ")}, or write its reply's findings block to ${missing.map((reviewer) => roundPaths(dir).findings(reviewer)).join(", ")}.`, 1);
+    const hunters = missing.filter((entry) => entry.agent === HUNTER_AGENT).map((entry) => entry.name);
+    if (hunters.length > 0) failSecurity(ctx, round, `no reply from ${hunters.join(", ")}`);
+    const reviewers = missing.filter((entry) => entry.agent !== HUNTER_AGENT).map((entry) => paths.findings(entry.name));
+    const write = reviewers.length > 0 ? `, or write a reviewer's reply findings block to ${reviewers.join(", ")}` : "";
+    const security = hunters.length > 0 ? " A security reply is never written by hand, so dispatch the hunter again. The security gate stays failed until its reply saves." : "";
+    throw new ReviewError(`no findings yet from ${missing.map((entry) => entry.name).join(", ")}. Dispatch ${missing.map((entry) => `${entry.agent} with ${paths.package(entry.name)}`).join(", ")}${write}.${security}`, 1);
   }
-  const reports = new Map(round.reviewers.map((reviewer) => [reviewer, readReport(ctx, dir, round.round, reviewer)] as const));
+  const reports = new Map<Reviewer, ReportedFinding[]>(others.map((reviewer) => [reviewer, readReport(ctx, dir, round.round, reviewer)] as const));
+  if (round.security) {
+    const settled = settleSecurity(ctx, dir, round);
+    if ("verify" in settled) return settled;
+    writeFileSync(paths.security, `${JSON.stringify(settled, null, 2)}\n`);
+    reports.set("security", settled.confirmed.map(asFinding));
+  }
   const open = openFindings(ctx.workOrder, ctx.task.id, round.round);
   const removed = removedIds(ctx);
   const merged = mergeRound({ round: round.round, scope: round.scope, head: ctx.head, reports, open, removed, fixLines: round.fixLines });
   return writeMergedRound(ctx, round, merged);
+}
+
+/**
+ * The hunters' candidates gathered once per round, with their ids fixed for the verifiers
+ */
+function roundCandidates(ctx: Context, dir: string, round: Round): ReturnType<typeof gatherCandidates> {
+  const paths = roundPaths(dir);
+  if (existsSync(paths.candidates)) return JSON.parse(readFileSync(paths.candidates, "utf8")) as ReturnType<typeof gatherCandidates>;
+  const openIds = stillOpen(ctx, round.round).filter((finding) => finding.reviewer === "security").map((finding) => finding.id);
+  const reports = hunterNames(round).map((name) => {
+    const path = paths.findings(name);
+    const { report, problems } = validateHunter(JSON.parse(readFileSync(path, "utf8")), openIds);
+    if (problems.length > 0) {
+      failSecurity(ctx, round, `${name}'s findings break the schema`);
+      throw new ReviewError(`${path} does not match the security findings schema:\n${problems.map((problem) => `- ${problem}`).join("\n")}`, 1);
+    }
+    return report;
+  });
+  const gathered = gatherCandidates(reports, round.round);
+  writeFileSync(paths.candidates, `${JSON.stringify(gathered, null, 2)}\n`);
+  return gathered;
+}
+
+/**
+ * The round's security outcome, or the verifier dispatches it waits on
+ */
+function settleSecurity(ctx: Context, dir: string, round: Round): SecurityOutcome | Verifying {
+  const paths = roundPaths(dir);
+  const { candidates, unresolved, boundaries } = roundCandidates(ctx, dir, round);
+  if (candidates.length === 0) return { confirmed: [], rejected: [], unresolved, boundaries };
+  const names = verifierNames(round);
+  const waiting = names.filter((name) => !existsSync(paths.findings(name)));
+  if (waiting.length > 0) {
+    const section = taskSection(readFileSync(ctx.workOrder, "utf8"), ctx.task.id) ?? `## Task ${ctx.task.id}: ${ctx.task.title}`;
+    names.forEach((name, index) => {
+      if (!existsSync(paths.package(name))) writeFileSync(paths.package(name), renderVerifierPackage(index + 1, round, ctx.record, section, candidates));
+    });
+    failSecurity(ctx, round, `waiting on ${waiting.length} verifier verdict${waiting.length === 1 ? "" : "s"}`);
+    return { round, verify: waiting.map((name) => ({ agent: VERIFIER_AGENT, package: paths.package(name) })), candidates: candidates.length };
+  }
+  const ids = candidates.map((candidate) => candidate.id);
+  const sets = names.map((name) => {
+    const path = paths.findings(name);
+    const { verdicts, problems } = validateVerdicts(JSON.parse(readFileSync(path, "utf8")), ids);
+    if (problems.length > 0) {
+      failSecurity(ctx, round, `${name}'s verdicts break the schema`);
+      throw new ReviewError(`${path} does not match the verdicts schema:\n${problems.map((problem) => `- ${problem}`).join("\n")}`, 1);
+    }
+    return verdicts as VerdictEntry[];
+  });
+  const settled = tally(candidates as Candidate[], sets);
+  return { ...settled, unresolved: [...unresolved, ...settled.unresolved], boundaries };
 }
 
 /**
@@ -234,7 +341,7 @@ function writeMergedRound(ctx: Context, round: Round, merged: Merged): MergeOutc
   const dir = roundDir(ctx.workOrder, ctx.task.id, round.round);
   const paths = roundPaths(dir);
   writeFileSync(paths.merged, `${JSON.stringify(merged, null, 2)}\n`);
-  const fixList = merged.accepted.length > 0 ? renderFixList(merged, ctx.task.id, round.round, ctx.record.worktree) : null;
+  const fixList = merged.accepted.length > 0 ? renderFixList(merged, ctx.task.id, round.round, ctx.record.worktree, ctx.record.tdd.required) : null;
   if (fixList) writeFileSync(paths.fixList, fixList);
 
   const backlogPath = join(dirname(ctx.workOrder), "backlog.jsonl");
@@ -246,10 +353,20 @@ function writeMergedRound(ctx: Context, round: Round, merged: Merged): MergeOutc
     const count = merged.accepted.filter((finding) => finding.reviewer === reviewer).length;
     const gate = reviewerGate(reviewer, ctx.task.gates);
     const result = count === 0 ? ("pass" as const) : ("fail" as const);
-    recordGate(ctx, gate, result, count === 0 ? `round ${round.round}, no open findings` : `round ${round.round}, ${count} open`);
+    recordGate(ctx, gate, result, count === 0 ? `round ${round.round}, no open findings` : `round ${round.round}, ${count} open`, reviewer === "security" ? merged.head : undefined);
     return { gate, result, open: count };
   });
-  return { round, merged, gates, fixList: fixList ? paths.fixList : null };
+  let guide: string | null = null;
+  if (round.security) {
+    guide = guidePath(ctx.workOrder, ctx.task.id);
+    const outcomes = roundNumbers(ctx.workOrder, ctx.task.id)
+      .filter((number) => number <= round.round)
+      .map((number) => roundPaths(roundDir(ctx.workOrder, ctx.task.id, number)).security)
+      .filter((path) => existsSync(path))
+      .map((path) => JSON.parse(readFileSync(path, "utf8")) as SecurityOutcome);
+    writeFileSync(guide, renderGuide(outcomes, merged.accepted.filter((finding) => finding.reviewer === "security")));
+  }
+  return { round, merged, gates, fixList: fixList ? paths.fixList : null, guide };
 }
 
 /**
@@ -325,26 +442,54 @@ export function dismiss(ctx: Context, id: string, reason: string): MergeOutcome 
 function remerge(ctx: Context): MergeOutcome | null {
   const { dir } = currentRoundOrLast(ctx);
   const merged = readMerged(dir);
-  return merged !== null && merged.head === ctx.head ? mergeTask(ctx) : null;
+  if (merged === null || merged.head !== ctx.head) return null;
+  const outcome = mergeTask(ctx);
+  return "verify" in outcome ? null : outcome;
 }
 
 /**
- * Saves a reviewer's reply as the round's findings, or returns the problems that block its stop
+ * A context for a round reached through its package, as the Stop hook knows it
  */
-export function saveReply(reply: string, packagePath: string, reviewer: Reviewer, parse: (reply: string) => { value: unknown } | { error: string }): string[] {
+function packageContext(round: Round): Context {
+  const record = readRecord(round.worktree);
+  return { workOrder: record.workOrder, task: { id: round.task, gates: [] as string[] } as PlannedTask, record, head: gitOut(round.worktree, ["rev-parse", "HEAD"]) };
+}
+
+/**
+ * Saves a reply as the round's findings or verdicts, or returns the problems that block its stop
+ *
+ * The name is a reviewer, or a security hunter or verifier with its number.
+ */
+export function saveReply(reply: string, packagePath: string, name: string, parse: (reply: string) => { value: unknown } | { error: string }): string[] {
   const dir = dirname(packagePath);
   const paths = roundPaths(dir);
   if (!existsSync(paths.state)) return [`${packagePath} is not a review package from \`pipeline review start\``];
   const round = readRound(dir);
-  if (!round.reviewers.includes(reviewer)) return [`round ${round.round} of task ${round.task} did not ask ${reviewer} to review`];
-  writeFileSync(paths.reply(reviewer), `${reply.trim()}\n`);
+  const security = name.startsWith("security-");
+  const asked = security ? [...hunterNames(round), ...(existsSync(paths.candidates) ? verifierNames(round) : [])] : round.reviewers;
+  if (!asked.includes(name)) return [`round ${round.round} of task ${round.task} did not ask ${name} to review`];
+  writeFileSync(paths.reply(name), `${reply.trim()}\n`);
   const parsed = parse(reply);
   if ("error" in parsed) return [parsed.error];
-  const record = readRecord(round.worktree);
-  const ctx: Context = { workOrder: record.workOrder, task: { id: round.task } as PlannedTask, record, head: "" };
-  const openIds = stillOpen(ctx, round.round).filter((finding) => finding.reviewer === reviewer).map((finding) => finding.id);
-  const { problems } = validateFindings(reviewer, parsed.value, openIds);
+  const ctx = packageContext(round);
+  const openIds = (reviewer: Reviewer) => stillOpen(ctx, round.round).filter((finding) => finding.reviewer === reviewer).map((finding) => finding.id);
+  let problems: string[];
+  if (name.startsWith("security-hunter-")) problems = validateHunter(parsed.value, openIds("security")).problems;
+  else if (name.startsWith("security-verifier-")) {
+    const { candidates } = JSON.parse(readFileSync(paths.candidates, "utf8")) as { candidates: Candidate[] };
+    problems = validateVerdicts(parsed.value, candidates.map((candidate) => candidate.id)).problems;
+  } else problems = validateFindings(name as Reviewer, parsed.value, openIds(name as Reviewer)).problems;
   if (problems.length > 0) return problems;
-  writeFileSync(paths.findings(reviewer), `${JSON.stringify(parsed.value, null, 2)}\n`);
+  writeFileSync(paths.findings(name), `${JSON.stringify(parsed.value, null, 2)}\n`);
   return [];
+}
+
+/**
+ * Fails the security gate of the round a package belongs to, for a reply that never validated
+ */
+export function securityReplyFailed(packagePath: string, name: string): void {
+  const dir = dirname(packagePath);
+  if (!existsSync(roundPaths(dir).state)) return;
+  const round = readRound(dir);
+  failSecurity(packageContext(round), round, `${name}'s reply failed validation twice`);
 }

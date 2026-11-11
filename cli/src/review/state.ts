@@ -1,8 +1,21 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Finding, Reviewer } from "./findings.ts";
+import type { SecurityDepth } from "./security.ts";
 
 export type Scope = "full" | "fix";
+
+/**
+ * The security review a round runs: its depth, and where its diff starts
+ *
+ * A fix round's security diff starts at the task's base when the fix touched zone code, because a
+ * fix in one place can open a hole in another.
+ */
+export interface SecurityRound extends SecurityDepth {
+  from: string;
+  // The diff holds PHP, so the hunters and verifiers read the WordPress companion.
+  php: boolean;
+}
 
 /**
  * A review round as `pipeline review start` opened it
@@ -21,6 +34,7 @@ export interface Round {
   startHead: string;
   reviewers: Reviewer[];
   reasons: Partial<Record<Reviewer, string>>;
+  security: SecurityRound | null;
   skipped: { gate: string; reason: string }[];
   zoneFiles: string[];
   fixLines: Record<string, number[]> | null;
@@ -57,6 +71,9 @@ export function roundDir(workOrder: string, task: string, round: number): string
 
 /**
  * Paths of a round's files
+ *
+ * A name is a reviewer, or a security agent with its number, such as `security-hunter-2`. A
+ * verifier's verdicts go where a reviewer's findings would.
  */
 export function roundPaths(dir: string) {
   return {
@@ -64,11 +81,35 @@ export function roundPaths(dir: string) {
     state: join(dir, "round.json"),
     merged: join(dir, "merged.json"),
     fixList: join(dir, "fix-list.md"),
-    package: (reviewer: Reviewer) => join(dir, `package-${reviewer}.md`),
-    findings: (reviewer: Reviewer) => join(dir, `findings-${reviewer}.json`),
-    reply: (reviewer: Reviewer) => join(dir, `reply-${reviewer}.md`),
-    blocks: (reviewer: Reviewer) => join(dir, `stop-blocks-${reviewer}`),
+    candidates: join(dir, "candidates.json"),
+    security: join(dir, "security.json"),
+    companion: join(dir, "wordpress-security.md"),
+    package: (name: string) => join(dir, `package-${name}.md`),
+    findings: (name: string) => join(dir, `findings-${name}.json`),
+    reply: (name: string) => join(dir, `reply-${name}.md`),
+    blocks: (name: string) => join(dir, `stop-blocks-${name}`),
   };
+}
+
+/**
+ * The security agents of a round, by the names their packages carry
+ */
+export function hunterNames(round: Round): string[] {
+  return Array.from({ length: round.security?.hunters ?? 0 }, (_, index) => `security-hunter-${index + 1}`);
+}
+
+/**
+ * The verifiers of a round, by the names their packages carry
+ */
+export function verifierNames(round: Round): string[] {
+  return Array.from({ length: round.security?.verifiers ?? 0 }, (_, index) => `security-verifier-${index + 1}`);
+}
+
+/**
+ * The review guide of a task, beside its rounds, which pr-body puts in front of the human
+ */
+export function guidePath(workOrder: string, task: string): string {
+  return join(taskReviewDir(workOrder, task), "guide.md");
 }
 
 /**
