@@ -39,7 +39,7 @@ test("the work order skill drives the deterministic commands", () => {
   assert.match(body, /pipeline classify --json <owned files>/);
   assert.match(body, /pipeline schedule \.pipeline\/work\/<slug>\/work-order\.md/);
   assert.match(body, /--range <base>\.\.HEAD/);
-  assert.match(body, /git check-ignore/);
+  assert.match(body, /keeps the folder git-ignored/);
 });
 
 test("the work order skill keeps lowering with a peer", () => {

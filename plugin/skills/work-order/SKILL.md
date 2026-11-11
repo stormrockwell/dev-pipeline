@@ -21,7 +21,7 @@ Paperwork scales with the work:
 
 Zone work, such as auth, permissions, nonces, request input, SQL, uploads, secrets, personal data or destructive data changes, goes in its own task, and that task carries all of the component's security logic. When the logic is scattered, the first task is a prefactor that consolidates it into one module. A task that cannot stand alone, such as a one-line hook registration, sets `joins: <id>` to ride in that task's PR.
 
-Write `.pipeline/work/<slug>/work-order.md`. The folder stays git-ignored: when `git check-ignore -q .pipeline/work/<slug>/work-order.md` fails, add `.pipeline/work/` to `.git/info/exclude`.
+Write `.pipeline/work/<slug>/work-order.md`. `pipeline schedule` keeps the folder git-ignored.
 
 ```markdown
 ---

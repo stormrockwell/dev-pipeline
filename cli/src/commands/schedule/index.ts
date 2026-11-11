@@ -1,11 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { classifyInputs } from "../classify/tier.ts";
 import { collectFiles, collectRange } from "../scan-zones/collect.ts";
 import { loadConfig } from "../scan-zones/config.ts";
 import { git, repoTop } from "../secrets/git.ts";
+import { excludeLocally } from "../../task/git.ts";
 import { buildPlan, type DiffFile, type Plan, type Rules } from "./plan.ts";
 import { renderPlan } from "./render.ts";
 import { parseWorkOrder } from "./work-order.ts";
@@ -100,6 +101,10 @@ async function run(argv: string[]): Promise<number> {
       previous: readPrevious(record),
     });
     writeFileSync(record, `${JSON.stringify(plan, null, 2)}\n`);
+    // Claude Code refuses edits inside .git, so the CLI keeps the work folder ignored for the skill.
+    const top = repoTop(dir);
+    const work = top === null ? [] : relative(realpathSync(top), realpathSync(file)).split(sep);
+    if (top !== null && work[0] === ".pipeline" && work[1] === "work") excludeLocally(top, ".pipeline/work/", work.join("/"));
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
