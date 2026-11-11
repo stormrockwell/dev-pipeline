@@ -54,6 +54,19 @@ test("finish asks before it pushes, opens drafts only, and never merges", () => 
   assert.ok(body.indexOf("(y/N)") < body.indexOf("git -C <path> push"), "the question comes before the push");
 });
 
+test("finish posts the security status once for the pushed head, under the push yes", () => {
+  const { body } = finish();
+  assert.ok(body.includes("pipeline security-status .pipeline/work/<slug>/work-order.md --pr <pr> --dir <path>"));
+  assert.match(body, /gh api repos\/<owner>\/<repo>\/statuses\/<sha>/);
+  assert.match(body, /pipeline\/security/);
+  assert.match(body, /once/);
+  assert.match(body, /pushed head only/);
+  assert.match(body, /same yes[^.]*do not ask again/);
+  const push = body.indexOf("git -C <path> push");
+  assert.ok(push < body.indexOf("pipeline security-status"), "the status follows the push");
+  assert.ok(body.indexOf("pipeline security-status") < body.indexOf("gh pr create"), "the status comes before the PR opens");
+});
+
 test("finish drives the scripts for versions, the body and labels", () => {
   const { body } = finish();
   for (const command of [
