@@ -177,6 +177,32 @@ Human review: none.
       cleanup();
     });
 
+    it("leaves generated Security review lines out of the count", () => {
+      const callouts = Array.from({ length: 3 }, (_, index) => `Security review: not run for task ${index + 1} (not recorded).`).join("\n");
+      const body = `## What changed
+${"word ".repeat(237) + "more"}
+
+## Why this approach
+Approach here.
+
+## How to verify
+Test it.
+
+## Risk
+Door: one-way.
+Blast radius: local.
+Human review: none.
+${callouts}
+
+## Auditors
+- Ran: security (quick)
+`;
+      const result = pipeline("pr-check", "--file", writeTestFile("callouts.md", body));
+      expect(result.stdout).toBe("");
+      expect(result.status).toBe(0);
+      cleanup();
+    });
+
     it("passes with exactly 250 words", () => {
       const longBody = "word ".repeat(237) + "more";
       const body = `## What changed

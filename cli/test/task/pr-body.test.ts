@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { auditors, type RecordJson } from "../../src/commands/pr-body/auditors.ts";
+import { auditors, securityCallouts, type RecordJson } from "../../src/commands/pr-body/auditors.ts";
 import { assembleBody, humanReviewLine, parseDraft } from "../../src/commands/pr-body/body.ts";
 import { git, pipeline, removeTemps, write } from "../helpers/repo.ts";
 import { brief, commitAll, fixShipping, taskRepo, writeTest } from "./fixture.ts";
@@ -85,6 +85,32 @@ describe("auditors", () => {
   });
 });
 
+describe("securityCallouts", () => {
+  const task = (id: string, tier: string) => ({ id, tier, zones: [], status: "DONE" });
+  const record = (tier: string, gate: RecordJson["gates"][number]["result"], note: string | null = null): RecordJson => ({
+    work: "ship",
+    pr: null,
+    tasks: [task("1", tier)],
+    gates: [{ task: "1", gate: tier === "T0" ? "light security pass" : tier === "T2" ? "quick security review" : "full security review with verifier vote", result: gate, note }],
+  });
+
+  it.each(["T0", "T1", "T2"])("says a %s task's unrecorded security gate was not recorded", (tier) => {
+    expect(securityCallouts(record(tier, "pending"))).toEqual(["Security review: not run for task 1 (not recorded)."]);
+  });
+
+  it("gives the skip note as the reason, one line per task", () => {
+    const skipped = record("T2", "skip", "security reviewer not built yet");
+    skipped.tasks.push(task("2", "T0"));
+    skipped.gates.push({ task: "2", gate: "light security pass", result: "pending", note: null });
+    expect(securityCallouts(skipped)).toEqual(["Security review: not run for task 1 (security reviewer not built yet).", "Security review: not run for task 2 (not recorded)."]);
+  });
+
+  it("says nothing when the security gate passed or the plan has none", () => {
+    expect(securityCallouts(record("T2", "pass"))).toEqual([]);
+    expect(securityCallouts({ ...record("T2", "pass"), gates: [] })).toEqual([]);
+  });
+});
+
 describe("parseDraft and assembleBody", () => {
   it("keeps the agent's sections and replaces the parts a script owns", () => {
     const parsed = parseDraft(draft);
@@ -95,6 +121,13 @@ describe("parseDraft and assembleBody", () => {
     expect(body).toContain("Blast radius: the free shipping check.\nHuman review: required, zone:input (src/api.js).\n\n## Human review required\n\n- `src/api.js` lines 4, 12 (zone:input)");
     expect(body).not.toContain("Ran: everything");
     expect(body.endsWith("## Auditors\n\n- Ran: TDD\n\nCo-Authored using AI\n\n<!-- pipeline:gate-record\n{}\n-->\n")).toBe(true);
+  });
+
+  it("puts the generated callouts in Risk after the Human review line and drops a draft's own", () => {
+    const parsed = parseDraft(draft.replace("Human review: none.", "Security review: not run for task 9 (mine).\nHuman review: none."));
+    const body = assembleBody(parsed, new Map(), ["- Ran: TDD"], "<!-- x -->", [], ["Security review: not run for task 1 (not recorded)."]);
+    expect(body).toContain("Human review: none.\nSecurity review: not run for task 1 (not recorded).\n\n## Auditors");
+    expect(body).not.toContain("task 9");
   });
 
   it("writes Human review none without zones", () => {
@@ -143,6 +176,48 @@ describe("pipeline pr-body", () => {
     expect(text).toContain("## How to verify\n\n```\nnode --test\n```");
     expect(text).toContain("Human review: none.");
     expect(text).toMatch(/Co-Authored using AI\n\n<!-- pipeline:gate-record\n\{.*"work":"ship".*\}\n-->\n$/);
+  });
+
+  it("adds a callout for each task whose security gate was not recorded, and the body passes pr-check", () => {
+    const repo = shipped();
+    const { status, stdout } = body(repo);
+    expect(status).toBe(0);
+    expect(stdout).toContain("passes pr-check");
+    const text = readFileSync(join(repo, `.pipeline/work/ship/pr-${prOf(repo, "1").name}.md`), "utf8");
+    expect(text).toContain("Human review: none.\nSecurity review: not run for task 1 (not recorded).\nSecurity review: not run for task 2 (not recorded).\n\n## Auditors");
+    expect(stdout).toContain("Security review: not run for task 1 (not recorded).");
+  });
+
+  it("gives the skip note in the callout and leaves a passed gate out", () => {
+    const repo = shipped();
+    pipeline(repo, ["ledger", "gate", order, "--task", "1", "--gate", "quick security review", "--result", "skip", "--note", "reviewer not built"]);
+    pipeline(repo, ["ledger", "gate", order, "--task", "2", "--gate", "light security pass", "--result", "pass"]);
+    const { stdout } = body(repo);
+    expect(stdout).toContain("Security review: not run for task 1 (reviewer not built).");
+    expect(stdout).not.toContain("task 2 (");
+  });
+
+  const asT3 = (repo: string) => {
+    const file = join(repo, ".pipeline/work/ship/work-order.md");
+    write(repo, ".pipeline/work/ship/work-order.md", readFileSync(file, "utf8").replace("tier: T2", "tier: T3"));
+    expect(pipeline(repo, ["schedule", ".pipeline/work/ship/work-order.md"]).status).toBe(0);
+  };
+
+  it("refuses a T3 task whose security gate was never recorded, and names the task and gate", () => {
+    const repo = shipped();
+    asT3(repo);
+    const { status, stdout } = body(repo);
+    expect(status).toBe(1);
+    expect(stdout).toContain("- full security review with verifier vote not recorded for task 1");
+  });
+
+  it("refuses a T3 task whose security gate was skipped", () => {
+    const repo = shipped();
+    asT3(repo);
+    pipeline(repo, ["ledger", "gate", order, "--task", "1", "--gate", "full security review with verifier vote", "--result", "skip", "--note", "no time"]);
+    const { status, stdout } = body(repo);
+    expect(status).toBe(1);
+    expect(stdout).toContain("- full security review with verifier vote skipped for task 1 (no time)");
   });
 
   it("refuses while a gate failed", () => {

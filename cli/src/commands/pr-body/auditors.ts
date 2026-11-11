@@ -59,10 +59,54 @@ export function auditors(record: RecordJson): string[] {
  * too when the task has moved past that commit, because its pass says nothing about the new code.
  */
 export function failedGates(record: RecordJson): string[] {
-  const failed = record.gates.filter((gate) => gate.result === "fail").map((gate) => `${gate.gate} failed for task ${gate.task}`);
+  return [...record.gates.filter((gate) => gate.result === "fail").map((gate) => `${gate.gate} failed for task ${gate.task}`), ...staleGates(record).map((stale) => stale.message)];
+}
+
+/**
+ * Gates that passed at a commit the task has since moved past
+ */
+export function staleGates(record: RecordJson): { task: string; gate: string; at: string; now: string; message: string }[] {
+  const stale = [];
   for (const gate of record.gates.filter((entry) => entry.result === "pass" && entry.head)) {
     const head = record.tasks.find((task) => task.id === gate.task)?.commits?.split("..")[1];
-    if (head && !gate.head!.startsWith(head)) failed.push(`${gate.gate} passed for task ${gate.task} at ${gate.head!.slice(0, 7)}, and the task is at ${head.slice(0, 7)}, so review it again`);
+    if (head && !gate.head!.startsWith(head)) {
+      const [at, now] = [gate.head!.slice(0, 7), head.slice(0, 7)];
+      stale.push({ task: gate.task, gate: gate.gate, at, now, message: `${gate.gate} passed for task ${gate.task} at ${at}, and the task is at ${now}, so review it again` });
+    }
   }
-  return failed;
+  return stale;
+}
+
+/**
+ * Security gates nobody recorded, or that were recorded as a skip
+ *
+ * Each names the task, its tier, the gate and why it did not run: the skip note, or "not recorded".
+ * A failed gate is not here, because failedGates holds the PR for it.
+ */
+export function securityGaps(record: RecordJson): { task: string; tier: string; gate: string; skipped: boolean; reason: string }[] {
+  return record.gates
+    .filter((gate) => /security (?:pass|review)/.test(gate.gate) && (gate.result === "pending" || gate.result === "skip"))
+    .map((gate) => ({
+      task: gate.task,
+      tier: record.tasks.find((task) => task.id === gate.task)?.tier ?? "",
+      gate: gate.gate,
+      skipped: gate.result === "skip",
+      reason: gate.result === "skip" ? (gate.note ?? "skipped").replace(/\s+/g, " ").trim() : "not recorded",
+    }));
+}
+
+/**
+ * The Risk lines for a security gate that did not run, one per task
+ */
+export function securityCallouts(record: RecordJson): string[] {
+  return securityGaps(record).map((gap) => `Security review: not run for task ${gap.task} (${gap.reason}).`);
+}
+
+/**
+ * T3 tasks whose security gate did not run, which hold the PR
+ */
+export function blockedSecurity(record: RecordJson): string[] {
+  return securityGaps(record)
+    .filter((gap) => gap.tier === "T3")
+    .map((gap) => (gap.skipped ? `${gap.gate} skipped for task ${gap.task} (${gap.reason}), and a T3 task needs it` : `${gap.gate} not recorded for task ${gap.task}, and a T3 task needs it`));
 }

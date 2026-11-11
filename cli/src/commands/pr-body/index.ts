@@ -10,7 +10,7 @@ import type { Plan } from "../schedule/plan.ts";
 import { loadConfig } from "../scan-zones/config.ts";
 import { isTestFile } from "../scan-zones/scan.ts";
 import { repoTop } from "../secrets/git.ts";
-import { auditors, failedGates, type RecordJson } from "./auditors.ts";
+import { auditors, blockedSecurity, failedGates, securityCallouts, type RecordJson } from "./auditors.ts";
 import { assembleBody, parseDraft, type ZoneFiles } from "./body.ts";
 import { guidePath } from "../../review/state.ts";
 
@@ -27,8 +27,10 @@ Blast radius lines. pr-body adds the rest:
                  Accepted only when a finding was dismissed.
   Record         \`Co-Authored using AI\`, then the gate record as a hidden comment.
 
-It refuses while a task in the PR is not done in the ledger, a gate failed, or the security gate passed
-on an older commit than the task's, then checks the body with \`pipeline pr-check\` and prints the
+It refuses while a task in the PR is not done in the ledger, a gate failed, the security gate passed
+on an older commit than the task's, or a T3 task's security gate was skipped or never recorded. For
+a lower tier, a security gate that did not run adds \`Security review: not run for task <id> (<reason>).\`
+to Risk and to the printed summary. It checks the body with \`pipeline pr-check\` and checks the body with \`pipeline pr-check\` and prints the
 title and the labels the PR takes.
 
 Options:
@@ -143,6 +145,12 @@ async function run(argv: string[]): Promise<number> {
     console.log(["pr-body: not written, because a gate failed and the fix loop owns it", ...failed.map((gate) => `- ${gate}`)].join("\n"));
     return 1;
   }
+  const blocked = blockedSecurity(record);
+  if (blocked.length > 0) {
+    console.log(["pr-body: not written, because a T3 task has no security review", ...blocked.map((gate) => `- ${gate}`)].join("\n"));
+    return 1;
+  }
+  const callouts = securityCallouts(record);
 
   const scanned = pipeline(["scan-zones", "--range", values.range, "--path", dir, "--json"], dir);
   if (scanned.status !== 0) return fail(`scan-zones failed: ${(scanned.stderr || scanned.stdout).trim()}`);
@@ -152,17 +160,17 @@ async function run(argv: string[]): Promise<number> {
   const zones = zoneFiles(JSON.parse(scanned.stdout) as ScanReport, plan, pr.tasks, diff.stdout.split("\n").filter(Boolean), (path) => isTestFile(zoneConfig, path));
 
   const guides = pr.tasks.map((task) => ({ task, path: guidePath(file, task) })).filter((guide) => existsSync(guide.path)).map((guide) => ({ task: guide.task, text: readFileSync(guide.path, "utf8") }));
-  const body = assembleBody(draft, zones, auditors(record), hidden, guides);
+  const body = assembleBody(draft, zones, auditors(record), hidden, guides, callouts);
   const out = resolve(values.out ?? join(dirname(file), `pr-${pr.name}.md`));
   writeFileSync(out, body);
 
   const checked = pipeline(["pr-check", "--file", out, "--title", draft.title], dir);
   const summary = [`Title   ${draft.title}`, `Labels  ${labels(plan, pr.tasks, pr.peers, zones).join(", ")}`, `PR      ${pr.name}`, `Base    ${values.range.split("..")[0]}${pr.stacksOn.length > 0 ? `, stacked on PR ${pr.stacksOn.join(", ")}` : ""}`];
   if (checked.status !== 0) {
-    console.log([`pr-body: wrote ${out}, and pr-check found problems for the docs agent to fix`, ...checked.stdout.trim().split("\n").map((line) => `- ${line}`), ...summary].join("\n"));
+    console.log([`pr-body: wrote ${out}, and pr-check found problems for the docs agent to fix`, ...checked.stdout.trim().split("\n").map((line) => `- ${line}`), ...summary, ...callouts].join("\n"));
     return 1;
   }
-  console.log([`pr-body: wrote ${out}, and it passes pr-check`, ...summary].join("\n"));
+  console.log([`pr-body: wrote ${out}, and it passes pr-check`, ...summary, ...callouts].join("\n"));
   return 0;
 }
 

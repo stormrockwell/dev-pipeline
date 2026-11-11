@@ -12,8 +12,8 @@ const GENERATED = ["Human review required", "Auditors"];
 /**
  * Parses a draft, dropping the parts pr-body writes itself
  *
- * The first `Title:` line is the PR title. Hidden comments, a Co-Authored line and any Human review
- * line go, because the generated versions replace them.
+ * The first `Title:` line is the PR title. Hidden comments, a Co-Authored line, any Human review
+ * line and any Security review callout go, because the generated versions replace them.
  */
 export function parseDraft(source: string): Draft {
   // An agent sometimes wraps its whole reply in a markdown fence, which is unwrapped once.
@@ -28,7 +28,7 @@ export function parseDraft(source: string): Draft {
       current = { heading: heading[1]!, lines: [] };
       continue;
     }
-    if (current && !/^Co-Authored using AI\s*$/.test(line) && !/^Human review:/i.test(line.trim()) && !/^\s*\**Title:/.test(line)) current.lines.push(line);
+    if (current && !/^Co-Authored using AI\s*$/.test(line) && !/^Human review:/i.test(line.trim()) && !/^Security review: not run for task/.test(line.trim()) && !/^\s*\**Title:/.test(line)) current.lines.push(line);
   }
   if (current) sections.push({ heading: current.heading, body: current.lines.join("\n").trim() });
   return { title, sections: sections.filter((section) => !GENERATED.includes(section.heading)) };
@@ -67,20 +67,20 @@ export function humanReviewSection(zones: ZoneFiles, guides: { task: string; tex
  * Puts the body together: the draft's sections, the Risk section with the generated Human review
  * line, the review list for zone files, the Auditors list, the AI line and the hidden gate record
  */
-export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string, guides: { task: string; text: string }[] = []): string {
+export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string, guides: { task: string; text: string }[] = [], callouts: string[] = []): string {
   const parts: string[] = [];
   let risk = false;
   for (const section of draft.sections) {
     if (section.heading === "Risk") {
       risk = true;
-      parts.push(`## Risk\n\n${[section.body, humanReviewLine(zones)].filter(Boolean).join("\n")}`);
+      parts.push(`## Risk\n\n${[section.body, humanReviewLine(zones), ...callouts].filter(Boolean).join("\n")}`);
       const review = humanReviewSection(zones, guides);
       if (review) parts.push(`## Human review required\n\n${review}`);
       continue;
     }
     parts.push(`## ${section.heading}\n\n${section.body}`);
   }
-  if (!risk) parts.push(`## Risk\n\n${humanReviewLine(zones)}`);
+  if (!risk) parts.push(`## Risk\n\n${[humanReviewLine(zones), ...callouts].join("\n")}`);
   parts.push(`## Auditors\n\n${auditorLines.join("\n")}`);
   parts.push("Co-Authored using AI");
   parts.push(hidden.trim());
