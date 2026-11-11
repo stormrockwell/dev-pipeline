@@ -21,7 +21,7 @@ const usage = `Usage: pipeline review start <work-order.md> --task <id> [--workt
        pipeline review save --hook
 
 Runs the review rounds of one task, step 6 of the change route. Reviewers: spec, standards, the
-simplifier and security, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
+simplifier, security and accessibility, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
 Security runs at the depth its gate names: light and quick send one hunter and one verifier, and full
 sends three hunters on opus and a vote of three verifiers.
 
@@ -139,7 +139,7 @@ async function hook(): Promise<number> {
     input = {};
   }
   const reply = input.last_assistant_message ?? "";
-  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier|security-(?:hunter|verifier)-\d+)\.md)\W*$/m.exec(reply);
+  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier|accessibility|security-(?:hunter|verifier)-\d+)\.md)\W*$/m.exec(reply);
   if (!line) {
     if (!input.stop_hook_active) console.log(JSON.stringify({ decision: "block", reason: "End your reply with the findings as one ```json block, then the line `Package: <path>` from your package." }));
     return 0;
