@@ -24,6 +24,7 @@ const OWNERS = {
   "plugin/skills/report/": routed,
   "plugin/skills/debug/": routed,
   "plugin/skills/spike/": routed,
+  "plugin/skills/bootstrap/": routed,
   "plugin/skills/work-order/": ["work-order", "routing"],
   "plugin/skills/build/": ["build"],
   "plugin/agents/implementer.md": ["build", "review"],

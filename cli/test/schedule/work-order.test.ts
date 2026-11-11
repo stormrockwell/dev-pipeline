@@ -86,7 +86,7 @@ tasks:
     ["a task without files", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: []\n---\n", /task 1 owns no files/],
     ["a duplicate id", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n  - id: 1\n    title: b\n    files: [b]\n---\n", /duplicate task id 1/],
     ["a bad tier", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n    tier: T9\n---\n", /task 1 tier must be T0, T1, T2 or T3/],
-    ["a bad zone", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n    zones: [login]\n---\n", /task 1 has unknown zone "login"/],
+    ["a bad zone", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n    zones: [login]\n---\n", /task 1 has unknown zone "login", use one of [a-z, -]*authz/],
     ["a bad level", "---\ntitle: x\nlevel: yolo\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n---\n", /level must be guide, confirm or autopilot/],
     ["an unknown key", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n    owner: me\n---\n", /task 1 has unknown key "owner"/],
     ["a join to an unknown task", "---\ntitle: x\ntasks:\n  - id: 1\n    title: a\n    files: [a]\n    joins: 4\n---\n", /task 1 joins unknown task 4/],

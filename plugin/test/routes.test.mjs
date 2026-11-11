@@ -27,6 +27,7 @@ const routes = {
   report: "report",
   debug: "debug",
   spike: "spike",
+  bootstrap: "new project",
 };
 const writingRoutes = ["quick-change", "debug", "spike"];
 
@@ -71,6 +72,15 @@ test("the report goes outside the repo and has a writer brief", () => {
   assert.match(body, /~\/pipeline-reports/);
   assert.match(body, /writer\.md/);
   assert.ok(existsSync(join(root, "skills/report/writer.md")));
+});
+
+test("bootstrap asks first, scaffolds through init and asks before anything leaves the machine", () => {
+  const { body } = frontmatter("skills/bootstrap/SKILL.md");
+  assert.match(body, /pipeline init --mode new/);
+  assert.match(body, /before writing anything/);
+  assert.match(body, /gh repo create/);
+  assert.match(body, /stop until the developer answers/);
+  assert.match(body, /dev-pipeline:work-order/);
 });
 
 test("debug reproduces before fixing and keeps remote sites read-only", () => {

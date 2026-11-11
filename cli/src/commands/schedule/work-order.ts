@@ -77,7 +77,7 @@ function parseTask(raw: YamlValue, index: number): Task {
   if (tier !== null && !TIERS.includes(tier as Tier)) throw new Error(`${where} tier must be T0, T1, T2 or T3`);
   const zones = list(raw.zones, `${where} zones`);
   for (const zone of zones ?? []) {
-    if (!ZONES.includes(zone as Zone)) throw new Error(`${where} has unknown zone "${zone}"`);
+    if (!ZONES.includes(zone as Zone)) throw new Error(`${where} has unknown zone "${zone}", use one of ${ZONES.join(", ")}`);
   }
   const loweredBy = text(raw.lowered_by);
   const loweredReason = text(raw.lowered_reason);

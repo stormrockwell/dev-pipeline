@@ -1,0 +1,1 @@
+../../fixtures/acme-sync.sh
