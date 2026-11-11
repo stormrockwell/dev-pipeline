@@ -97,10 +97,10 @@ Decision 4 (environment profile) is needed before teammates join in Phase 5.
 | 3.4 | Reach check: the callers of changed functions | Sonnet | 1.6 | the helper gap case passes |
 | 3.5 | Performance reviewer and the N+1 query-count helper | Sonnet | 2.6 | performance eval cases pass |
 | 3.6 | Accessibility: axe with baselines, and the agent keyboard pass | Sonnet | 1.3 | an accessibility regression blocks |
-| 3.7 | Design reviewer: evaluate UIMatch and VisualCheck, then the token, wireframe and pixel checks | Sonnet | decision 8 | one frame passes and one planted drift fails |
+| 3.7 | Deferred: the design reviewer on Figma's MCP server. Evaluate UIMatch and VisualCheck, then the token, wireframe and pixel checks | Sonnet | | one frame passes and one planted drift fails |
 | 3.8 | Close the scenario gaps: credentials rule, API mocking, webhook signals, production evidence rule, quiet security fixes | Opus | section 15 | the strategy and skills cover each gap |
 
-Tasks 3.4, 3.5, 3.6 and 3.7 share nothing and run in parallel.
+Tasks 3.4, 3.5 and 3.6 share nothing and run in parallel.
 
 **Exit.** The planted suite meets the recall target, clean controls stay under the false-alarm target, the mutation check catches a test that proves nothing, and the security reviewer run over the MCP server flags every permission and input boundary you marked in 0.6.
 
