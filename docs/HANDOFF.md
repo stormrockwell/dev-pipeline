@@ -101,14 +101,13 @@ Phase 1 is complete. In Phase 2, these are merged:
 
 ## Next
 
-1. 2.10 evals in CI is built and waits on a `CLAUDE_CODE_OAUTH_TOKEN` repo secret. The user runs `claude setup-token`, stores its output with `gh secret set CLAUDE_CODE_OAUTH_TOKEN`, then starts the Evals workflow by hand once to prove the Linux sandbox works.
-2. The Phase 2 exit in `docs/PLAN.md`: the four scenarios as plugin evals, one real feature on Media on Autopilot through the change route in a separate clone, and a zone PR on the MCP server.
+1. The Phase 2 exit in `docs/PLAN.md`: the four scenarios as plugin evals, one real feature on Media on Autopilot through the change route in a separate clone, and a zone PR on the MCP server.
 
 ## Running plugin evals
 
 Run them through `node plugin/evals/run.mjs`, for example `node plugin/evals/run.mjs --runs 3 --model sonnet --case 'routes-*'`. It builds `--allow-tools` from each case's own grants, refuses plain Bash, and puts the git and pipeline shims from `tools/eval-bin/` first on PATH. Run each case once until it passes, and do 3 runs only for final numbers.
 
-In CI, `.github/workflows/evals.yml` runs only the tags that `plugin/evals/affected.mjs` picks from the PR's changed files, once each. A docs-only PR runs nothing. A manual run of the workflow takes tags or `all` and a run count, for final numbers.
+Before a PR, run `node plugin/evals/run.mjs --runs 1 --model sonnet --affected`. It runs only the tags `plugin/evals/affected.mjs` picks from the branch's changes, and runs nothing for a docs-only change. Evals never run in CI, so no repo holds a Claude token.
 
 What the harness taught us:
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Picks the eval tags a change can affect, so CI spends plan usage only on cases the diff could move.
+ * Picks the eval tags a change can affect, so a run spends plan usage only on cases the diff could move.
  * Each plugin file owns a set of tags. A CLI command maps to every owner whose text runs
  * `pipeline <command>`, and a shared CLI module maps to every command that imports it,
  * directly or through another module. Eval infrastructure maps to every tag.

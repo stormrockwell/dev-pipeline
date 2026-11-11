@@ -41,3 +41,10 @@ test("every skill, agent and hook file has an owner, so none skips its evals", (
     assert.notDeepEqual(affectedTags([file]), [], `${file} has no owner in plugin/evals/affected.mjs`);
   }
 });
+
+test("--affected becomes one --tag list, or nothing to run", async () => {
+  const { expandAffected } = await import("../evals/run.mjs");
+  assert.deepEqual(expandAffected(["--runs", "1"], []), ["--runs", "1"]);
+  assert.deepEqual(expandAffected(["--runs", "1", "--affected"], ["plugin/agents/docs.md"]), ["--runs", "1", "--tag", "finish"]);
+  assert.equal(expandAffected(["--affected"], ["docs/HANDOFF.md"]), null);
+});
