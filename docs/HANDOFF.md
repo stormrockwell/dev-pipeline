@@ -71,6 +71,7 @@ The standards fork in use is `stormrockwell/coding-standards`.
 
 - Agents commit, push feature branches and open PRs. Only the orchestrator opens a PR, as a draft in the finish step after reviews. Agents never merge, never force push, never push to main and never edit permission settings. Only the user merges.
 - No Anthropic API keys. Every model call goes through Claude Code on the plan.
+- Keep plan usage low without losing accuracy. Run only the eval cases a change affects, pick the cheapest model that works, and report eval cost as API-priced plan usage.
 - Never commit sensitive data. Ask before `gh repo create`, global installs, outward-facing GitHub settings, or any work on the demanddrive org.
 - The pilot repos are test beds, never examples. Media on Autopilot is read-only, and any work on a pilot happens in a separate fresh clone, never in the user's own working checkouts, which hold uncommitted work.
 - Branch every task from origin/main in its own worktree under `../dev-pipeline-wt/<slug>`, and never stack branches. Remove a worktree only after its PR merges and it has no uncommitted work.
