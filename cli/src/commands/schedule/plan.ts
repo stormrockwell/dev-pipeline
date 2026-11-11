@@ -75,7 +75,7 @@ export const GATES: Record<Tier, string[]> = {
   T0: ["PR standard", "light security pass"],
   T1: ["standards", "light security pass", "axe"],
   T2: ["TDD", "simplifier", "standards", "spec", "quick security review"],
-  T3: ["TDD and security tests", "simplifier proposals only", "standards", "spec", "full security review with verifier vote"],
+  T3: ["TDD and security tests", "simplifier proposals only", "standards", "spec", "full security review with verifier vote", "mutation check"],
 };
 
 // Autopilot treats a plan larger than this as costly enough to confirm, standing in for a cost estimate.

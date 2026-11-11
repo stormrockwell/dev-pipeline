@@ -56,7 +56,7 @@ describe("pipeline schedule", () => {
       [
         "Work order: Add a CSV export to the orders page",
         "Task 1   CSV formatter                       T2  TDD, simplifier, standards, spec, quick security review",
-        "Task 2   Export route and permission check   T3  zone:authz  TDD and security tests, simplifier proposals only, standards, spec, full security review with verifier vote",
+        "Task 2   Export route and permission check   T3  zone:authz  TDD and security tests, simplifier proposals only, standards, spec, full security review with verifier vote, mutation check",
         "PR A     task 1, standard, 1 peer approval",
         "PR B     task 2, zone, 1 peer approval, stacked on PR A",
         "Order    1, then 2 (needs 1)",

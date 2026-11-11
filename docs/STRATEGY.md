@@ -312,7 +312,7 @@ Paperwork scales with the work. For a single task the work order is the plan. A 
 | T0 Docs | Markdown, readme, copy | none | comment and PR standard, light security pass | 1, target 0 |
 | T1 Presentation | CSS, SCSS, static markup | visual regression when a baseline exists, axe accessibility check | standards, light security pass, design when a Figma frame is linked | 1, target 0 |
 | T2 Logic | PHP or JS behavior | TDD at agreed seams, axe check when markup or front-end JS changes | simplifier, standards, spec, quick security review, performance when data or request-path signals appear, accessibility when markup or front-end JS changes | 1 |
-| T3 Sensitive | any human review zone | TDD plus security tests | simplifier (proposals only in zone code), standards, spec, full security review with a verifier vote, performance when signals appear | 1 peer approval, 2 on designated paths |
+| T3 Sensitive | any human review zone | TDD plus security tests | simplifier (proposals only in zone code), standards, spec, full security review with a verifier vote, mutation check, performance when signals appear | 1 peer approval, 2 on designated paths |
 | Spike | throwaway, prototype, one-off script | none | none | cannot merge to the default branch |
 
 In an existing codebase without a test suite, TDD in this table becomes a question in the work order, as section 8 describes.
