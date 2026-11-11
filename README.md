@@ -45,6 +45,8 @@ cd cli && npx vitest run  # the CLI suite
 node --test plugin/test/*.test.mjs
 ```
 
+`pipeline a11y` scans pages with axe-core in a headless Chromium. `npm ci` installs Playwright and axe-core as optional dependencies, and the browser is a separate download, so run `cd cli && npx playwright-core install chromium` once. Without them the rest of the CLI works and `pipeline a11y` prints the install line and exits 1. The vitest browser cases skip themselves when the browser is missing.
+
 `.claude/settings.json` is committed, so the permission denials, `gh pr merge` among them, come with the clone.
 
 ### Reference clones
