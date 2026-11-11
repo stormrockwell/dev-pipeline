@@ -64,3 +64,17 @@ export function loadConfig(primary: string, override: ConfigOverride = {}): Work
   if (!kinds.includes(config.database.kind)) throw new Error(`database.kind must be one of ${kinds.join(", ")}.`);
   return config;
 }
+
+
+/**
+ * Reads the NAME="value" lines of a worktree env file, or nothing when the file is missing
+ */
+export function readEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {};
+  const env: Record<string, string> = {};
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"$/.exec(line.trim());
+    if (match) env[match[1]!] = match[2]!;
+  }
+  return env;
+}

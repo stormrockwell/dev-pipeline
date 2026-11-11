@@ -89,6 +89,15 @@ describe("pipeline tdd", () => {
     expect(existsSync(join(repo, "pwned"))).toBe(false);
   });
 
+  it("runs the test command with the worktree's env file, and the command's own assignments win", () => {
+    const repo = taskRepo();
+    brief(repo, [], `SOURCE=command node -e "process.exit(process.env.TEST_DB_DIR === '/tmp/db-a' && process.env.SOURCE === 'command' ? 1 : 0)"`);
+    writeFileSync(join(repo, ".env.worktree"), '# Written by pipeline worktree.\nTEST_DB_DIR="/tmp/db-a"\nSOURCE="file"\n');
+    const { status, stdout } = pipeline(repo, ["tdd", "red"]);
+    expect(stdout).toContain("red recorded");
+    expect(status).toBe(0);
+  });
+
   it("refuses a recorded command the guard would stop, and runs nothing", () => {
     const repo = taskRepo();
     brief(repo);
