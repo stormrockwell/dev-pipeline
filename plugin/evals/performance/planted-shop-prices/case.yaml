@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: performance-planted-shop-prices
+tags: [performance]
+context:
+  scaffold_script: scaffold.sh
