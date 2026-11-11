@@ -130,6 +130,7 @@ function checkLength(body: string): CheckResult {
     }
   }
 
+  countableText = countableText.replace(/^Security review: not run for task .*$/gm, "");
   countableText = countableText.replace(/<details>[\s\S]*?<\/details>/g, "");
   countableText = countableText.replace(/Co-Authored using AI\s*$/m, "");
 
