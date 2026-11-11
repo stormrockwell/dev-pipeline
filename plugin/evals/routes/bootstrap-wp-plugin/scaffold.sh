@@ -1,0 +1,1 @@
+../../fixtures/empty-with-init.sh
