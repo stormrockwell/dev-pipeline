@@ -37,6 +37,9 @@ const JOBS: Record<Exclude<Reviewer, "security">, string[]> = {
     "Simplify the code in the diff and the code it directly calls, by your four questions. Commit each simplification with `refactor(<scope>): <subject>`, then run `pipeline tdd green --task {worktree}` on the last commit, and revert any change that turns it red.",
     "In the zone files listed below, change nothing: report each simplification as a finding instead, for a person to review.",
   ],
+  accessibility: [
+    "Review the markup, CSS and front-end code in the diff for what axe cannot see: keyboard order, focus management in dynamic UI, and alt text that is present but meaningless. Follow your instructions for how.",
+  ],
 };
 
 /**

@@ -5,7 +5,7 @@ export type Axis = (typeof AXES)[number];
 export const TAGS = ["Important", "Nit", "Pre-existing"] as const;
 export type Tag = (typeof TAGS)[number];
 
-export const REVIEWERS = ["spec", "standards", "simplifier", "security"] as const;
+export const REVIEWERS = ["spec", "standards", "simplifier", "security", "accessibility"] as const;
 export type Reviewer = (typeof REVIEWERS)[number];
 
 // The axes each reviewer may claim, so no reviewer can outrank the one that owns an axis.
@@ -14,6 +14,7 @@ export const REVIEWER_AXES: Record<Reviewer, Axis[]> = {
   standards: ["correctness", "readability", "performance", "style"],
   simplifier: ["readability"],
   security: ["security"],
+  accessibility: ["correctness"],
 };
 
 export const AGENT_TYPES: Record<Reviewer, string> = {
@@ -21,6 +22,7 @@ export const AGENT_TYPES: Record<Reviewer, string> = {
   standards: "dev-pipeline:standards-reviewer",
   simplifier: "dev-pipeline:simplifier",
   security: "dev-pipeline:security-hunter",
+  accessibility: "dev-pipeline:accessibility-reviewer",
 };
 
 export interface Instance {

@@ -1,9 +1,10 @@
 import { loadConfig } from "../commands/scan-zones/config.ts";
 import { collectRange } from "../commands/scan-zones/collect.ts";
 import { matchesGlob } from "../commands/scan-zones/glob.ts";
-import { groupsFor, scanFile } from "../commands/scan-zones/scan.ts";
+import { scanFile } from "../commands/scan-zones/scan.ts";
 import { gitOut, lines } from "../task/git.ts";
 import { type Finding, type Reviewer, span } from "./findings.ts";
+import { touchesMarkup } from "./markup.ts";
 import { securityPlan } from "./security.ts";
 import type { Scope } from "./state.ts";
 
@@ -27,6 +28,8 @@ export interface RouteInput {
   original: number | null;
   gates: string[];
   open: Finding[];
+  // The developer's stated reason for skipping the accessibility pass, from the ledger.
+  accessibilityWaiver?: string | null;
 }
 
 export interface Routing {
@@ -35,6 +38,8 @@ export interface Routing {
   reasons: Partial<Record<Reviewer, string>>;
   // Reviews the diff calls for that this plugin version does not ship.
   unbuilt: { gate: string; reason: string }[];
+  // Set when the diff calls for the accessibility pass and the developer skipped it with a reason.
+  waived: { gate: string; reason: string } | null;
   zoneFiles: string[];
   changed: number;
   fixLines: Record<string, number[]> | null;
@@ -50,7 +55,6 @@ const SUBSTANTIAL = 20;
 const FUNCTION = /\bfunction\b|=>|^\s*(?:public|private|protected|static|async)\s+[\w$]+\s*\(|^\s*def\s|\bclass\s+[\w$]/;
 const BRANCH = /\b(?:if|else|elseif|switch|case|catch|for|foreach|while)\b|\?\?|\?[^:?]+:/;
 const PERFORMANCE = /\$wpdb->|\bWP_Query\b|\bget_posts\s*\(|\bget_(?:post|user|term)_meta\s*\(|\bSELECT\b|\bwp_remote_(?:get|post|request|head)\b|\bfetch\s*\(|\baxios\b|\bhttps?\.(?:get|request)\b|add_action\s*\(\s*['"](?:init|wp_loaded|template_redirect|wp_head|wp_footer)['"]|\bforeach\b|\b(?:for|while)\s*\(|\.(?:map|forEach|reduce)\s*\(/;
-const FRONT_END = /\.(?:jsx|tsx|vue|svelte)$|(?:^|\/)(?:assets|blocks|components|public|templates)\//;
 
 /**
  * Parses `git diff -U0` into hunks that keep the old line numbers, which findings refer to
@@ -153,7 +157,6 @@ function beyondFindings(hunk: Hunk, open: Finding[]): boolean {
  * standards when it adds functions or branches or runs past about twenty lines.
  */
 export function route(input: RouteInput): Routing {
-  const applicable = reviewersFor(input.gates);
   const start = input.from ?? input.base;
   const hunks = diffHunks(input.worktree, start);
   const changed = hunks.reduce((sum, hunk) => sum + hunk.added.length + hunk.removed.length, 0);
@@ -161,18 +164,24 @@ export function route(input: RouteInput): Routing {
   const unbuilt: Routing["unbuilt"] = [];
   const added = hunks.flatMap((hunk) => hunk.added.map((entry) => ({ file: hunk.file, ...entry })));
   if (added.some((entry) => PERFORMANCE.test(entry.text))) unbuilt.push({ gate: "performance", reason: "the diff has queries, loops or remote calls, and the performance reviewer ships in 3.5" });
-  if (hunks.some((hunk) => groupsFor(hunk.file).some((group) => group === "markup" || group === "css") || FRONT_END.test(hunk.file))) {
-    unbuilt.push({ gate: "accessibility", reason: "the diff touches markup, CSS or front-end code, and the accessibility pass ships in 3.6" });
-  }
-
+  const config = loadConfig(input.worktree);
+  const isTest = (file: string) => config.testPaths.some((glob) => matchesGlob(glob, file));
+  const accessibilityFile = (from: string) => touchesMarkup(diffHunks(input.worktree, from).filter((hunk) => !isTest(hunk.file)));
   const newFiles = input.from === null ? [] : lines(gitOut(input.worktree, ["diff", "--name-only", "--diff-filter=A", "--no-renames", start, "HEAD"]));
   const full = input.from === null || input.original === null || changed * 3 > input.original || newFiles.length > 0;
+  // A full round reviews the whole task, so the markup it looks for is in the whole diff. A fix round looks at the fix.
+  const markup = full && input.from !== null ? accessibilityFile(input.base) : accessibilityFile(start);
+  const waiver = input.accessibilityWaiver?.trim() || null;
+  const waived = markup !== null && waiver !== null ? { gate: "accessibility", reason: waiver } : null;
+  const openA11y = input.open.some((finding) => finding.reviewer === "accessibility");
+  const applicable = [...reviewersFor(input.gates), ...(waiver === null && (markup !== null || openA11y) ? (["accessibility"] as const) : [])];
   if (full) {
     const why = input.from === null ? "the first round reviews the whole diff" : newFiles.length > 0 ? `the fix adds ${newFiles.join(", ")}, so it counts as new code` : `the fix changes ${changed} lines, over a third of the ${input.original}-line original`;
     // A full round reviews the whole task diff, so the simplifier's zone files come from all of it.
     const wholeZones = input.from === null ? zones : zoneFiles(input.worktree, input.base);
     const security = applicable.includes("security") ? securityDiff(input.worktree, input.base) : null;
-    return { scope: "full", reviewers: applicable, reasons: Object.fromEntries(applicable.map((reviewer) => [reviewer, why])), unbuilt, zoneFiles: wholeZones, changed, fixLines: null, security };
+    const reasons = Object.fromEntries(applicable.map((reviewer) => [reviewer, reviewer === "accessibility" ? `the diff touches markup, CSS or front-end code in ${markup}` : why])) as Routing["reasons"];
+    return { scope: "full", reviewers: applicable, reasons, unbuilt, waived, zoneFiles: wholeZones, changed, fixLines: null, security };
   }
 
   const reasons: Partial<Record<Reviewer, string>> = {};
@@ -180,8 +189,7 @@ export function route(input: RouteInput): Routing {
     const ids = input.open.filter((finding) => finding.reviewer === reviewer).map((finding) => finding.id);
     if (ids.length > 0) reasons[reviewer] = `checks whether the fix addressed ${ids.join(", ")}`;
   }
-  const config = loadConfig(input.worktree);
-  const isTest = (file: string) => config.testPaths.some((glob) => matchesGlob(glob, file));
+  if (applicable.includes("accessibility") && markup !== null) reasons.accessibility = `the fix touches markup, CSS or front-end code in ${markup}`;
   const beyond = hunks.find((hunk) => !isTest(hunk.file) && beyondFindings(hunk, input.open));
   if (applicable.includes("spec") && beyond) reasons.spec ??= `the fix changes ${beyond.file} near line ${beyond.oldStart}, beyond the lines a finding named`;
   const shape = hunks.find((hunk) => grows(hunk, FUNCTION) || grows(hunk, BRANCH));
@@ -201,7 +209,7 @@ export function route(input: RouteInput): Routing {
   for (const entry of added) (fixLines[entry.file] ??= []).push(entry.line);
   // Deletions leave no line at HEAD, so the line after one stands for it.
   for (const hunk of hunks) if (hunk.added.length === 0) (fixLines[hunk.file] ??= []).push(hunk.oldStart);
-  return { scope: "fix", reviewers: applicable.filter((reviewer) => reasons[reviewer] !== undefined), reasons, unbuilt, zoneFiles: zones, changed, fixLines, security };
+  return { scope: "fix", reviewers: applicable.filter((reviewer) => reasons[reviewer] !== undefined), reasons, unbuilt, waived, zoneFiles: zones, changed, fixLines, security };
 }
 
 /**

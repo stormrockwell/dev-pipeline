@@ -78,7 +78,7 @@ async function runTool(tool: ToolSpec, root: string, timeoutSeconds: number): Pr
   };
 }
 
-const axeNote = "not run by check, it needs a running site";
+const axeNote = "not run by check, it needs a running site. Run: pipeline a11y --base-url <url>";
 const axe: ToolResult = { tool: "axe", status: "not-run", exitCode: null, summary: axeNote };
 
 const labels: Record<ToolResult["status"], string> = {
