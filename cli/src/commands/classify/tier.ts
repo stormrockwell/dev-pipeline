@@ -1,4 +1,5 @@
 import { basename, extname } from "node:path";
+import type { Reacher } from "./reach.ts";
 import { scanFile } from "../scan-zones/scan.ts";
 import type { FileInput, Zone, ZoneConfig } from "../scan-zones/types.ts";
 
@@ -13,7 +14,7 @@ export const TIER_NAMES: Record<Tier, string> = {
 
 const ORDER: Tier[] = ["T0", "T1", "T2", "T3"];
 
-export type Rule = "empty" | "file-type" | "template" | "path" | "zone" | "removed-signal";
+export type Rule = "empty" | "file-type" | "template" | "path" | "zone" | "removed-signal" | "reach";
 
 export interface Reason {
   file: string | null;
@@ -73,8 +74,11 @@ function byType(input: FileInput): Reason {
   return reason("T2", "file-type", "code or configuration");
 }
 
-// Assigns a tier from file types and zone matches. Rules only raise a tier, and lowering is a human action.
-export function classifyInputs(config: ZoneConfig, inputs: FileInput[]): Classification {
+/**
+ * Assigns a tier from file types, zone matches and, when a reacher is given, the zone code that calls
+ * a changed function. Rules only raise a tier, and lowering is a human action.
+ */
+export function classifyInputs(config: ZoneConfig, inputs: FileInput[], reacher?: Reacher): Classification {
   if (inputs.length === 0) {
     return {
       tier: "T0",
@@ -105,9 +109,12 @@ export function classifyInputs(config: ZoneConfig, inputs: FileInput[]): Classif
         detail: match.kind === "path" ? `path rule ${match.pattern}` : match.text,
       });
     }
+    const reached = reacher ? reacher(config, input) : [];
+    reasons.push(...reached);
     const tier = reasons.reduce<Tier>((best, reason) => higher(best, reason.tier), "T0");
-    for (const zone of scan.zones) zones.add(zone);
-    files.push({ file: input.path, tier, zones: scan.zones });
+    const fileZones = [...new Set([...scan.zones, ...reached.flatMap((reason) => (reason.zone ? [reason.zone] : []))])].sort();
+    for (const zone of fileZones) zones.add(zone);
+    files.push({ file: input.path, tier, zones: fileZones });
     all.push(...reasons);
   }
 
