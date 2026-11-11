@@ -90,37 +90,6 @@ const sharedPaths: PathRule[] = [
   ...paths("secrets", "**/.env*", "**/*.{pem,key,p12}", "**/auth.json"),
 ];
 
-export const wordpress: Pack = {
-  name: "wordpress",
-  paths: [
-    ...sharedPaths,
-    ...paths("authz", "**/rest/**"),
-    ...paths("guardrails", "composer.{json,lock}", "package{,-lock}.json", "**/.htaccess", "**/phpcs.xml*", "**/phpstan*.neon*"),
-    ...paths("secrets", "**/wp-config*.php"),
-  ],
-  signals: [
-    ...signals("php", "input", "\\$_(GET|POST|REQUEST|COOKIE|SERVER|FILES)", "\\$wpdb->"),
-    ...signals("php", "authz", "register_rest_route|permission_callback", "current_user_can|user_can|map_meta_cap", "wp_ajax_nopriv_"),
-    ...signals("php", "auth", "wp_signon|wp_set_auth_cookie|wp_check_password|setcookie"),
-    ...signals("php", "csrf", "check_ajax_referer|wp_verify_nonce|check_admin_referer|wp_create_nonce|wp_nonce_field"),
-    ...signals("php", "input", "unserialize|eval\\(|shell_exec|proc_open|move_uploaded_file", "\\b(passthru|popen|system)\\("),
-    ...signals("php", "input", "wp_redirect|wp_safe_redirect", "\\b(include|require)(_once)?\\b\\s*\\(?\\s*\\$"),
-    ...signals("php", "data-loss", "dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook", "wp_delete_(post|user|attachment|term)\\(|delete_option\\("),
-    ...signals("php", "crypto", "hash_hmac|wp_salt\\(|openssl_|sodium_|password_hash|password_verify|wp_hash_password"),
-    ...signals("php", "secrets", "\\b(AUTH|SECURE_AUTH|LOGGED_IN|NONCE)_(KEY|SALT)\\b"),
-    ...signals("php", "privacy", "wp_privacy_|error_log\\(.*(email|password|phone)"),
-    near(
-      "php",
-      "input",
-      "\\b(update_option|update_post_meta|wp_insert_post|wp_update_post|wp_update_nav_menu_item|wp_insert_user|wp_update_user)\\(",
-      wpRequest,
-    ),
-    near("php", "input", "\\b(wp_remote_(get|post|request|head)|wp_safe_remote_\\w+|curl_init|file_get_contents)\\(", wpRequest),
-    removedOnly("php", "input", "\\b(esc_(html|attr|url|js|textarea)|wp_kses(_post)?|sanitize_\\w+|absint|esc_sql)\\("),
-    ...shared,
-  ],
-};
-
 const signatureName = "(?:\\w*(?:signature|hmac|digest)\\w*|sig)";
 
 // The lookahead keeps `\s*` from backing off, and `(?!=)` keeps `==` from matching inside `===`.
@@ -135,6 +104,70 @@ const signatureComparison = [
   `${operator}${notAbsent}[\\w.$]*(?:signature|hmac|digest)\\w*\\b`,
   `${operator}${notAbsent}(?:\\w+\\.)*sig\\b`,
 ].join("|");
+
+/**
+ * Signals that mark a receiver whose sender proves itself by a signature
+ *
+ * A webhook authenticates its sender by a signature instead of a login, so its routes, signature headers and
+ * verification calls are `auth` signals. A removed line that matches one is a dropped signature check.
+ */
+function webhooks(group: Group): Signal[] {
+  return [
+    // A route path with a webhook segment, such as '/webhook' or 'webhooks/stripe', which a label such as 'Webhook' lacks.
+    { group, zone: "auth", pattern: "['\"`][^'\"`\\s]*(?:/webhooks?\\b|\\bwebhooks?/)", flags: "i" },
+    // A signature header, such as Stripe-Signature, X-Hub-Signature-256 or $_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'].
+    { group, zone: "auth", pattern: "['\"](?:\\w+-)+(?:signature|hmac)\\b[\\w-]*['\"]|\\bHTTP_\\w*(?:SIGNATURE|HMAC)", flags: "i" },
+    // A verification helper or SDK call, and the webhook's shared secret.
+    {
+      group,
+      zone: "auth",
+      pattern:
+        "\\bconstructEvent(?:Async)?\\(|\\w*webhooks?_?(?:signature|secret|verif\\w*|valid\\w*)|\\b(?:verify|validate|check|is_?valid)_?\\w*webhook",
+      flags: "i",
+    },
+  ];
+}
+
+export const wordpress: Pack = {
+  name: "wordpress",
+  paths: [
+    ...sharedPaths,
+    ...paths("authz", "**/rest/**"),
+    ...paths("guardrails", "composer.{json,lock}", "package{,-lock}.json", "**/.htaccess", "**/phpcs.xml*", "**/phpstan*.neon*"),
+    ...paths("secrets", "**/wp-config*.php"),
+  ],
+  signals: [
+    ...signals("php", "input", "\\$_(GET|POST|REQUEST|COOKIE|SERVER|FILES)", "\\$wpdb->"),
+    ...signals(
+      "php",
+      "authz",
+      "register_rest_route|permission_callback",
+      "current_user_can|user_can|map_meta_cap",
+      "wp_ajax_nopriv_|admin_post_nopriv_|woocommerce_api_",
+    ),
+    ...signals("php", "auth", "wp_signon|wp_set_auth_cookie|wp_check_password|setcookie"),
+    ...signals("php", "csrf", "check_ajax_referer|wp_verify_nonce|check_admin_referer|wp_create_nonce|wp_nonce_field"),
+    ...signals("php", "input", "unserialize|eval\\(|shell_exec|proc_open|move_uploaded_file", "\\b(passthru|popen|system)\\("),
+    ...signals("php", "input", "wp_redirect|wp_safe_redirect", "\\b(include|require)(_once)?\\b\\s*\\(?\\s*\\$"),
+    ...signals("php", "data-loss", "dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook", "wp_delete_(post|user|attachment|term)\\(|delete_option\\("),
+    ...signals("php", "crypto", "hash_hmac|wp_salt\\(|openssl_|sodium_|password_hash|password_verify|wp_hash_password"),
+    { group: "php", zone: "crypto", pattern: signatureComparison, flags: "i" },
+    // The constant time comparison that decides whether a webhook signature or a token matches.
+    ...signals("php", "auth", "\\bhash_equals\\("),
+    ...webhooks("php"),
+    ...signals("php", "secrets", "\\b(AUTH|SECURE_AUTH|LOGGED_IN|NONCE)_(KEY|SALT)\\b"),
+    ...signals("php", "privacy", "wp_privacy_|error_log\\(.*(email|password|phone)"),
+    near(
+      "php",
+      "input",
+      "\\b(update_option|update_post_meta|wp_insert_post|wp_update_post|wp_update_nav_menu_item|wp_insert_user|wp_update_user)\\(",
+      wpRequest,
+    ),
+    near("php", "input", "\\b(wp_remote_(get|post|request|head)|wp_safe_remote_\\w+|curl_init|file_get_contents)\\(", wpRequest),
+    removedOnly("php", "input", "\\b(esc_(html|attr|url|js|textarea)|wp_kses(_post)?|sanitize_\\w+|absint|esc_sql)\\("),
+    ...shared,
+  ],
+};
 
 /**
  * A header set call, or an object property whose value is a template, a call, a scheme such as Bearer, or a
@@ -152,6 +185,7 @@ export const node: Pack = {
     ...sharedPaths,
     ...paths("authz", "**/middleware.{js,ts,mjs}"),
     ...paths("input", "**/pages/api/**", "**/app/**/route.{js,ts,mjs}"),
+    ...paths("auth", "**/app/**/*webhook*/**/route.{js,ts,mjs}", "**/pages/api/**/*webhook*{.js,.ts,.mjs,/**}"),
     ...paths(
       "guardrails",
       "package{,-lock}.json",
@@ -212,6 +246,7 @@ export const node: Pack = {
     { group: "js", zone: "crypto", pattern: signatureComparison, flags: "i" },
     // Building an Authorization header is the outbound half of authentication, which a read of `req.headers` does not cover.
     { group: "js", zone: "auth", pattern: authorizationHeaderBuilt, flags: "i" },
+    ...webhooks("js"),
     ...signals("js", "secrets", "\\bprocess\\.env\\.\\w*(SECRET|KEY|TOKEN|PASSWORD|PASSWD|CREDENTIAL)\\w*"),
     ...signals("js", "privacy", "\\b(console\\.(log|info|debug)|logger\\.\\w+)\\(.*\\b(email|password|phone|ssn|dob)\\b"),
     ...signals("js", "data-loss", "\\b(DROP\\s+TABLE|TRUNCATE\\s+TABLE|deleteMany|dropDatabase|dropCollection)\\b", "\\.(destroy|drop)\\(\\{?\\s*(truncate|where:\\s*\\{\\s*\\})"),
