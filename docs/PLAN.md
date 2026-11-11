@@ -81,7 +81,7 @@ After 1.2, tasks 1.3, 1.4, 1.5, 1.7, 1.8 and 1.10 share nothing and run in paral
 | 2.7 | Ledger, run log and gate record | Haiku | 2.3 | every run writes a complete log |
 | 2.8 | Finish: version sync script, docs agent, auditor list, draft PRs after asking, labels | Haiku for version sync, Sonnet for the rest | 1.8, 1.9, 2.7 | writing eval cases pass |
 | 2.9 | Other routes: answer, quick change, report, debug, spike | Opus for skill text, Sonnet for wiring | 2.1 | scenarios 3 and 4 pass |
-| 2.10 | Eval suite in CI, with a pinned model and plan OAuth | Sonnet | 0.5 | the suite runs on every pipeline PR |
+| 2.10 | Local eval selection: `--affected` runs the cases a branch can move, and no repo holds a Claude token | Sonnet | 0.5 | a docs-only branch runs no case and a skill change runs its own |
 
 Decision 4 (environment profile) is needed before teammates join in Phase 5.
 

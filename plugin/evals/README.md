@@ -2,6 +2,8 @@
 
 Run them through `node plugin/evals/run.mjs`, for example `node plugin/evals/run.mjs --runs 1 --model sonnet --case 'routes-*'`. It builds `--allow-tools` from each case's own grants, refuses plain Bash, and puts the git and pipeline shims from `tools/eval-bin/` first on PATH. Run each case once until it passes, and use 3 runs only for final numbers.
 
+Before a PR, run `node plugin/evals/run.mjs --runs 1 --model sonnet --affected`. It runs only the tags `plugin/evals/affected.mjs` picks from the branch's changes, and runs nothing for a docs-only change. Evals run only on a developer's machine, never in CI.
+
 A kept temp dir (`--keep-temp`) is sealed. Open it with `chmod 700` on the paths the run prints, and run no git inside it.
 
 ## What the harness taught us
