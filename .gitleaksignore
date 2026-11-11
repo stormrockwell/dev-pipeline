@@ -1,3 +1,5 @@
 # Fake key planted in the standards review prompt for the 0.8 experiment, in both result files.
 spikes/0.8-standards-review/results/real2.A.prompt.txt:generic-api-key:238
 spikes/0.8-standards-review/results/real2.B.prompt.txt:generic-api-key:185
+# Fake key planted as a hole in the planted vulnerability suite.
+plugin/evals/security/sources/store-sync/task/includes/fulfillment.php:generic-api-key:8

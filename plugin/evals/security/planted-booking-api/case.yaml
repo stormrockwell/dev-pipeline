@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: security-planted-booking-api
+tags: [security]
+context:
+  scaffold_script: scaffold.sh
