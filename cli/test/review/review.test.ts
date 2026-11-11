@@ -54,7 +54,7 @@ const inline = { axis: "readability", tag: "Nit", file: "src/shipping.js", line:
 
 function firstRound(repo: string, spec: unknown[] = [strict], simplifier: unknown[] = [], standards: unknown[] = []) {
   expect(review(repo, "start").status).toBe(0);
-  for (const [reviewer, findings] of [["simplifier", simplifier], ["spec", spec], ["standards", standards]] as const) expect(reply(repo, reviewer, findings).stdout).toBe("");
+  for (const [reviewer, findings] of [["simplifier", simplifier], ["spec", spec], ["standards", standards], ["security-hunter-1", [] as unknown[]]] as const) expect(reply(repo, reviewer, findings).stdout).toBe("");
   return review(repo, "merge");
 }
 
@@ -67,17 +67,17 @@ describe("pipeline review start", () => {
     expect(stderr).toContain("run `pipeline task-check");
   });
 
-  it("opens a full first round with a package per reviewer, simplifier first, and skips the security gate", () => {
+  it("opens a full first round with a package per reviewer, simplifier first, and security beside the rest", () => {
     const repo = shipped();
     const { status, stdout } = review(repo, "start");
     expect(status).toBe(0);
     expect(stdout).toContain("round 1 (full)");
     expect(stdout).toContain("Order     the simplifier first, and the rest at once when it returns");
-    for (const agent of ["simplifier", "spec-reviewer", "standards-reviewer"]) expect(stdout).toContain(`Dispatch  dev-pipeline:${agent} with`);
-    expect(stdout).toContain("Skipped   quick security review: the security reviewer ships in 3.1");
+    for (const agent of ["simplifier", "spec-reviewer", "standards-reviewer", "security-hunter"]) expect(stdout).toContain(`Dispatch  dev-pipeline:${agent} with`);
+    expect(stdout).not.toContain("Skipped   quick security review");
     expect(readFileSync(pkg(repo, "spec"), "utf8")).toContain("An order of exactly 75 ships free.");
     expect(readFileSync(pkg(repo, "standards"), "utf8")).toContain("pipeline review files --task");
-    expect(ledger(repo)).toContainEqual(expect.objectContaining({ kind: "gate", gate: "quick security review", result: "skip" }));
+    expect(ledger(repo)).not.toContainEqual(expect.objectContaining({ kind: "gate", gate: "quick security review", result: "skip" }));
     expect(review(repo, "start").stdout).toBe(stdout);
   });
 });
@@ -101,7 +101,7 @@ describe("pipeline review merge", () => {
     reply(repo, "spec", []);
     const { status, stderr } = review(repo, "merge");
     expect(status).toBe(1);
-    expect(stderr).toContain("no findings yet from simplifier, standards");
+    expect(stderr).toContain("no findings yet from simplifier, standards, security-hunter-1");
   });
 
   it("writes the fix list in precedence order and records each reviewer's gate", () => {
@@ -156,6 +156,7 @@ describe("fix rounds", () => {
     expect(started.stdout).toContain("Why       spec: checks whether the fix addressed spec-1.1");
     expect(readFileSync(pkg(repo, "spec", 2), "utf8")).toContain('"id": "spec-1.1"');
     expect(reply(repo, "spec", [], 2).stdout).toBe("");
+    expect(reply(repo, "security-hunter-1", [], 2).stdout).toBe("");
     const merged = review(repo, "merge");
     expect(merged.stdout).toContain("0 to fix, 1 fixed");
     expect(review(repo, "start").stdout).toContain("every gate passed in round 2");
@@ -210,6 +211,7 @@ describe("fix rounds", () => {
       fix(repo, `export const freeShipping = (total) => total >= 75; // round ${round}\n`);
       review(repo, "start");
       reply(repo, "spec", [{ ...strict, id: "spec-1.1" }], round);
+      reply(repo, "security-hunter-1", [], round);
       review(repo, "merge");
     }
     fix(repo, "export const freeShipping = (total) => total >= 75; // round 4\n");

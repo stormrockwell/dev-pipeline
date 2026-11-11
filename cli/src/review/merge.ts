@@ -57,7 +57,8 @@ export function mergeRound(input: MergeInput): Merged {
   const candidates: Finding[] = [];
   for (const finding of [...carried, ...fresh]) {
     if (finding.tag === "Pre-existing") backlog.push({ ...finding, why: "pre-existing" });
-    else if (input.scope === "fix" && input.fixLines !== null && !priorIds.has(finding.id) && !onFix(finding, input.fixLines)) backlog.push({ ...finding, why: "outside the fix diff" });
+    // Security reads the whole task diff when a fix touches zone code, and its findings are never parked.
+    else if (input.scope === "fix" && finding.axis !== "security" && input.fixLines !== null && !priorIds.has(finding.id) && !onFix(finding, input.fixLines)) backlog.push({ ...finding, why: "outside the fix diff" });
     else candidates.push(finding);
   }
 
@@ -101,16 +102,24 @@ export function place(finding: Finding): string {
 
 /**
  * The fix list the implementer works from, in precedence order
+ *
+ * A task with no suite cannot write its security tests red first, so they stay with the human as
+ * checks in the review guide.
  */
-export function renderFixList(merged: Merged, task: string, round: number, worktree: string): string {
+export function renderFixList(merged: Merged, task: string, round: number, worktree: string, tdd = true): string {
+  const testsLine = tdd ? "   Tests, each written and run red first with `pipeline tdd red`, then made green by the fix:" : "   The task has no suite, so the review guide lists these as checks for the human:";
   const items = merged.accepted.map((finding, index) => {
     const extra = (finding.instances ?? []).map((instance) => `${instance.file}${instance.line ? `:${instance.line}` : ""}`);
+    const flat = (text: string) => text.replace(/\n+/g, " ");
     return [
-      `${index + 1}. \`${finding.id}\` ${finding.axis}, ${finding.tag}, ${place(finding)}`,
+      `${index + 1}. \`${finding.id}\` ${finding.axis}, ${finding.tag}, ${finding.severity ? `${finding.severity}, ` : ""}${place(finding)}`,
       `   ${finding.title}`,
-      `   ${finding.detail.replace(/\n+/g, " ")}`,
-      ...(finding.fix ? [`   Fix: ${finding.fix.replace(/\n+/g, " ")}`] : []),
+      ...(finding.boundary ? [`   Boundary: ${flat(finding.boundary)}`] : []),
+      ...(finding.result && finding.result !== finding.detail ? [`   Result: ${flat(finding.result)}`] : []),
+      `   ${flat(finding.detail)}`,
+      ...(finding.fix ? [`   Fix: ${flat(finding.fix)}`] : []),
       ...(extra.length > 0 ? [`   Also at: ${extra.join(", ")}`] : []),
+      ...(finding.tests && finding.tests.length > 0 ? [testsLine, ...finding.tests.map((test) => `   - ${flat(test)}`)] : []),
     ].join("\n");
   });
   return [

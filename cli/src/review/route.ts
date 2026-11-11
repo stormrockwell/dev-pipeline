@@ -4,6 +4,7 @@ import { matchesGlob } from "../commands/scan-zones/glob.ts";
 import { groupsFor, scanFile } from "../commands/scan-zones/scan.ts";
 import { gitOut, lines } from "../task/git.ts";
 import { type Finding, type Reviewer, span } from "./findings.ts";
+import { securityPlan } from "./security.ts";
 import type { Scope } from "./state.ts";
 
 /**
@@ -37,6 +38,8 @@ export interface Routing {
   zoneFiles: string[];
   changed: number;
   fixLines: Record<string, number[]> | null;
+  // Where the security diff starts, and whether it holds PHP, when the tier has a security gate.
+  security: { from: string; php: boolean } | null;
 }
 
 // Lines either side of a finding that a fix may still touch without changing behavior beyond it.
@@ -109,7 +112,15 @@ function reviewersFor(gates: string[]): Reviewer[] {
     ...(gates.some((gate) => gate.startsWith("simplifier")) ? (["simplifier"] as const) : []),
     ...(gates.includes("spec") ? (["spec"] as const) : []),
     ...(gates.includes("standards") ? (["standards"] as const) : []),
+    ...(securityPlan(gates) !== null ? (["security"] as const) : []),
   ];
+}
+
+/**
+ * Where a security pass starts and whether its diff holds PHP
+ */
+function securityDiff(worktree: string, from: string): { from: string; php: boolean } {
+  return { from, php: lines(gitOut(worktree, ["diff", "--name-only", "--no-renames", from, "HEAD", "--"])).some((file) => file.endsWith(".php")) };
 }
 
 /**
@@ -160,7 +171,8 @@ export function route(input: RouteInput): Routing {
     const why = input.from === null ? "the first round reviews the whole diff" : newFiles.length > 0 ? `the fix adds ${newFiles.join(", ")}, so it counts as new code` : `the fix changes ${changed} lines, over a third of the ${input.original}-line original`;
     // A full round reviews the whole task diff, so the simplifier's zone files come from all of it.
     const wholeZones = input.from === null ? zones : zoneFiles(input.worktree, input.base);
-    return { scope: "full", reviewers: applicable, reasons: Object.fromEntries(applicable.map((reviewer) => [reviewer, why])), unbuilt, zoneFiles: wholeZones, changed, fixLines: null };
+    const security = applicable.includes("security") ? securityDiff(input.worktree, input.base) : null;
+    return { scope: "full", reviewers: applicable, reasons: Object.fromEntries(applicable.map((reviewer) => [reviewer, why])), unbuilt, zoneFiles: wholeZones, changed, fixLines: null, security };
   }
 
   const reasons: Partial<Record<Reviewer, string>> = {};
@@ -178,11 +190,18 @@ export function route(input: RouteInput): Routing {
     for (const reviewer of ["simplifier", "standards"] as const) if (applicable.includes(reviewer)) reasons[reviewer] ??= substantial;
   }
 
+  // Security re-reviews every fix, and a fix in zone code can open a hole anywhere in the task.
+  let security: Routing["security"] = null;
+  if (applicable.includes("security")) {
+    reasons.security = zones.length > 0 ? `the fix touches zone code in ${zones.join(", ")}, so security reads the whole task diff` : "security re-reviews every fix";
+    security = securityDiff(input.worktree, zones.length > 0 ? input.base : start);
+  }
+
   const fixLines: Record<string, number[]> = {};
   for (const entry of added) (fixLines[entry.file] ??= []).push(entry.line);
   // Deletions leave no line at HEAD, so the line after one stands for it.
   for (const hunk of hunks) if (hunk.added.length === 0) (fixLines[hunk.file] ??= []).push(hunk.oldStart);
-  return { scope: "fix", reviewers: applicable.filter((reviewer) => reasons[reviewer] !== undefined), reasons, unbuilt, zoneFiles: zones, changed, fixLines };
+  return { scope: "fix", reviewers: applicable.filter((reviewer) => reasons[reviewer] !== undefined), reasons, unbuilt, zoneFiles: zones, changed, fixLines, security };
 }
 
 /**

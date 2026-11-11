@@ -5,7 +5,7 @@ export type Axis = (typeof AXES)[number];
 export const TAGS = ["Important", "Nit", "Pre-existing"] as const;
 export type Tag = (typeof TAGS)[number];
 
-export const REVIEWERS = ["spec", "standards", "simplifier"] as const;
+export const REVIEWERS = ["spec", "standards", "simplifier", "security"] as const;
 export type Reviewer = (typeof REVIEWERS)[number];
 
 // The axes each reviewer may claim, so no reviewer can outrank the one that owns an axis.
@@ -13,12 +13,14 @@ export const REVIEWER_AXES: Record<Reviewer, Axis[]> = {
   spec: ["correctness"],
   standards: ["correctness", "readability", "performance", "style"],
   simplifier: ["readability"],
+  security: ["security"],
 };
 
 export const AGENT_TYPES: Record<Reviewer, string> = {
   spec: "dev-pipeline:spec-reviewer",
   standards: "dev-pipeline:standards-reviewer",
   simplifier: "dev-pipeline:simplifier",
+  security: "dev-pipeline:security-hunter",
 };
 
 export interface Instance {
@@ -42,6 +44,11 @@ export interface ReportedFinding {
   detail: string;
   fix?: string;
   instances?: Instance[];
+  // Security findings only: the trust boundary crossed, what an attacker gets, and the tests that prove the fix.
+  boundary?: string;
+  result?: string;
+  severity?: string;
+  tests?: string[];
 }
 
 /**
