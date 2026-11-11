@@ -75,8 +75,10 @@ function byType(input: FileInput): Reason {
 }
 
 /**
- * Assigns a tier from file types, zone matches and, when a reacher is given, the zone code that calls
- * a changed function. Rules only raise a tier, and lowering is a human action.
+ * Assigns a tier to a change
+ *
+ * The tier comes from file types, zone matches and, when a reacher is given, the zone code that
+ * calls a changed function. Rules only raise a tier, and lowering is a human action.
  */
 export function classifyInputs(config: ZoneConfig, inputs: FileInput[], reacher?: Reacher): Classification {
   if (inputs.length === 0) {

@@ -81,10 +81,18 @@ interface Source {
   scan: FileScan;
 }
 
+/**
+ * Whether a grep hit sits on a comment line
+ */
 function isComment(text: string): boolean {
   return /^\s*(\*|\/\/|\/\*|#)/.test(text);
 }
 
+/**
+ * Escapes a name for a POSIX extended pattern
+ *
+ * Names hold only word characters and `$`, so `$` is the one to escape.
+ */
 function escapeRegex(name: string): string {
   return name.replace(/[$]/g, "\\$");
 }
