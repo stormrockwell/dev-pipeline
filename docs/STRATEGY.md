@@ -135,7 +135,7 @@ Some code always gets a human reviewer, and the pipeline keeps that code separat
 
 A change enters a human review zone when it matches a path rule or a content signal. Both live in `.pipeline/sensitive.yml`, which team leads own. The categories are:
 
-- Authentication and sessions, such as login, password reset, cookies, JWT and OAuth.
+- Authentication and sessions, such as login, password reset, cookies, JWT, OAuth and webhook signatures.
 - Authorization, such as capability checks, REST permission callbacks, role changes and `nopriv` handlers.
 - CSRF protection, such as nonce creation and verification.
 - Input reaching a dangerous sink, such as superglobals, raw queries, deserialization, shell execution, dynamic includes, uploads, outbound requests and redirects.
@@ -178,7 +178,7 @@ signals:
       zone: guardrails
 ```
 
-Two signals weigh more than the rest. A removed line that matched a signal, such as a deleted capability or nonce check, weakens a control, so the review guide lists it first. A change to the guardrails can weaken every future gate, so an agent can never land one without a human.
+Two signals weigh more than the rest. A removed line that matched a signal, such as a deleted capability, nonce or webhook signature check, weakens a control, so the review guide lists it first. A change to the guardrails can weaken every future gate, so an agent can never land one without a human.
 
 ### How separation works
 
@@ -263,6 +263,8 @@ Developers describe what they want in plain words. Nobody has to know a command,
 | Debug | "checkout is broken on staging" | the diagnosis loop, then the fix as a change | yes, through a PR |
 | New project | "start a Node demo site from scratch" | bootstrap, then each feature as a change | yes |
 | Spike | "quickly prototype a slider" | a prototype branch with the floor only | a branch that never merges |
+
+When a throwaway spike graduates, the real version starts again through bootstrap in a new project, or through the change route in an existing repo, so the suite and the gates exist before its first merge to `main`.
 
 ### The router
 
@@ -654,6 +656,8 @@ When the developer chooses TDD, the tests go into a local harness in `.pipeline/
 
 Seams are agreed in the work order before any test exists. A green CI does not prove a user-facing change works, because the wp-phpunit harness makes no real HTTP requests and preloads admin includes. User-facing changes therefore end with a live check in a browser against the running site.
 
+Outside APIs are mocked at the boundary, as Pocock advises, with responses recorded into fixture files that hold placeholder keys, so the suite runs offline and gives the same result every run. A contract test against the vendor's sandbox is opt-in. The developer asks for it in the work order, and it runs only where its sandbox key is set in the environment, so it catches a change on the vendor's side without making the suite depend on the network.
+
 ## 9. Writing standards
 
 ### Writing for people
@@ -718,6 +722,10 @@ Init asks whether the project is distributed, meaning a plugin, theme or package
 
 - **Distributed projects** use SemVer driven by conventional commits, a Keep a Changelog file, a version sync check across every place the version lives, and tagged releases with a zip artifact. Other sites build on a distributed plugin, so two compatibility checks join its floor: PHPCompatibilityWP against the `Requires PHP` header, and a check that flags removed or renamed public functions, classes and hooks as breaking changes.
 - **Single deployments** skip the SemVer ceremony. Conventional commits still apply for readability.
+
+### Security fixes in distributed code
+
+A fix for a security flaw in a distributed project ships quietly, because every site on the released version stays exposed until it updates. The commits, the changelog entry and the PR title and body describe the behavior the fix restores and never the flaw. The developer records the details in a private GitHub security advisory and publishes it only after the release that holds the fix ships.
 
 ## 10. Initializing an existing repo
 
@@ -829,6 +837,14 @@ A secret that reaches GitHub is compromised, even if the next commit deletes it,
 
 If a secret does reach the server, the response is to rotate it first and clean history second, because rotation is the only step that makes the leak harmless.
 
+### Where credentials live
+
+An integration credential, such as a vendor's API key, lives in an option saved with autoload off or in a `wp-config.php` constant, and in Node in an environment variable. It never appears in code, tests or fixtures. Autoload off keeps the key out of the options every request loads. The security reviewer's WordPress companion checks it.
+
+### Production evidence
+
+Logs and database snapshots from staging or production hold personal data, so they are handled as sensitive data, like a secret. They stay on the developer's machine outside the repo. They reach no commit, PR, issue, artifact or outside service, and a report quotes only the lines it needs, with the personal data masked. They are deleted once the fix ships, because the regression test holds the reproduction from then on.
+
 ## 13. Packaging
 
 - **A Claude Code plugin** in a private marketplace. It holds the model-invoked router as the entry point, with `/work`, `/review` and `/compound` as optional shortcuts; model-invoked disciplines (`tdd`, `wp-testing`, `wp-security`, `comments`, `pr`); an agent per role, including the writing agent for reports and PR bodies; hooks for guardrails, formatting and the Stop gate; and a SessionStart hook that adds one line pointing at the router instead of injecting a whole skill.
@@ -880,11 +896,11 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 - A tool-order check finds a failing test run before the first source edit of the first feature.
 - No repo is created without a question first.
 
-**Gaps exposed.**
-- Bootstrap is defined for the suite and the linters (section 10) but not yet for CI, the ruleset, the hooks and the profile.
-- The DemandDrive configs need the base and WordPress split before a Node project can use them.
-- The Node signal pack is named but not written.
-- Nothing says how a throwaway demo graduates. The proposed rule is that graduation re-enters through bootstrap, adding the suite and gates before the first merge to `main`.
+**Gaps exposed.** Each one is closed.
+- Bootstrap covered the suite and the linters but not CI, the ruleset, the hooks and the profile. `pipeline init` writes them, and prints the ruleset commands for an admin to run.
+- The DemandDrive configs needed a base and WordPress split before a Node project could use them. Section 10 gives Node projects the base layer alone.
+- The Node signal pack was named but not written. It ships beside the WordPress pack, as `docs/zones.md` describes.
+- Nothing said how a throwaway demo graduates. Section 5 sends it back through bootstrap before its first merge to `main`.
 
 ### Scenario 2: a WordPress plugin for an API integration
 
@@ -900,10 +916,10 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 - Tests for a denied subscriber and a rejected missing nonce exist, and the mutation check's output shows they fail when the capability check is disabled.
 - Every `wp_remote_*` call passes a timeout.
 
-**Gaps exposed.**
-- No rule says where integration credentials live. The proposed rule is an option with autoload off, or a `wp-config.php` constant, never code, with the review guide checking it.
-- No guidance covers mocking external APIs. The proposal is Pocock's boundary mocking with recorded fixtures, plus an opt-in contract test against the vendor's sandbox.
-- Webhooks are not yet a named zone signal.
+**Gaps exposed.** Each one is closed.
+- No rule said where integration credentials live. Section 12 sets it, and the security reviewer's WordPress companion checks it.
+- No guidance covered mocking external APIs. Section 8 sets boundary mocking with recorded fixtures and an opt-in contract test against the vendor's sandbox.
+- Webhooks were not a named zone signal. Webhook routes, signature headers and verification calls are `auth` signals in both packs, and a removed one is a removed signal, as `docs/zones.md` describes.
 
 ### Scenario 3: a codebase review and report
 
@@ -934,10 +950,10 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 - The diff includes a regression test.
 - A rubric confirms the PR body names the root cause and the evidence.
 
-**Gaps exposed.**
-- The change route had no diagnosis phase, so a bug would have gone straight to shaping a fix.
-- No rule covers production evidence, such as logs and database snapshots holding personal data, beyond keeping it out of commits.
-- Security fixes in distributed plugins need quiet handling: neutral PR text, a private GitHub security advisory, and a release before disclosure.
+**Gaps exposed.** Each one is closed.
+- The change route had no diagnosis phase, so a bug would have gone straight to shaping a fix. The debug route in section 5 diagnoses first.
+- No rule covered production evidence, such as logs and database snapshots holding personal data, beyond keeping it out of commits. Section 12 sets it.
+- Security fixes in distributed plugins needed quiet handling, with neutral PR text, a private GitHub security advisory, and a release before disclosure. Section 9 sets it.
 
 ## 16. Decisions to confirm
 
