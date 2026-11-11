@@ -83,6 +83,7 @@ test("the review loop drives the deterministic commands and stops at the round c
   assert.match(body, /overrule/);
   assert.match(body, /--continue/);
   assert.match(body, /security finding is never dismissed/);
+  assert.match(body, /dev-pipeline:finish/, "a reviewed work order hands off to finish");
   assert.ok(words(body) <= 600, `review-loop is ${words(body)} words`);
   assert.doesNotMatch(body, /—|–|\S - [a-z]/);
 });

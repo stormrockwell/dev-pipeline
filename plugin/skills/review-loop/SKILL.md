@@ -26,4 +26,4 @@ Done when every task's start prints `Done`, or a question is with the developer.
 
 ## Summary
 
-Run `pipeline gate-record .pipeline/work/<slug>/work-order.md`, show its output in a code block, and add one line per waived finding or overrule from the ledger. Then stop, so the developer picks the next step.
+Run `pipeline gate-record .pipeline/work/<slug>/work-order.md`, show its output in a code block, and add one line per waived finding or overrule from the ledger. When every task printed `Done`, open the PRs with the `dev-pipeline:finish` skill. When a question is with the developer, stop there instead.
