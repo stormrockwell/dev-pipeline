@@ -36,6 +36,18 @@ function repoWithPlan(plan = workOrder): string {
 }
 
 describe("pipeline schedule", () => {
+  it("keeps the work folder out of git without touching a tracked file", () => {
+    const dir = makeRepo({ gitignore: "node_modules/\n" });
+    write(dir, "includes/csv.php", "<?php\nfunction shop_csv( $rows ) { return ''; }\n");
+    write(dir, "includes/export.php", "<?php\nif ( current_user_can( 'manage_options' ) ) {}\n");
+    stage(dir, "includes/csv.php", "<?php\nfunction shop_csv( $rows ) { return ''; }\n");
+    commit(dir, "feat: add csv");
+    write(dir, ".pipeline/work/csv/work-order.md", workOrder);
+    pipeline(dir, ["schedule", ".pipeline/work/csv/work-order.md"]);
+    expect(git(dir, "check-ignore", "-q", ".pipeline/work/csv/work-order.md").status).toBe(0);
+    expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe("node_modules/\n");
+  });
+
   it("prints the one-screen work order", () => {
     const dir = repoWithPlan();
     const { stdout, status } = pipeline(dir, ["schedule", ".pipeline/work/csv/work-order.md"]);
