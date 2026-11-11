@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seeds a repo from a case's sources/base folder, then commits its sources/task folder as built task 1
-# in review round 1 with the simplifier, spec and standards replies saved, so a run dispatches only the
-# security hunter and verifier. The caller sets sources, title and description, and may set files when
+# in review round 1 with an empty reply saved for every reviewer the round routed outside security, so a
+# run dispatches only the security hunter and verifier. The caller sets sources, title and description, and may set files when
 # the planned file list should differ from the committed one, as it does when guardrails paths would lift
 # the tier, and then sets unplanned to name the committed files the plan left out.
 set -euo pipefail
@@ -50,8 +50,8 @@ printf 'Status: DONE\n\n%s\n\n%sTask: %s\n' "$description" "${unplanned:+Unplann
 pipeline task-check --task "$wt" > /dev/null
 
 pipeline review start "$order" --task 1 > /dev/null
-for reviewer in simplifier spec standards; do
-  package="$PWD/.pipeline/work/feature/review/task-1/round-1/package-$reviewer.md"
+for package in "$PWD"/.pipeline/work/feature/review/task-1/round-1/package-*.md; do
+  case "$package" in */package-security-*) continue ;; esac
   message="$(printf 'Reviewed.\n\n```json\n{"findings": []}\n```\n\nPackage: %s' "$package")"
   node -e 'process.stdout.write(JSON.stringify({ hook_event_name: "SubagentStop", last_assistant_message: process.argv[1] }))' "$message" | pipeline review save --hook
 done
