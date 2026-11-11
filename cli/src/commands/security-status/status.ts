@@ -40,6 +40,6 @@ export function securityStatus(record: RecordJson): SecurityStatus {
  * The description drops quotes and shell syntax, so the call is one plain command.
  */
 export function statusCall(repo: string, sha: string, status: SecurityStatus): string {
-  const description = status.description.replace(/['"`$;|&<>\\]/g, "").trim();
+  const description = status.description.replace(/['"`$;|&<>\\\r\n]/g, "").trim();
   return `gh api repos/${repo}/statuses/${sha} -f state=${status.state} -f context=pipeline/security -f description='${description}'`;
 }
