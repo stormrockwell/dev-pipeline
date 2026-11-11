@@ -135,6 +135,8 @@ describe("pipeline pr-body", () => {
     expect(stdout).toContain("and it passes pr-check");
     expect(stdout).toContain("Title   fix(shipping): ship free at exactly the threshold");
     expect(stdout).toContain("Labels  risk:medium");
+    expect(stdout).toContain(`PR      ${prOf(repo, "1").name}`);
+    expect(stdout).toContain("Base    HEAD~1");
     expect(status).toBe(0);
     const text = readFileSync(join(repo, `.pipeline/work/ship/pr-${prOf(repo, "1").name}.md`), "utf8");
     expect(text).toContain("- Ran: TDD, spec\n- Skipped: simplifier (task 1: not run), standards (task 1: not run), quick security review (task 1: not run), PR standard (task 2: not run), light security pass (task 2: not run)");
@@ -167,6 +169,17 @@ describe("pipeline pr-body", () => {
     expect(stdout).toMatch(/Labels {2}risk:high, zone:input/);
     expect(readFileSync(join(repo, `.pipeline/work/ship/pr-${prOf(repo, "1").name}.md`), "utf8")).toContain("Human review: required, zone:input (src/shipping.js).");
     expect(git(repo, "status", "--porcelain").stdout).not.toContain("src/");
+  });
+
+  it("lists a planned zone's source files for review and leaves its test files out", () => {
+    const repo = shipped();
+    const file = join(repo, ".pipeline/work/ship/work-order.md");
+    write(repo, ".pipeline/work/ship/work-order.md", readFileSync(file, "utf8").replace("zones: []", "zones: [data-loss]"));
+    expect(pipeline(repo, ["schedule", ".pipeline/work/ship/work-order.md"]).status).toBe(0);
+    body(repo);
+    const text = readFileSync(join(repo, `.pipeline/work/ship/pr-${prOf(repo, "1").name}.md`), "utf8");
+    expect(text).toContain("Human review: required, zone:data-loss (src/shipping.js).");
+    expect(text).not.toContain("test/shipping.test.js");
   });
 
   it("refuses while a task in the PR is not done", () => {
