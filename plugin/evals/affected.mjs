@@ -107,7 +107,9 @@ function importingCommands(unit) {
   const queue = [unit];
   while (queue.length > 0) {
     for (const next of importers.get(queue.shift()) ?? []) {
-      if (!seen.has(next)) seen.add(next) && queue.push(next);
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push(next);
     }
   }
   return [...seen].filter((name) => name.startsWith("commands/")).map((name) => name.slice("commands/".length));
@@ -128,7 +130,9 @@ function fixtureTags(fixture) {
     grew = false;
     for (const file of fixtures) {
       const name = file.split("/").pop();
-      if (!names.has(name) && mentions(file)) grew = Boolean(names.add(name));
+      if (names.has(name) || !mentions(file)) continue;
+      names.add(name);
+      grew = true;
     }
   }
   return evals
