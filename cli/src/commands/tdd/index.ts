@@ -1,16 +1,19 @@
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { Command } from "../../command.ts";
 import { appendRun, type Phase, type Run } from "../../task/evidence.ts";
 import { gitOut, workingTree } from "../../task/git.ts";
 import { findTask, readRecord, TASK_DIR } from "../../task/record.ts";
 import { testCommand } from "../../task/test-command.ts";
+import { primaryCheckout } from "../../run/log.ts";
+import { loadConfig, readEnvFile } from "../worktree/config.ts";
 
 const usage = `Usage: pipeline tdd <red|green> [--task <dir>] [--timeout <secs>] [-- <args>...]
 
 Runs the test command \`pipeline brief --test\` recorded for the task, in its worktree, and records
 the run in ${TASK_DIR}/evidence.jsonl: the phase, the command, its exit code, the last lines of
-output, HEAD and the working tree's id.
+output, HEAD and the working tree's id. The command sees the vars in the worktree's env file from
+\`pipeline worktree create\`, such as its test database.
 
   red     The command must fail. A command that passes, never ran or timed out proves nothing.
   green   The command must pass. \`pipeline task-check\` counts a green run only when it tested the
@@ -103,9 +106,17 @@ async function run(argv: string[]): Promise<number> {
   }
   const words = resolved.argv;
 
+  // The env file carries what pipeline worktree gave this worktree, such as its test database, and the command's own assignments win.
+  let fileEnv;
+  try {
+    fileEnv = readEnvFile(join(worktree, loadConfig(primaryCheckout(worktree) ?? worktree).database.envFile));
+  } catch (error) {
+    return fail(`${error instanceof Error ? error.message : String(error)}`);
+  }
+
   const result = spawnSync(words[0]!, words.slice(1), {
     cwd: worktree,
-    env: { ...process.env, ...resolved.env },
+    env: { ...process.env, ...fileEnv, ...resolved.env },
     encoding: "utf8",
     timeout: timeout * 1000,
     maxBuffer: 64 * 1024 * 1024,
