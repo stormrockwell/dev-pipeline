@@ -206,7 +206,7 @@ The exemption never applies to `guardrails` paths, because a comment in a workfl
 
 - Signals are one line at a time, so a statement split over lines can miss a pattern that spans the break.
 - Fixtures outside the test paths that plant a vulnerability show up as zones, and so do `dist/` copies in a diff.
-- A new minified or vendored file is not yet detected as `third-party`, and the reach check for callers of changed functions is a separate task.
+- A new minified or vendored file is not yet detected as `third-party`.
 
 ## Classifying a change
 
@@ -228,6 +228,17 @@ Each file gets a tier, and the change gets the highest tier of any file.
 | T1 Presentation | Stylesheets (`.css`, `.scss`), static markup, images and fonts. |
 | T0 Docs | Markdown, text and reStructuredText files, and README, LICENSE and CHANGELOG. |
 
-An empty change is T0. The output lists the tier, the zones, and the reasons that set the final tier, each with its file, line and rule (`file-type`, `template`, `path`, `zone` or `removed-signal`). The JSON also holds a `files` list with the tier of every file, so a PR split can see which files are low risk.
+An empty change is T0. The output lists the tier, the zones, and the reasons that set the final tier, each with its file, line and rule (`file-type`, `template`, `path`, `zone`, `removed-signal` or `reach`). The JSON also holds a `files` list with the tier of every file, so a PR split can see which files are low risk.
+
+### Reach
+
+A change to a function that zone code calls is zone code, so a harmless looking helper can carry a T3 change. For each function a change touches, `classify` searches the working tree with `git grep` for calls to its name, and a call site counts as zone code when its file matches a path rule or a signal matches in the calling function (or within 20 lines of a top level call). Each such call site raises the change to T3, adds the caller's zones, and adds a `reach` reason on the caller file and line that names the helper.
+
+- Named files count every function in them. `--staged` and `--range` count the functions that hold an added line.
+- PHP functions and methods, and JS and TS `function` declarations, `const name = (...) =>` assignments and `name(...) {` methods are recognised.
+- Names shorter than four characters, names that start with `__`, and a short list of common names such as `init` or `render` are skipped, because they match unrelated code. At most 50 call sites are inspected per function and 40 functions per file.
+- The search is text based, so it follows a name and not an import. A helper that shares its name with an unrelated function over-raises, which costs a review and never hides one. A call through a dynamic name or a hook callback string is not found.
+- Test files do not start a reach check, and `vendor/`, `node_modules/` and ignored files are not searched.
+- `--no-reach` turns the check off.
 
 The classifier only raises a tier from rules. Anyone can raise a tier by hand, and only a peer reviewer, never the author, lowers a T3 task or removes a zone, so the command has no option that lowers a result. An unknown file type is T2, because rules should fail toward more review. The orchestrator and the security reviewer add the later layers that section 6 describes.

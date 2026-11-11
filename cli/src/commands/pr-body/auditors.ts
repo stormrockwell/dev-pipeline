@@ -80,12 +80,13 @@ export function staleGates(record: RecordJson): { task: string; gate: string; at
 /**
  * Security gates nobody recorded, or that were recorded as a skip
  *
+ * The mutation check counts as one, because a security test that proves nothing is a security gap.
  * Each names the task, its tier, the gate and why it did not run: the skip note, or "not recorded".
  * A failed gate is not here, because failedGates holds the PR for it.
  */
 export function securityGaps(record: RecordJson): { task: string; tier: string; gate: string; skipped: boolean; reason: string }[] {
   return record.gates
-    .filter((gate) => /security (?:pass|review)/.test(gate.gate) && (gate.result === "pending" || gate.result === "skip"))
+    .filter((gate) => /security (?:pass|review)|^mutation check$/.test(gate.gate) && (gate.result === "pending" || gate.result === "skip"))
     .map((gate) => ({
       task: gate.task,
       tier: record.tasks.find((task) => task.id === gate.task)?.tier ?? "",

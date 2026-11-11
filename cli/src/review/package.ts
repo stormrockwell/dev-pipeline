@@ -42,6 +42,9 @@ const JOBS: Record<Exclude<Reviewer, "security">, string[]> = {
     "Find waste in the diff, a slower version of something that has a faster and no less simple one, and report each with that fix. Read the diff and the code it reaches.",
     "Find scale in the diff, speed bought with complexity, and report its breaking point against the Scale row above as a finding that asks. Add no pagination, batching, job or table.",
   ],
+  accessibility: [
+    "Review the markup, CSS and front-end code in the diff for what axe cannot see: keyboard order, focus management in dynamic UI, and alt text that is present but meaningless. Follow your instructions for how.",
+  ],
 };
 
 /**

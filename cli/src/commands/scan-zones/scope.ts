@@ -49,6 +49,22 @@ function startsFunction(line: string): boolean {
   return name !== undefined && !notMethods.has(name);
 }
 
+const declaredFunction = /\bfunction\b\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/;
+const assignedFunction =
+  /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::\s*[^=]+)?=>|[A-Za-z_$][\w$]*\s*=>)/;
+
+/**
+ * Function name a line declares
+ *
+ * Covers functions, methods and arrow functions, and returns null for any other line. Expects a line with strings and comments already blanked.
+ */
+export function functionName(line: string): string | null {
+  const declared = declaredFunction.exec(line)?.[1] ?? assignedFunction.exec(line)?.[1];
+  if (declared) return declared;
+  const named = method.exec(line)?.[1];
+  return named !== undefined && !notMethods.has(named) ? named : null;
+}
+
 // Finds the closing line of the body that opens at or after `from`, or -1 when there is no body.
 function bodyEnd(blanked: string[], from: number): number {
   let depth = 0;

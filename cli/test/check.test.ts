@@ -430,6 +430,7 @@ describe("per-tool lines", () => {
   it("lists axe as not run by check", () => {
     const line = lineFor(check().stdout, "axe");
     expect(line).toContain("not run by check");
+    expect(line).toContain("pipeline a11y --base-url");
   });
 });
 

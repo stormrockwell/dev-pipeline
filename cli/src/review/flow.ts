@@ -144,7 +144,9 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
   const firstHead = number === 1 ? null : readMerged(roundDir(ctx.workOrder, ctx.task.id, 1))?.head ?? null;
   const original = firstHead === null ? null : diffSize(ctx.record.worktree, ctx.record.base, firstHead);
   const previous = last === undefined ? null : readMerged(roundDir(ctx.workOrder, ctx.task.id, last))!.head;
-  const routing = route({ worktree: ctx.record.worktree, base: ctx.record.base, from: previous, original, gates: ctx.task.gates, open });
+  const latestA11y = gateResults(readLedger(ctx.workOrder), ctx.task.id).get("accessibility");
+  const accessibilityWaiver = latestA11y?.result === "skip" && latestA11y.note ? latestA11y.note : null;
+  const routing = route({ worktree: ctx.record.worktree, base: ctx.record.base, from: previous, original, gates: ctx.task.gates, open, accessibilityWaiver });
   const depth = securityPlan(ctx.task.gates);
 
   const round: Round = {
@@ -158,10 +160,7 @@ export function startRound(ctx: Context, continueReason: string | undefined): St
     reviewers: routing.reviewers,
     reasons: routing.reasons,
     security: depth !== null && routing.security !== null ? { ...depth, ...routing.security } : null,
-    skipped: [
-      ...ctx.task.gates.filter((gate) => gate === "axe").map((gate) => ({ gate, reason: "the accessibility check ships in 3.6" })),
-      ...routing.unbuilt.filter((entry) => !(entry.gate === "accessibility" && ctx.task.gates.includes("axe"))),
-    ],
+    skipped: [...routing.unbuilt, ...(routing.waived ? [routing.waived] : [])],
     zoneFiles: routing.zoneFiles,
     fixLines: routing.fixLines,
     overruled: [],

@@ -68,7 +68,7 @@ describe("tiers and gates", () => {
   });
 
   it("gives a T3 task the full security gates", () => {
-    expect(plan([task("1", ["route.php"])]).tasks[0]!.gates).toEqual(["TDD and security tests", "simplifier proposals only", "standards", "spec", "full security review with verifier vote"]);
+    expect(plan([task("1", ["route.php"])]).tasks[0]!.gates).toEqual(["TDD and security tests", "simplifier proposals only", "standards", "spec", "full security review with verifier vote", "mutation check"]);
   });
 });
 

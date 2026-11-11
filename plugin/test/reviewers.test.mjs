@@ -21,7 +21,7 @@ function frontmatter(path) {
 
 const words = (text) => text.split(/\s+/).filter(Boolean).length;
 const tools = (fields) => fields.tools.split(",").map((tool) => tool.trim());
-const reviewers = { "spec-reviewer": ["correctness"], "standards-reviewer": ["correctness", "readability", "performance", "style"], simplifier: ["readability"], "performance-reviewer": ["performance"] };
+const reviewers = { "spec-reviewer": ["correctness"], "standards-reviewer": ["correctness", "readability", "performance", "style"], simplifier: ["readability"], "performance-reviewer": ["performance"], "accessibility-reviewer": ["correctness"] };
 
 test("each reviewer runs on sonnet from a package and replies with a findings block and its Package line", () => {
   for (const [name, axes] of Object.entries(reviewers)) {
@@ -123,4 +123,16 @@ test("the build hands passing tasks to the review loop, and /review points at it
   assert.match(frontmatter("skills/build/SKILL.md").body, /dev-pipeline:review-loop/);
   assert.match(frontmatter("skills/review/SKILL.md").body, /dev-pipeline:review-loop/);
   assert.doesNotMatch(frontmatter("skills/review/SKILL.md").body, /ships no reviewer/);
+});
+
+test("the accessibility reviewer covers what axe cannot see and leaves axe's rules to the scan", () => {
+  const { body } = frontmatter("agents/accessibility-reviewer.md");
+  for (const item of [/Keyboard order/, /Focus management in dynamic UI/, /Meaningless alt text/, /pipeline a11y/, /return focus to the trigger/, /tabindex/]) assert.match(body, item);
+});
+
+test("the review loop routes the accessibility pass and allows a skip only with a reason", () => {
+  const { body } = frontmatter("skills/review-loop/SKILL.md");
+  assert.match(body, /dev-pipeline:accessibility-reviewer/);
+  assert.match(body, /--gate accessibility --result skip --note/);
+  assert.match(body, /pipeline a11y/);
 });
