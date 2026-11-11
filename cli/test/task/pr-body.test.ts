@@ -220,6 +220,16 @@ describe("pipeline pr-body", () => {
     expect(stdout).toContain("- full security review with verifier vote skipped for task 1 (no time)");
   });
 
+  it("refuses a T3 task whose mutation check was never recorded", () => {
+    const repo = shipped();
+    asT3(repo);
+    pipeline(repo, ["ledger", "gate", order, "--task", "1", "--gate", "full security review with verifier vote", "--result", "pass"]);
+    const { status, stdout } = body(repo);
+    expect(status).toBe(1);
+    expect(stdout).toContain("- mutation check not recorded for task 1");
+    expect(stdout).not.toContain("- full security review with verifier vote not recorded");
+  });
+
   it("refuses while a gate failed", () => {
     const repo = shipped();
     pipeline(repo, ["ledger", "gate", order, "--task", "1", "--gate", "spec", "--result", "fail"]);
