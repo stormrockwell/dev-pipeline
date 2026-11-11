@@ -52,6 +52,18 @@ In WordPress, the lower-trust principals are a logged-out visitor, a subscriber 
 - **Invariant:** the URL is fixed, on an allow list of hosts, or fetched with `wp_safe_remote_*`, which refuses internal and loopback addresses.
 - **Test:** a URL of `http://127.0.0.1/` or `http://169.254.169.254/` is refused.
 
+## Webhook signatures
+
+- **Signal:** a REST route, `admin_post_nopriv_` or `woocommerce_api_` handler that receives a webhook, a signature header such as `X-Hub-Signature-256`, `hash_hmac` or `hash_equals`, or a removed signature check.
+- **Invariant:** before it reads or acts on the payload, the handler computes `hash_hmac` over the raw body (`$request->get_body()` or `php://input`) with the shared secret, compares it with `hash_equals`, and rejects an event with no signature. A `==` comparison or a check that runs after the action does not count.
+- **Test:** an event with a missing or wrong signature gets 401 and changes nothing, and a correctly signed event succeeds.
+
+## API credentials
+
+- **Signal:** an API key, token or secret written as a string literal or a `define` in plugin code, `update_option` or `add_option` storing one without autoload off, or a key in a test or fixture.
+- **Invariant:** an integration credential lives in an option saved with autoload off, as in `update_option( 'acme_api_key', $key, false )`, or in a `wp-config.php` constant the plugin reads after `defined()`. Code, tests and fixtures hold placeholders only.
+- **Test:** after the key is saved, `wp_load_alloptions()` does not hold it, and tests and fixtures pass with a placeholder key.
+
 ## Open redirects
 
 - **Signal:** `wp_redirect` or `header( 'Location: ...' )` on a `redirect_to`, `return` or `url` value from the request.
