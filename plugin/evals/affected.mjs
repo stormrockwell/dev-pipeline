@@ -34,6 +34,8 @@ const OWNERS = {
   "plugin/agents/simplifier.md": ["review"],
   "plugin/agents/spec-reviewer.md": ["review"],
   "plugin/agents/standards-reviewer.md": ["review"],
+  "plugin/agents/security-hunter.md": ["review"],
+  "plugin/agents/security-verifier.md": ["review"],
   "plugin/skills/finish/": ["finish"],
   "plugin/agents/docs.md": ["finish"],
   "plugin/skills/compound/": [],
