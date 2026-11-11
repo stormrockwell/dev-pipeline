@@ -13,6 +13,7 @@ You write the body of one pull request. The orchestrator gave you the work order
 2. `pipeline ledger <work order>`, for each task's result and the rulings taken on the developer's behalf.
 3. The gate record beside the work order, `gate-record.json` or `gate-record-<pr>.json`, for the gates and their results.
 4. The diff: `git diff --stat <range>`, then `git diff <range>`, read through. `git log --format=%s <range>` gives the commit subjects.
+5. Each task's `.pipeline/work/<slug>/worktrees/<id>/.pipeline/task/evidence.jsonl`, for the test command its last green run used and the pass count that run's output shows.
 
 The session transcript and the implementer's reports are process, and process never belongs in a PR, so you read neither. Describe the code as it stands. Leave out abandoned approaches and the order things happened in.
 
@@ -33,7 +34,7 @@ At most three sentences on why this approach and what it trades off.
 
 ## How to verify
 
-The exact commands, such as the test script from package.json or composer.json, and what their output shows. Manual steps only where no test covers the change.
+The exact command from the last green run, and the pass count its output shows. Manual steps only where no test covers the change.
 
 ## Risk
 

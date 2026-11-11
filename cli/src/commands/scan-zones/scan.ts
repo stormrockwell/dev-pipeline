@@ -67,7 +67,7 @@ function compiled(config: ZoneConfig): Compiled[] {
 const testPathCache = new WeakMap<ZoneConfig, RegExp[]>();
 
 // Test globs match case sensitively, so `*Test.php` finds FooTest.php and leaves latest.php alone.
-function isTestFile(config: ZoneConfig, path: string): boolean {
+export function isTestFile(config: ZoneConfig, path: string): boolean {
   let list = testPathCache.get(config);
   if (!list) {
     list = config.testPaths.map((glob) => globToRegExp(glob, false));

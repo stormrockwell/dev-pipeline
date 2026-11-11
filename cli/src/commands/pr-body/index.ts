@@ -7,6 +7,9 @@ import type { Command } from "../../command.ts";
 import type { Tier } from "../classify/tier.ts";
 import { higherRisk, type Risk, riskForTier, riskLabel, zoneLabel } from "../risk-gate/risk.ts";
 import type { Plan } from "../schedule/plan.ts";
+import { loadConfig } from "../scan-zones/config.ts";
+import { isTestFile } from "../scan-zones/scan.ts";
+import { repoTop } from "../secrets/git.ts";
 import { auditors, failedGates, type RecordJson } from "./auditors.ts";
 import { assembleBody, parseDraft, type ZoneFiles } from "./body.ts";
 
@@ -54,9 +57,10 @@ interface ScanReport {
  * Zone files from the scan of the range, plus the owned files of tasks the plan put in a zone
  *
  * The plan can raise a task into a zone before any line matches a signal, and its files still need
- * the human reviewer.
+ * the human reviewer. Its test files are left to the scan, which still lists one that matches a path
+ * rule or holds a secret.
  */
-function zoneFiles(scan: ScanReport, plan: Plan, tasks: string[], changed: string[]): ZoneFiles {
+function zoneFiles(scan: ScanReport, plan: Plan, tasks: string[], changed: string[], isTest: (file: string) => boolean): ZoneFiles {
   const zones: ZoneFiles = new Map();
   const add = (zone: string, file: string, line: number | null) => {
     const files = zones.get(zone) ?? new Map<string, number[]>();
@@ -71,7 +75,7 @@ function zoneFiles(scan: ScanReport, plan: Plan, tasks: string[], changed: strin
   }
   for (const task of plan.tasks.filter((entry) => tasks.includes(entry.id))) {
     for (const zone of task.zones) {
-      for (const file of task.files.filter((owned) => changed.includes(owned))) add(zone, file, null);
+      for (const file of task.files.filter((owned) => changed.includes(owned) && !isTest(owned))) add(zone, file, null);
     }
   }
   return zones;
@@ -141,14 +145,15 @@ async function run(argv: string[]): Promise<number> {
   if (scanned.status !== 0) return fail(`scan-zones failed: ${(scanned.stderr || scanned.stdout).trim()}`);
   const diff = spawnSync("git", ["diff", "--name-only", values.range, "--"], { cwd: dir, encoding: "utf8" });
   if (diff.status !== 0) return fail(`git diff ${values.range} failed: ${(diff.stderr ?? "").trim()}`);
-  const zones = zoneFiles(JSON.parse(scanned.stdout) as ScanReport, plan, pr.tasks, diff.stdout.split("\n").filter(Boolean));
+  const zoneConfig = loadConfig(repoTop(dir) ?? dir);
+  const zones = zoneFiles(JSON.parse(scanned.stdout) as ScanReport, plan, pr.tasks, diff.stdout.split("\n").filter(Boolean), (path) => isTestFile(zoneConfig, path));
 
   const body = assembleBody(draft, zones, auditors(record), hidden);
   const out = resolve(values.out ?? join(dirname(file), `pr-${pr.name}.md`));
   writeFileSync(out, body);
 
   const checked = pipeline(["pr-check", "--file", out, "--title", draft.title], dir);
-  const summary = [`Title   ${draft.title}`, `Labels  ${labels(plan, pr.tasks, pr.peers, zones).join(", ")}`, `Base    PR ${pr.name}${pr.stacksOn.length > 0 ? `, stacked on PR ${pr.stacksOn.join(", ")}` : ""}`];
+  const summary = [`Title   ${draft.title}`, `Labels  ${labels(plan, pr.tasks, pr.peers, zones).join(", ")}`, `PR      ${pr.name}`, `Base    ${values.range.split("..")[0]}${pr.stacksOn.length > 0 ? `, stacked on PR ${pr.stacksOn.join(", ")}` : ""}`];
   if (checked.status !== 0) {
     console.log([`pr-body: wrote ${out}, and pr-check found problems for the docs agent to fix`, ...checked.stdout.trim().split("\n").map((line) => `- ${line}`), ...summary].join("\n"));
     return 1;
