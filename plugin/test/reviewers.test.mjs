@@ -21,7 +21,7 @@ function frontmatter(path) {
 
 const words = (text) => text.split(/\s+/).filter(Boolean).length;
 const tools = (fields) => fields.tools.split(",").map((tool) => tool.trim());
-const reviewers = { "spec-reviewer": ["correctness"], "standards-reviewer": ["correctness", "readability", "performance", "style"], simplifier: ["readability"] };
+const reviewers = { "spec-reviewer": ["correctness"], "standards-reviewer": ["correctness", "readability", "performance", "style"], simplifier: ["readability"], "performance-reviewer": ["performance"] };
 
 test("each reviewer runs on sonnet from a package and replies with a findings block and its Package line", () => {
   for (const [name, axes] of Object.entries(reviewers)) {
