@@ -364,7 +364,8 @@ function checkNarration(body: string): CheckResult {
   const sections = extractSections(body);
 
   for (const [section, content] of Object.entries(sections)) {
-    if (section === "Auditors") continue;
+    // Both are generated, and the review guide quotes agents' reasons word for word.
+    if (section === "Auditors" || section === "Human review required") continue;
 
     for (const pattern of narrationPatterns) {
       if (pattern.test(content)) {

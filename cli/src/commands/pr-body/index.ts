@@ -12,6 +12,7 @@ import { isTestFile } from "../scan-zones/scan.ts";
 import { repoTop } from "../secrets/git.ts";
 import { auditors, failedGates, type RecordJson } from "./auditors.ts";
 import { assembleBody, parseDraft, type ZoneFiles } from "./body.ts";
+import { guidePath } from "../../review/state.ts";
 
 const usage = `Usage: pipeline pr-body <work-order.md> --draft <draft.md> --range <base>..<head> [--pr <name>] [--dir <repo>] [--out <body.md>]
 
@@ -20,12 +21,14 @@ Writes a PR body from the docs agent's draft and the parts a script owns. The dr
 Blast radius lines. pr-body adds the rest:
 
   Human review   the line, and a Human review required list of zone files and lines, from
-                 \`pipeline scan-zones\` over the range and the zones the plan gave the PR's tasks.
+                 \`pipeline scan-zones\` over the range and the zones the plan gave the PR's tasks,
+                 followed by each task's security review guide.
   Auditors       from a fresh gate record: Ran for passed gates, Skipped with each reason, and
                  Accepted only when a finding was dismissed.
   Record         \`Co-Authored using AI\`, then the gate record as a hidden comment.
 
-It refuses while a task in the PR is not done in the ledger or a gate failed, then checks the body with \`pipeline pr-check\` and prints the
+It refuses while a task in the PR is not done in the ledger, a gate failed, or the security gate passed
+on an older commit than the task's, then checks the body with \`pipeline pr-check\` and prints the
 title and the labels the PR takes.
 
 Options:
@@ -148,7 +151,8 @@ async function run(argv: string[]): Promise<number> {
   const zoneConfig = loadConfig(repoTop(dir) ?? dir);
   const zones = zoneFiles(JSON.parse(scanned.stdout) as ScanReport, plan, pr.tasks, diff.stdout.split("\n").filter(Boolean), (path) => isTestFile(zoneConfig, path));
 
-  const body = assembleBody(draft, zones, auditors(record), hidden);
+  const guides = pr.tasks.map((task) => ({ task, path: guidePath(file, task) })).filter((guide) => existsSync(guide.path)).map((guide) => ({ task: guide.task, text: readFileSync(guide.path, "utf8") }));
+  const body = assembleBody(draft, zones, auditors(record), hidden, guides);
   const out = resolve(values.out ?? join(dirname(file), `pr-${pr.name}.md`));
   writeFileSync(out, body);
 

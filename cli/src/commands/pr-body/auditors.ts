@@ -6,8 +6,8 @@
 export interface RecordJson {
   work: string;
   pr: string | null;
-  tasks: { id: string; tier: string; zones: string[]; status: string | null }[];
-  gates: { task: string; gate: string; result: "pass" | "fail" | "skip" | "pending"; note: string | null }[];
+  tasks: { id: string; tier: string; zones: string[]; status: string | null; commits?: string | null }[];
+  gates: { task: string; gate: string; result: "pass" | "fail" | "skip" | "pending"; note: string | null; head?: string }[];
   accepted?: { task: string; gate: string; finding: string; reason: string }[];
 }
 
@@ -53,7 +53,16 @@ export function auditors(record: RecordJson): string[] {
 
 /**
  * Gates that failed, which hold the PR until the fix loop clears them
+ *
+ * An open Important security finding fails its gate, and a security finding is never waived, so
+ * it holds the PR until a later round confirms the fix. A gate that judged one commit holds the PR
+ * too when the task has moved past that commit, because its pass says nothing about the new code.
  */
 export function failedGates(record: RecordJson): string[] {
-  return record.gates.filter((gate) => gate.result === "fail").map((gate) => `${gate.gate} failed for task ${gate.task}`);
+  const failed = record.gates.filter((gate) => gate.result === "fail").map((gate) => `${gate.gate} failed for task ${gate.task}`);
+  for (const gate of record.gates.filter((entry) => entry.result === "pass" && entry.head)) {
+    const head = record.tasks.find((task) => task.id === gate.task)?.commits?.split("..")[1];
+    if (head && !gate.head!.startsWith(head)) failed.push(`${gate.gate} passed for task ${gate.task} at ${gate.head!.slice(0, 7)}, and the task is at ${head.slice(0, 7)}, so review it again`);
+  }
+  return failed;
 }

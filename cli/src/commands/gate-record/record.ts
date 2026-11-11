@@ -11,7 +11,8 @@ export interface GateRecord {
   title: string;
   pr: string | null;
   tasks: { id: string; title: string; tier: string; zones: string[]; status: Status | null; branch: string | null; commits: string | null; rounds: number }[];
-  gates: { task: string; gate: string; result: GateResult | "pending"; note: string | null }[];
+  // A gate that judged one commit, as security does, names it.
+  gates: { task: string; gate: string; result: GateResult | "pending"; note: string | null; head?: string }[];
   // Waived findings, each with the reason the human reviewer reads.
   accepted: { task: string; gate: string; finding: string; reason: string }[];
   findings: { opened: number; fixed: number; accepted: number };
@@ -29,9 +30,9 @@ export interface GateRecord {
 /**
  * A planned gate's result, from the ledger, or for TDD from the task's passing check
  */
-function gateResult(gate: string, entries: Entry[], task: string): { result: GateResult | "pending"; note: string | null } {
+function gateResult(gate: string, entries: Entry[], task: string): { result: GateResult | "pending"; note: string | null; head?: string } {
   const recorded = gateResults(entries, task).get(gate);
-  if (recorded) return { result: recorded.result, note: recorded.note };
+  if (recorded) return { result: recorded.result, note: recorded.note, ...(recorded.head ? { head: recorded.head } : {}) };
   if (!gate.startsWith("TDD")) return { result: "pending", note: null };
   const settled = lastTask(entries, task);
   if (settled?.evidence === "red then green") return { result: "pass", note: "red then green" };
@@ -56,7 +57,7 @@ export function buildRecord(workOrder: string, plan: Plan, entries: Entry[], run
   for (const task of tasks) {
     for (const gate of task.gates) gates.push({ task: task.id, gate, ...gateResult(gate, entries, task.id) });
     for (const [gate, entry] of gateResults(entries, task.id)) {
-      if (!task.gates.includes(gate)) gates.push({ task: task.id, gate, result: entry.result, note: entry.note });
+      if (!task.gates.includes(gate)) gates.push({ task: task.id, gate, result: entry.result, note: entry.note, ...(entry.head ? { head: entry.head } : {}) });
     }
   }
 

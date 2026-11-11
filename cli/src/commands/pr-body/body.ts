@@ -49,9 +49,9 @@ export function humanReviewLine(zones: ZoneFiles): string {
 }
 
 /**
- * The Human review required section, listing each zone file with the lines to read
+ * The Human review required section, listing each zone file with the lines to read, then each task's security review guide
  */
-export function humanReviewSection(zones: ZoneFiles): string | null {
+export function humanReviewSection(zones: ZoneFiles, guides: { task: string; text: string }[] = []): string | null {
   if (zones.size === 0) return null;
   const lines: string[] = [];
   for (const [zone, files] of [...zones].sort(([a], [b]) => a.localeCompare(b))) {
@@ -60,21 +60,21 @@ export function humanReviewSection(zones: ZoneFiles): string | null {
       lines.push(`- \`${file}\`${where} (zone:${zone})`);
     }
   }
-  return lines.join("\n");
+  return [lines.join("\n"), ...guides.map((guide) => `Security review guide, task ${guide.task}:\n\n${guide.text.trim()}`)].join("\n\n");
 }
 
 /**
  * Puts the body together: the draft's sections, the Risk section with the generated Human review
  * line, the review list for zone files, the Auditors list, the AI line and the hidden gate record
  */
-export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string): string {
+export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string, guides: { task: string; text: string }[] = []): string {
   const parts: string[] = [];
   let risk = false;
   for (const section of draft.sections) {
     if (section.heading === "Risk") {
       risk = true;
       parts.push(`## Risk\n\n${[section.body, humanReviewLine(zones)].filter(Boolean).join("\n")}`);
-      const review = humanReviewSection(zones);
+      const review = humanReviewSection(zones, guides);
       if (review) parts.push(`## Human review required\n\n${review}`);
       continue;
     }
