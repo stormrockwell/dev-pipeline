@@ -135,3 +135,16 @@ Tasks 3.4, 3.5, 3.6 and 3.7 share nothing and run in parallel.
 | A personal account lacks features such as Secret Protection and rulesets | decision 13 and 0.1 | the local hooks, the `.claude/settings.json` denials and CI scans, until the pipeline goes public |
 | The standards repo is slow to accept PRs | task 1.1 | fork it under the pipeline's org |
 | Claude Code changes underneath the pipeline | the eval suite on each release | pin versions, and rerun evals on every model and CLI release |
+
+## Backlog
+
+- `.pipeline/profile.yml`: the `involvement` key from 2.3 is a guess, and should match the profile format from 2.2.
+- Zone scan: the authz path rule matches any file named `*permission*`, and zone:crypto flags a non-security sha1 in worktree database names.
+- Standards fork: its Prettier config uses double quotes while the WordPress ESLint layer wants single quotes, and the package is still named `@digitalimpulse/coding-standards` with no tag after the layer split.
+- The hooks `--help` text suggests a `prepare` script that fails in CI before the CLI is installed.
+- comment-lint: the `restates` rule misfires on `/** */` openers, and the commented-code rule misfires too.
+- `check --json` truncates findings, which blocks a baseline.
+- `pipeline doctor` prints "not built yet" and exits 2, so `pipeline check` is the only setup check.
+- Docs sync tests do not run in CI. The standards repo needs failing fixtures. Proposal 3 is on hold. Stylelint 16 migration. The ConditionalAlternateSyntax for-loop gap. setup-php always runs in the floor job.
+- For the user: decide whether to install Open Code Review. The standards reviewer pins `@alibaba-group/open-code-review@1.13.3` and falls back to its vendored rules without it.
+- For the user: mark the rows in `docs/spikes/0.6-zone-scan.md`, pick a license before sharing, and note that Media on Autopilot has a stale composer.lock with 3 dev advisories, a gitleaks test literal and no ESLint config.
