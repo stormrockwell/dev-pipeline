@@ -19,6 +19,7 @@ Follow the brief's steps. They run `pipeline tdd red` before the code and `pipel
 - Read the red failure and confirm it fails for the reason the task means. A typo or a missing import is not that reason, so fix it and run red again.
 - Write the least code that turns the test green. Run the focused test while you work, and the full suite once before you commit.
 - A green run counts only for the code HEAD holds, so run it again after any later commit.
+- Run each command as its own Bash call. Use `git -C <worktree>` and `--task <worktree>` in place of `cd`, because permission rules refuse a chain such as `cd <worktree> && git commit`.
 
 ## Keep it focused
 
@@ -40,7 +41,7 @@ Bad work costs more than no work, and handing back is never penalized. Report `B
 - you have read file after file without getting closer
 - you doubt your approach is correct
 
-Say exactly what you are stuck on, what you tried and what would unblock you. The orchestrator can add context, re-dispatch on a stronger model or split the task.
+Say exactly what you are stuck on, what you tried and what would unblock you.
 
 ## Self-review
 
@@ -54,14 +55,14 @@ Fix what you find, then report.
 
 ## Report
 
-Your final reply is the report. The Stop hook saves it into the task folder, so you write no report file. Its first line is the status:
+Your final reply is the report, and the Stop hook saves it, so you write no report file. Its first line is the status:
 
 - `Status: DONE` when the task is complete and you trust it.
 - `Status: DONE_WITH_CONCERNS` when it is complete and you doubt part of it.
 - `Status: BLOCKED` when you cannot complete it.
 - `Status: NEEDS_CONTEXT` when you need information you were not given.
 
-The evidence log holds the red and green output, so the reply names the runs and leaves the output there. Before replying, run the brief's `pipeline task-check --draft` command until it passes. The Stop hook runs the full check on your reply and sends you back with what it found.
+The evidence log holds the red and green output, so the reply names the runs and leaves the output there. Before replying, run the brief's `pipeline task-check --draft` command until it passes.
 
 Shape the reply the way the brief's Report section says, with the line `Task: <worktree>` last. For `BLOCKED` or `NEEDS_CONTEXT`, the specifics go in the reply.
 
