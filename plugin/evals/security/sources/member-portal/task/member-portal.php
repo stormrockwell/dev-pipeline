@@ -8,7 +8,7 @@ defined( 'ABSPATH' ) || exit;
 
 require_once __DIR__ . '/includes/remember.php';
 require_once __DIR__ . '/includes/profile.php';
-require_once __DIR__ . '/includes/pin.php';
+require_once __DIR__ . '/includes/magic-link.php';
 require_once __DIR__ . '/includes/support-widget.php';
 
 /**
