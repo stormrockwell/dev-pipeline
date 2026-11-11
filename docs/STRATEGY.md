@@ -535,7 +535,7 @@ At init, the rules and a Haiku pass over the files they flag map where the secur
 
 The design reviewer measures first and uses vision last.
 
-1. Fetch the reference from the Figma REST API. That means the frame PNG at the target scale and the node tree with absolute bounding boxes, auto-layout spacing, typography and variables.
+1. Fetch the reference through Figma's MCP server, which returns the frame screenshot at the target scale and the node tree with absolute bounding boxes, auto-layout spacing, typography and variables.
 2. Render the implementation with Playwright at the frame's viewport width, with fonts loaded, animations off and fixture data.
 3. **Token check.** Map Figma variables to CSS custom properties, then compare computed styles of key elements, including color by ΔE2000, font size, weight, line height and spacing. Stylelint blocks raw values that are not tokens.
 4. **Wireframe check.** Match Figma nodes to DOM elements by a `data-figma` attribute or by text, compare boxes and sibling spacing within a tolerance, and render both box trees as an outline overlay. Boxes ignore font antialiasing and content noise.
@@ -948,7 +948,7 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 5. Where does compounding data live, in hidden JSON in PR bodies (no infrastructure) or in a central repo?
 6. Does agent review run in CI from the start? It would run Claude Code in GitHub Actions with a plan OAuth token, drawing on the same plan limits as local work.
 7. **Decided.** Repos without a strategy get trunk-based development with releases. The pipeline repo itself cuts no releases while it is built, only once it is ready to ship.
-8. How do designs link to code, through a Figma token per project and a `data-figma` convention or through name matching?
+8. **Decided.** Designs link to code through Figma's MCP server, which reads frames, node geometry, variables and screenshots, so the pipeline keeps no Figma token or fetch layer of its own. The design reviewer is deferred.
 9. **Decided.** No repo lists trusted authors. The author never counts as an approval, so every approval is a peer's.
 10. **Decided.** T0 and T1 start at one peer approval and earn zero only when the compounder's metrics show it is safe.
 11. **Decided.** Reviewer precedence is security, then correctness, then readability and simplicity, then performance, then style. Security trumps all reviewers and readability trumps the coding standards, as the brief asks.
