@@ -13,6 +13,7 @@ import { repoTop } from "../secrets/git.ts";
 import { auditors, blockedSecurity, failedGates, securityCallouts, type RecordJson } from "./auditors.ts";
 import { assembleBody, parseDraft, type ZoneFiles } from "./body.ts";
 import { guidePath } from "../../review/state.ts";
+import { type GateRecord, statsTable } from "../gate-record/record.ts";
 
 const usage = `Usage: pipeline pr-body <work-order.md> --draft <draft.md> --range <base>..<head> [--pr <name>] [--dir <repo>] [--out <body.md>]
 
@@ -24,13 +25,14 @@ Blast radius lines. pr-body adds the rest:
                  \`pipeline scan-zones\` over the range and the zones the plan gave the PR's tasks,
                  followed by each task's security review guide.
   Auditors       from a fresh gate record: Ran for passed gates, Skipped with each reason, and
-                 Accepted only when a finding was dismissed.
+                 Accepted only when a finding was dismissed, then the collapsed Pipeline stats
+                 table generated from the same record.
   Record         \`Co-Authored using AI\`, then the gate record as a hidden comment.
 
 It refuses while a task in the PR is not done in the ledger, a gate failed, the security gate passed
 on an older commit than the task's, or a T3 task's security gate was skipped or never recorded. For
 a lower tier, a security gate that did not run adds \`Security review: not run for task <id> (<reason>).\`
-to Risk and to the printed summary. It checks the body with \`pipeline pr-check\` and checks the body with \`pipeline pr-check\` and prints the
+to Risk and to the printed summary. It checks the body with \`pipeline pr-check\` and prints the
 title and the labels the PR takes.
 
 Options:
@@ -160,7 +162,7 @@ async function run(argv: string[]): Promise<number> {
   const zones = zoneFiles(JSON.parse(scanned.stdout) as ScanReport, plan, pr.tasks, diff.stdout.split("\n").filter(Boolean), (path) => isTestFile(zoneConfig, path));
 
   const guides = pr.tasks.map((task) => ({ task, path: guidePath(file, task) })).filter((guide) => existsSync(guide.path)).map((guide) => ({ task: guide.task, text: readFileSync(guide.path, "utf8") }));
-  const body = assembleBody(draft, zones, auditors(record), hidden, guides, callouts);
+  const body = assembleBody(draft, zones, auditors(record), hidden, guides, callouts, statsTable(JSON.parse(json) as GateRecord));
   const out = resolve(values.out ?? join(dirname(file), `pr-${pr.name}.md`));
   writeFileSync(out, body);
 

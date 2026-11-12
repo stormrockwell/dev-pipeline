@@ -123,6 +123,11 @@ describe("parseDraft and assembleBody", () => {
     expect(body.endsWith("## Auditors\n\n- Ran: TDD\n\nCo-Authored using AI\n\n<!-- pipeline:gate-record\n{}\n-->\n")).toBe(true);
   });
 
+  it("puts the stats table under the Auditors list", () => {
+    const body = assembleBody(parseDraft(draft), new Map(), ["- Ran: TDD"], "<!-- x -->", [], [], "<details><summary>Pipeline stats</summary>\n\n| Stat | Value |\n|---|---|\n| Waits | 0, 0s |\n\n</details>");
+    expect(body).toContain("## Auditors\n\n- Ran: TDD\n\n<details><summary>Pipeline stats</summary>\n\n| Stat | Value |\n|---|---|\n| Waits | 0, 0s |\n\n</details>\n\nCo-Authored using AI\n\n<!-- x -->\n");
+  });
+
   it("puts the generated callouts in Risk after the Human review line and drops a draft's own", () => {
     const parsed = parseDraft(draft.replace("Human review: none.", "Security review: not run for task 9 (mine).\nHuman review: none."));
     const body = assembleBody(parsed, new Map(), ["- Ran: TDD"], "<!-- x -->", [], ["Security review: not run for task 1 (not recorded)."]);
@@ -176,6 +181,7 @@ describe("pipeline pr-body", () => {
     expect(text).toContain("## How to verify\n\n```\nnode --test\n```");
     expect(text).toContain("Human review: none.");
     expect(text).toMatch(/Co-Authored using AI\n\n<!-- pipeline:gate-record\n\{.*"work":"ship".*\}\n-->\n$/);
+    expect(text).toMatch(/light security pass \(task 2: not run\)\n\n<details><summary>Pipeline stats<\/summary>\n\n\| Stat \| Value \|\n[\s\S]*\| Tasks \| 1 T2, 2 T0 \|[\s\S]*<\/details>\n\nCo-Authored using AI\n/);
   });
 
   it("adds a callout for each task whose security gate was not recorded, and the body passes pr-check", () => {

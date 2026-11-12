@@ -138,7 +138,7 @@ describe("pipeline review merge", () => {
     expect(stdout).toContain("no open findings, so review is done");
     const record = JSON.parse(pipeline(repo, ["gate-record", order, "--json"]).stdout);
     expect(record.accepted).toEqual([{ task: "1", gate: "spec", finding: "spec-1.1: Wholesale orders lose free shipping", reason: "wholesale is out of scope per the work order" }]);
-    expect(record.findings).toEqual({ opened: 1, fixed: 0, accepted: 1 });
+    expect(record.findings).toEqual({ opened: 1, fixed: 0, accepted: 1, overruled: 0, capHits: 0 });
     expect(record.gates).toContainEqual({ task: "1", gate: "spec", result: "pass", note: "round 1, no open findings" });
   });
 });
@@ -160,7 +160,12 @@ describe("fix rounds", () => {
     const merged = review(repo, "merge");
     expect(merged.stdout).toContain("0 to fix, 1 fixed");
     expect(review(repo, "start").stdout).toContain("every gate passed in round 2");
-    expect(JSON.parse(pipeline(repo, ["gate-record", order, "--json"]).stdout).findings).toEqual({ opened: 1, fixed: 1, accepted: 0 });
+    const record = JSON.parse(pipeline(repo, ["gate-record", order, "--json"]).stdout);
+    expect(record.findings).toEqual({ opened: 1, fixed: 1, accepted: 0, overruled: 0, capHits: 0 });
+    expect(record.rounds).toEqual([
+      { task: "1", round: 1, scope: "full", opened: 1, fixed: 0, by: { "spec Important": { opened: 1, fixed: 0 } } },
+      { task: "1", round: 2, scope: "fix", opened: 0, fixed: 1, by: { "spec Important": { opened: 0, fixed: 1 } } },
+    ]);
   });
 
   it("adds the simplifier and standards when the fix adds a branch, and spec when it changes other lines", () => {

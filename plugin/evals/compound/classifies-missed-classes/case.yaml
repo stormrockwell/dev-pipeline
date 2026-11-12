@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: compound-classifies-missed-classes
+tags: [compound]
+context:
+  scaffold_script: scaffold.sh

@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { parseHiddenComment } from "../../src/commands/gate-record/record.ts";
+import { parseHiddenComment, RECORD_VERSION, statsTable } from "../../src/commands/gate-record/record.ts";
 import { pipeline, removeTemps, write } from "../helpers/repo.ts";
 import { brief, commitAll, fixShipping, taskRepo, writeTest } from "./fixture.ts";
 
@@ -97,6 +97,52 @@ describe("pipeline gate-record", () => {
     const parsed = parseHiddenComment(stdout);
     expect(parsed?.rulings[0]?.decided).toBe("Use --force-with-lease --> never");
     expect(JSON.parse(readFileSync(join(repo, ".pipeline/work/ship/gate-record.json"), "utf8"))).toEqual(parsed);
+  });
+
+  it("versions the record, names the plugin version and leaves out what nothing reported", () => {
+    const repo = shipped();
+    const found = record(repo);
+    expect(found.version).toBe(RECORD_VERSION);
+    expect(found.pipeline).toMatch(/^\d+\.\d+\.\d+/);
+    expect(found.findings).toEqual({ opened: 0, fixed: 0, accepted: 0, overruled: 0, capHits: 0 });
+    for (const absent of ["rounds", "retries", "redirects"]) expect(found).not.toHaveProperty(absent);
+    expect(found.tasks[0]).not.toHaveProperty("stuck");
+  });
+
+  it("keeps each BLOCKED or NEEDS_CONTEXT report a task gave, with its cause", () => {
+    const repo = shipped();
+    const ledgerFile = join(repo, ".pipeline/work/ship/ledger.jsonl");
+    const blocked = { kind: "task", at: "2026-11-10T09:00:00Z", task: "2", status: "BLOCKED", branch: null, base: "a", head: "a", evidence: "the readme is generated" };
+    writeFileSync(ledgerFile, `${readFileSync(ledgerFile, "utf8")}${JSON.stringify(blocked)}\n`);
+    expect(record(repo).tasks[1].stuck).toEqual([{ status: "BLOCKED", cause: "the readme is generated" }]);
+  });
+
+  it("counts the commands a session retried", () => {
+    const repo = shipped();
+    logSession(repo);
+    const send = (input: Record<string, unknown>) => pipeline(repo, ["run-log", "--hook"], { input: JSON.stringify({ session_id: "s1", cwd: repo, ...input }) });
+    for (const ok of [false, true]) {
+      send({ hook_event_name: ok ? "PostToolUse" : "PostToolUseFailure", tool_name: "Bash", tool_input: { command: "npm test" }, ...(ok ? {} : { error: "exit 1" }) });
+    }
+    expect(record(repo).retries).toEqual({ failed: 1, retried: 1, unchanged: 1 });
+  });
+
+  it("prints the stats table from the same record", () => {
+    const repo = shipped();
+    logSession(repo);
+    const { stdout } = pipeline(repo, ["gate-record", order, "--stats"]);
+    expect(stdout.trim()).toBe(statsTable(record(repo)));
+    expect(stdout).toMatch(/^<details><summary>Pipeline stats<\/summary>\n\n\| Stat \| Value \|\n\|---\|---\|\n/);
+    expect(stdout).toContain("| Tasks | 1 T2, 2 T0 |");
+    expect(stdout).toContain("| Tokens | 2k: main unknown 0, implementer 1 claude-sonnet-5-5 2k |");
+    expect(stdout.trim().endsWith("</details>")).toBe(true);
+    expect(pipeline(repo, ["gate-record", order, "--stats", "--json"]).stderr).toContain("give one of");
+  });
+
+  it("reads a record back from a body edited in the browser, and gives null for a broken one", () => {
+    expect(parseHiddenComment('text\r\n<!-- pipeline:gate-record\r\n{"version":1,"work":"w"}\r\n-->')).toEqual({ version: 1, work: "w" });
+    expect(parseHiddenComment("<!-- pipeline:gate-record\n{not json\n-->")).toBeNull();
+    expect(parseHiddenComment("no record")).toBeNull();
   });
 
   it("needs a scheduled work order", () => {

@@ -4,15 +4,17 @@ import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { readLedger } from "../../ledger/ledger.ts";
 import { listLogs, primaryCheckout, readLog } from "../../run/log.ts";
+import { linkedRoutes, misroutes, retryTotals } from "../../run/efficiency.ts";
 import { duration, summarize, touches } from "../../run/summary.ts";
 import type { Plan } from "../schedule/plan.ts";
-import { buildRecord, type GateRecord, hiddenComment } from "./record.ts";
+import { buildRecord, type GateRecord, hiddenComment, type RunTelemetry, statsTable } from "./record.ts";
 
-const usage = `Usage: pipeline gate-record <work-order.md> [--pr <name>] [--json | --comment]
+const usage = `Usage: pipeline gate-record <work-order.md> [--pr <name>] [--json | --comment | --stats]
 
 Builds the gate record of a work order, or of one PR in its split: each task's result, every gate
 its tier requires with its result from the ledger, the rulings, and what the run cost in tokens,
-stage time and waits on a person, from the run logs of the sessions that touched the work.
+stage time, waits on a person, retried commands and route changes, from the run logs of the
+sessions that touched the work, and the review rounds with their findings by reviewer and tag.
 
 It writes the record beside the work order, as gate-record.json, or gate-record-<pr>.json with --pr.
 A gate nobody recorded is pending. TDD passes from the task's passing check.
@@ -21,6 +23,7 @@ Options:
   --pr <name>   Only the tasks of this PR, as \`pipeline schedule\` named it.
   --json        Print the record as JSON.
   --comment     Print the record as the hidden HTML comment that goes at the end of the PR body.
+  --stats       Print the collapsed Pipeline stats table the PR body shows, generated from the record.
 
 Exit codes: 0 on success, 2 for bad usage or a work order with no plan.json.`;
 
@@ -55,13 +58,13 @@ function render(record: GateRecord, path: string): string {
 async function run(argv: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: { pr: { type: "string" }, json: { type: "boolean" }, comment: { type: "boolean" } }, allowPositionals: true });
+    parsed = parseArgs({ args: argv, options: { pr: { type: "string" }, json: { type: "boolean" }, comment: { type: "boolean" }, stats: { type: "boolean" } }, allowPositionals: true });
   } catch (error) {
     return fail(`${error instanceof Error ? error.message : String(error)}. Run "pipeline gate-record --help".`);
   }
   const { values, positionals } = parsed;
   if (positionals.length !== 1) return fail("give one work order file.");
-  if (values.json && values.comment) return fail("give --json or --comment, not both.");
+  if ([values.json, values.comment, values.stats].filter(Boolean).length > 1) return fail("give one of --json, --comment and --stats.");
   const file = resolve(positionals[0]!);
   const planFile = join(dirname(file), "plan.json");
   if (!existsSync(file)) return fail(`no work order at ${file}.`);
@@ -74,13 +77,18 @@ async function run(argv: string[]): Promise<number> {
   const work = basename(dirname(file));
   const repo = primaryCheckout(dirname(file));
   const logs = repo === null ? [] : listLogs(repo).map(readLog).filter((log) => touches(log, work));
-  const runs = logs.length > 0 ? summarize(logs) : null;
-  if (runs) runs.dispatches = runs.dispatches.filter((dispatch) => dispatch.work === work);
+  let runs: RunTelemetry | null = null;
+  if (logs.length > 0) {
+    const summary = summarize(logs);
+    summary.dispatches = summary.dispatches.filter((dispatch) => dispatch.work === work);
+    const { failed, retried, unchanged } = retryTotals(logs, { repo });
+    runs = { summary, retries: { failed, retried, unchanged }, redirects: misroutes(logs, linkedRoutes).map((row) => row.routes) };
+  }
 
   const record = buildRecord(file, plan, readLedger(file), runs, values.pr ?? null);
   const out = join(dirname(file), values.pr ? `gate-record-${values.pr}.json` : "gate-record.json");
   writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
-  console.log(values.json ? JSON.stringify(record, null, 2) : values.comment ? hiddenComment(record) : render(record, out));
+  console.log(values.json ? JSON.stringify(record, null, 2) : values.comment ? hiddenComment(record) : values.stats ? statsTable(record) : render(record, out));
   return 0;
 }
 

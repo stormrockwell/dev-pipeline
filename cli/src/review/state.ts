@@ -53,6 +53,8 @@ export interface Merged {
   contests: { high: string; low: string }[];
   fixed: string[];
   opened: number;
+  // Findings opened and fixed in the round, keyed by reviewer and tag, such as `spec Important`. A round merged before the count existed has none.
+  byReviewer?: Record<string, { opened: number; fixed: number }>;
 }
 
 /**
