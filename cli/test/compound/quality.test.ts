@@ -20,12 +20,15 @@ function pr(number: number, day: number, files: string[], extra: Partial<MergedP
     number,
     title: `feat: change ${number}`,
     author: "dana",
+    opened: null,
     mergedAt: `2026-11-${String(day).padStart(2, "0")}T10:00:00Z`,
     mergeSha: `m${number}`,
     base: "main",
     files: files.map((path) => ({ path, zones: path === SAVE ? ["input"] : [] })),
     comments: [],
+    approvals: [],
     record: null,
+    gate: null,
     ...extra,
   };
 }
@@ -35,7 +38,7 @@ function commit(sha: string, day: number, subject: string, files: string[], mess
 }
 
 function repo(prs: MergedPr[], commits: RepoData["commits"], name = "example/shop"): RepoData {
-  return { version: 1, repo: name, fetchedAt: "2026-11-30T00:00:00Z", since: "2026-11-01T00:00:00Z", prs, commits };
+  return { version: 2, repo: name, fetchedAt: "2026-11-30T00:00:00Z", since: "2026-11-01T00:00:00Z", prs, commits };
 }
 
 const record = (skipped: { gate: string; reason: string }[], zones: string[] = [], tiers = ["T2"]) => ({ version: 2, pipeline: "0.1.0", tiers, zones, skipped, findings: { opened: 0, fixed: 0, accepted: 0 } });

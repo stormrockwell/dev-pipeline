@@ -10,6 +10,7 @@ import { efficiency, type Ledger, renderEfficiency } from "../../run/efficiency.
 import { listLogs, primaryCheckout, readLog, RUNS_DIR, type RunLog } from "../../run/log.ts";
 import { transcriptLog } from "../../run/transcript.ts";
 import { excludeLocally } from "../../task/git.ts";
+import { runMetrics } from "./metrics.ts";
 import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
 
 const usage = `Usage: pipeline compound efficiency [--transcripts <dir>] [--since <date>] [--min-streams <n>] [--top <n>] [--out <file>] [--json]
@@ -230,6 +231,7 @@ async function run(argv: string[]): Promise<number> {
   const [half, ...rest] = argv;
   if (half === "efficiency") return runEfficiency(rest);
   if (half === "quality") return runQuality(rest);
+  if (half === "metrics") return runMetrics(rest);
   return fail(`name the half to run: "pipeline compound quality" or "pipeline compound efficiency". Run "pipeline compound --help".`);
 }
 
