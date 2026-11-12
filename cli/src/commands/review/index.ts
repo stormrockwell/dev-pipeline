@@ -21,7 +21,7 @@ const usage = `Usage: pipeline review start <work-order.md> --task <id> [--workt
        pipeline review save --hook
 
 Runs the review rounds of one task, step 6 of the change route. Reviewers: spec, standards, the
-simplifier, security and accessibility, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
+simplifier, performance, security and accessibility, each as a plugin agent reading a package file. Findings rank by axis: ${AXES.join(", ")}.
 Security runs at the depth its gate names: light and quick send one hunter and one verifier, and full
 sends three hunters on opus and a vote of three verifiers.
 
@@ -29,8 +29,9 @@ sends three hunters on opus and a vote of three verifiers.
             fix diff over a third of the original, and a fix that adds files get every reviewer the
             tier names. A smaller fix goes to each reviewer whose findings it fixes, to spec when it
             changes code beyond the named lines, and to the simplifier and standards when it adds a
-            function or branch or runs past about twenty lines. Gates for reviewers this version does
-            not ship are recorded as skipped. Security re-reviews every fix, and the whole task diff when
+            function or branch or runs past about twenty lines, and to performance when it adds a query,
+            a loop over data or a remote call. Gates for reviewers this version does not ship are
+            recorded as skipped. Security re-reviews every fix, and the whole task diff when
             the fix touches zone code. Past ${MAX_ROUNDS} rounds it needs --continue with the developer's reason.
   merge     Merge the round's findings: drop duplicates, send pre-existing ones and, in a fix round,
             ones off the fix diff to the backlog, cap nits at ${NIT_CAP}, list contests between axes on
@@ -139,7 +140,7 @@ async function hook(): Promise<number> {
     input = {};
   }
   const reply = input.last_assistant_message ?? "";
-  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier|accessibility|security-(?:hunter|verifier)-\d+)\.md)\W*$/m.exec(reply);
+  const line = /^\W*Package:\W*\s*(\/\S+?package-(spec|standards|simplifier|performance|accessibility|security-(?:hunter|verifier)-\d+)\.md)\W*$/m.exec(reply);
   if (!line) {
     if (!input.stop_hook_active) console.log(JSON.stringify({ decision: "block", reason: "End your reply with the findings as one ```json block, then the line `Package: <path>` from your package." }));
     return 0;

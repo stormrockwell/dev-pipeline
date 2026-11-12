@@ -1,25 +1,25 @@
 ---
 name: review-loop
-description: Review each built task in rounds, simplifier first, then spec, standards and security, findings merged by precedence into one fix pass, fix rounds routed by the fix diff. Use when the build skill's checks pass, or when the developer asks to review a built task.
+description: Review each built task in rounds, simplifier first, then spec, standards, performance, security and accessibility, findings merged by precedence into one fix pass, fix rounds routed by the fix diff. Use when the build skill's checks pass, or when the developer asks to review a built task.
 ---
 
 # Review loop
 
-Review is step 6 of the change route. Its input is a work order whose tasks passed `pipeline task-check`. You dispatch, rule and route, and the reviewers and the implementer do the work. `pipeline review` decides which reviewers each round needs, so you follow its Dispatch lines.
+Review is step 6 of the change route. Its input is a work order whose tasks passed `pipeline task-check`. `pipeline review` decides which reviewers each round needs, so you follow its Dispatch lines.
 
 Each Bash call is one plain `pipeline` or `git` command, with no `;`, `&&`, pipes or `$(...)`, because permission rules match whole commands.
 
 ## Each task
 
-Take the tasks in the order the build ran them. Every command below names `.pipeline/work/<slug>/work-order.md --task <id>`.
+Take the tasks in the order the build ran them.
 
-1. **Start.** Run `pipeline review start .pipeline/work/<slug>/work-order.md --task <id>`. It prints the round, one Dispatch line per reviewer still to reply with its package, why each runs, and skipped gates. A `Done` line means the task's review is finished, so go to the next task.
+1. **Start.** Run `pipeline review start .pipeline/work/<slug>/work-order.md --task <id>`. It prints one Dispatch line per reviewer still to reply, with its package and why it runs, and skipped gates. A `Done` line means the task's review is finished, so go to the next task.
 2. **Simplifier.** When a Dispatch line names `dev-pipeline:simplifier`, dispatch it alone with the prompt `Read your review package at <package>, then review.` and wait for it. Then run `pipeline task-check --task <worktree>`, so its commits count. When the check fails, send the simplifier the output to fix or revert.
 3. **Reviewers.** Dispatch every other Dispatch line in one message, so they run at once, with the same prompt and its own package. When a line names a model, as in `on opus`, pass that model to the Agent tool. The Stop hook saves each reply's findings beside its package.
-4. **Merge.** Run `pipeline review merge .pipeline/work/<slug>/work-order.md --task <id>`. When it prints `Verify` lines, dispatch each `dev-pipeline:security-verifier` in one message with the same prompt and its package, then merge again. When it says a reviewer's findings are missing, write that reply's json block to the path it names with Write and merge again. Never write a security reply yourself: dispatch the hunter or verifier again, because its gate stays failed until its own reply saves. For each `Contest` line, read both findings: when they pull the same lines in opposite directions, run the overrule command it prints, which records the ruling. Otherwise leave both on the list.
+4. **Merge.** Run `pipeline review merge .pipeline/work/<slug>/work-order.md --task <id>`. When it prints `Verify` lines, dispatch each `dev-pipeline:security-verifier` in one message with the same prompt and its package, then merge again. When it says a reviewer's findings are missing, write that reply's json block to the path it names with Write and merge again. Never write a security reply yourself: dispatch the hunter or verifier again, because its gate stays failed until its own reply saves. For each `Contest` line, read both findings: when they pull the same lines in opposite directions, run the overrule command it prints. Otherwise leave both on the list. An `Ask:` fix is a scale question, so put it to the developer and wait. Record a confirmed ceiling under `scale:` in `.pipeline/profile.yml`, and dismiss the item with their answer unless they say build it.
 5. **Fix.** With a `Fix list` line, dispatch `dev-pipeline:implementer` with two lines: `Read your fix list at <fix list>, then fix task <id>.` and the worktree path. When its reply disputes an item and the dispute holds, run `pipeline review dismiss .pipeline/work/<slug>/work-order.md --task <id> --finding <finding> --reason "<why>"`. Otherwise send the finding back with your reason. Then run `pipeline task-check --task <worktree>` and return to step 1 for the fix round.
 6. **Cap.** When start says the task has had three rounds, stop and ask the developer whether the approach needs rethinking, with the open findings. Pass their answer as `--continue "<their reason>"` only when they say go on.
-7. **Accessibility.** The `dev-pipeline:accessibility-reviewer` line goes out with step 3's. With an `axe` gate and a running site, run `pipeline a11y --base-url <site> --url <page> --work-order .pipeline/work/<slug>/work-order.md --task <id>`, which records the gate. A skip needs a reason, so run `pipeline ledger gate .pipeline/work/<slug>/work-order.md --task <id> --gate accessibility --result skip --note "<reason>"` before `start`.
+7. **Accessibility.** With an `axe` gate and a running site, run `pipeline a11y --base-url <site> --url <page> --work-order .pipeline/work/<slug>/work-order.md --task <id>`, which records the gate. Skipping `dev-pipeline:accessibility-reviewer` needs a reason, so run `pipeline ledger gate .pipeline/work/<slug>/work-order.md --task <id> --gate accessibility --result skip --note "<reason>"` before `start`.
 
 A security finding is never dismissed or parked, and it outranks every other finding on its lines. Its tests are on the fix list, for the implementer to write red first.
 

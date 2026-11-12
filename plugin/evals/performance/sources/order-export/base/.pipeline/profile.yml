@@ -1,0 +1,5 @@
+project:
+  type: wordpress-plugin
+scale:
+  default: 500
+  orders: 100000
