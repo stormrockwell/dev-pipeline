@@ -102,28 +102,31 @@ const REFUSED = /Operation not permitted|Permission denied/;
 /**
  * Run git init on main, or say why the environment refused it
  *
- * An empty template keeps git from copying sample hooks into .git/hooks. The .git folder a refused init leaves
- * behind is removed, so a later run starts clean and git does not mistake it for a repository.
+ * The developer's own template applies first. When copying it into .git/hooks is refused, init retries with an
+ * empty template. The .git folder a refused init leaves behind is removed each time, so a later run starts clean
+ * and git does not mistake it for a repository.
  */
 function gitInit(directory: string): "done" | "failed" | { skipped: string } {
-  const result = spawnSync("git", ["init", "-q", "--template=", "-b", "main"], {
-    cwd: directory,
-    encoding: "utf8",
-    env: { ...process.env, LC_ALL: "C" },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.status === 0) {
-    console.log("initialised a git repo on main");
-    return "done";
-  }
-  const output = (result.stderr || result.stdout || "").trim();
-  const refused = output.match(REFUSED);
-  if (refused) {
+  let output = "";
+  for (const template of [[], ["--template="]]) {
+    const result = spawnSync("git", ["init", "-q", ...template, "-b", "main"], {
+      cwd: directory,
+      encoding: "utf8",
+      env: { ...process.env, LC_ALL: "C" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (result.status === 0) {
+      console.log("initialised a git repo on main");
+      return "done";
+    }
+    output = (result.stderr || result.stdout || "").trim();
+    if (!REFUSED.test(output)) {
+      console.error(`pipeline init: git init failed. ${output}`);
+      return "failed";
+    }
     rmSync(join(directory, ".git"), { recursive: true, force: true });
-    return { skipped: `git cannot write ${join(directory, ".git")} here (${refused[0]})` };
   }
-  console.error(`pipeline init: git init failed. ${output}`);
-  return "failed";
+  return { skipped: `git cannot write ${join(directory, ".git")} here (${output.match(REFUSED)![0]})` };
 }
 
 /**

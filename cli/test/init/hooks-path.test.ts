@@ -74,10 +74,29 @@ describe("init --mode new with a writable hooks directory", () => {
   const dir = join(tempDir(), "demo-site");
   const result = pipeline(tempDir(), ["init", "--mode", "new", "--path", dir, ...answers]);
 
-  it("copies no sample hooks and installs the secret hooks", () => {
+  it("keeps the developer's template and installs the secret hooks", () => {
     expect(result.status, result.stderr).toBe(0);
-    expect(readdirSync(join(dir, ".git/hooks")).sort()).toEqual(["pre-commit", "pre-push"]);
+    expect(readdirSync(join(dir, ".git/hooks"))).toEqual(expect.arrayContaining(["pre-commit", "pre-push"]));
     expect(pipeline(dir, ["hooks", "status"]).status).toBe(0);
+  });
+});
+
+describe("init --mode new where git cannot copy its template hooks", () => {
+  const dir = join(tempDir(), "demo-site");
+  const fake = tempDir("pipeline-git-");
+  // Refuses an init that copies the template, as a sandbox guarding only .git/hooks does, and runs the real git otherwise.
+  executable(
+    join(fake, "git"),
+    `#!/bin/sh\nif [ "$1" = init ] && ! echo "$*" | grep -q -- --template=; then mkdir -p .git/hooks; echo "fatal: cannot copy commit-msg.sample: Operation not permitted" >&2; exit 128; fi\nexec '${findOnPath("git")}' "$@"\n`,
+  );
+  const env = { PATH: [fake, dirname(process.execPath), "/usr/bin", "/bin"].join(delimiter) };
+  const result = pipeline(tempDir(), ["init", "--mode", "new", "--path", dir, ...answers], { env });
+
+  it("retries with an empty template and starts the repo on main", () => {
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("initialised a git repo on main");
+    expect(git(dir, "symbolic-ref", "HEAD").stdout.trim()).toBe("refs/heads/main");
+    expect(readdirSync(join(dir, ".git/hooks")).sort()).toEqual(["pre-commit", "pre-push"]);
   });
 });
 
