@@ -46,6 +46,7 @@ interface Compiled {
   signal: Signal;
   pattern: RegExp;
   near: RegExp | null;
+  file: RegExp | null;
 }
 
 const compiledCache = new WeakMap<ZoneConfig, Compiled[]>();
@@ -58,6 +59,7 @@ function compiled(config: ZoneConfig): Compiled[] {
       signal,
       pattern: new RegExp(signal.pattern, signal.flags ?? ""),
       near: signal.near ? new RegExp(signal.near, signal.flags ?? "") : null,
+      file: signal.file ? new RegExp(signal.file, signal.flags ?? "") : null,
     }));
     compiledCache.set(config, list);
   }
@@ -159,24 +161,34 @@ export function scanFile(config: ZoneConfig, input: FileInput): FileScan {
     if (input.content !== null && !input.deleted) {
       const lines = splitLines(input.content);
       const around = new Neighbourhood(lines, input.added);
+      const fileHolds = new Map<RegExp, boolean>();
+      const inFile = (pattern: RegExp): boolean => {
+        let held = fileHolds.get(pattern);
+        if (held === undefined) {
+          held = lines.some((text) => text.length <= 4000 && pattern.test(text));
+          fileHolds.set(pattern, held);
+        }
+        return held;
+      };
       for (let i = 0; i < lines.length; i++) {
         const number = i + 1;
         if (input.added && !input.added.has(number)) continue;
         const line = lines[i]!;
         if (line.length > 4000) continue;
-        for (const { signal, pattern, near } of signals) {
+        for (const { signal, pattern, near, file } of signals) {
           if (signal.only === "removed" || !pattern.test(line)) continue;
+          if (file && !inFile(file)) continue;
           if (near && !around.holds(near, i)) continue;
           matches.push({ kind: "signal", zone: signal.zone, line: number, pattern: signal.pattern, text: snippet(line) });
         }
       }
     }
 
-    // A removed line cannot show request data, so a signal that depends on its neighbourhood is skipped.
+    // A removed line cannot show request data, so a signal that depends on its neighbourhood or its file is skipped.
     for (const entry of input.removed) {
       if (entry.text.length > 4000) continue;
-      for (const { signal, pattern, near } of signals) {
-        if (near || !pattern.test(entry.text)) continue;
+      for (const { signal, pattern, near, file } of signals) {
+        if (near || file || !pattern.test(entry.text)) continue;
         removed.push({ kind: "signal", zone: signal.zone, line: entry.line, pattern: signal.pattern, text: snippet(entry.text) });
       }
     }

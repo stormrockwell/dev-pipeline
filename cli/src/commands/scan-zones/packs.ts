@@ -18,11 +18,22 @@ function signals(group: Group, zone: Zone, ...patterns: string[]): Signal[] {
 const wpRequest =
   "\\$_(GET|POST|REQUEST)\\b|->get_(json_|body_|query_|url_)?params?\\(|\\$request\\[";
 
+// A file that registers an ability or defines an `execute( $params )` method, so its callers' input arrives as a parameter.
+const wpAbility =
+  "\\bwp_register_ability\\(|['\"]execute_callback['\"]\\s*=>|\\bfunction\\s+execute\\s*\\(\\s*(?:\\??[\\w\\\\|]+\\s+)?&?\\$(?:params|input)\\b";
+
+// A call with a variable among its arguments, because a call of literals cannot carry caller data.
+const withVariable = "\\((?=.*\\$|(?!.*\\)))";
+
 const nodeRequest =
   "\\b(req|request)\\.(body|query|params)\\b|\\b(req|request)\\.json\\(|\\bformData\\(|\\bsearchParams\\b";
 
 function near(group: Group, zone: Zone, pattern: string, request: string): Signal {
   return { group, zone, pattern, near: request };
+}
+
+function inFile(group: Group, zone: Zone, pattern: string, file: string): Signal {
+  return { group, zone, pattern, file };
 }
 
 function removedOnly(group: Group, zone: Zone, pattern: string): Signal {
@@ -145,11 +156,11 @@ export const wordpress: Pack = {
       "current_user_can|user_can|map_meta_cap",
       "wp_ajax_nopriv_|admin_post_nopriv_|woocommerce_api_",
     ),
-    ...signals("php", "auth", "wp_signon|wp_set_auth_cookie|wp_check_password|setcookie"),
+    ...signals("php", "auth", "wp_signon|wp_set_auth_cookie|wp_check_password|setcookie|\\bis_user_logged_in\\("),
     ...signals("php", "csrf", "check_ajax_referer|wp_verify_nonce|check_admin_referer|wp_create_nonce|wp_nonce_field"),
     ...signals("php", "input", "unserialize|eval\\(|shell_exec|proc_open|move_uploaded_file", "\\b(passthru|popen|system)\\("),
     ...signals("php", "input", "wp_redirect|wp_safe_redirect", "\\b(include|require)(_once)?\\b\\s*\\(?\\s*\\$"),
-    ...signals("php", "data-loss", "dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook", "wp_delete_(post|user|attachment|term)\\(|delete_option\\("),
+    ...signals("php", "data-loss", "dbDelta|DROP TABLE|TRUNCATE|register_uninstall_hook", "wp_delete_(post|user|attachment|term|nav_menu)\\(|delete_option\\("),
     ...signals("php", "crypto", "hash_hmac|wp_salt\\(|openssl_|sodium_|password_hash|password_verify|wp_hash_password"),
     { group: "php", zone: "crypto", pattern: signatureComparison, flags: "i" },
     // The constant time comparison that decides whether a webhook signature or a token matches.
@@ -162,6 +173,19 @@ export const wordpress: Pack = {
       "input",
       "\\b(update_option|update_post_meta|wp_insert_post|wp_update_post|wp_update_nav_menu_item|wp_insert_user|wp_update_user)\\(",
       wpRequest,
+    ),
+    // The file level test is what the scanner can see of an ability, since a helper method that writes holds no `$params` of its own.
+    inFile(
+      "php",
+      "input",
+      `\\b(update_option|update_post_meta|update_field|wp_insert_post|wp_update_post|wp_update_nav_menu_item|wp_insert_user|wp_update_user)${withVariable}`,
+      wpAbility,
+    ),
+    inFile(
+      "php",
+      "input",
+      `\\b(wp_remote_(get|post|request|head)|wp_safe_remote_\\w+|download_url|media_handle_sideload|wp_handle_sideload)${withVariable}`,
+      wpAbility,
     ),
     near("php", "input", "\\b(wp_remote_(get|post|request|head)|wp_safe_remote_\\w+|curl_init|file_get_contents)\\(", wpRequest),
     removedOnly("php", "input", "\\b(esc_(html|attr|url|js|textarea)|wp_kses(_post)?|sanitize_\\w+|absint|esc_sql)\\("),

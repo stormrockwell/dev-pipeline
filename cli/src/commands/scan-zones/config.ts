@@ -16,7 +16,7 @@ export const DEFAULT_CRITICAL = [".github/**", ".pipeline/**", ".claude/**"];
  * and never read from a distribution ignore file, because those also exclude shipped code such as workers.
  */
 export const DEFAULT_TEST_PATHS = ["**/test/**", "**/tests/**", "**/__tests__/**", "*.test.*", "*.spec.*", "*Test.php"];
-const SIGNAL_KEYS = ["pattern", "zone", "near", "only", "flags"];
+const SIGNAL_KEYS = ["pattern", "zone", "near", "file", "only", "flags"];
 const PATH_KEYS = ["path", "zone"];
 
 // Names from the 0.6 spike, so an old file gets a pointer to the current zone instead of a bare error.
@@ -105,12 +105,14 @@ function parseSignals(value: YamlValue | undefined): Signal[] {
         if (!/^[ims]+$/.test(signal.flags)) fail(where, 'flags may contain only "i", "m" and "s".');
       }
       if (item.near !== undefined) signal.near = asString(where, "near", item.near);
+      if (item.file !== undefined) signal.file = asString(where, "file", item.file);
       if (item.only !== undefined) {
         if (item.only !== "removed") fail(where, 'only must be "removed".');
         signal.only = "removed";
       }
       compile(where, signal.pattern, signal.flags ?? "");
       if (signal.near) compile(where, signal.near, signal.flags ?? "");
+      if (signal.file) compile(where, signal.file, signal.flags ?? "");
       result.push(signal);
     });
   }
@@ -168,7 +170,7 @@ function combine(source: ZoneConfig["source"], names: string[], paths: PathRule[
     paths: unique([...paths, ...chosen.flatMap((pack) => pack.paths)], (rule) => `${rule.glob}\0${rule.zone}`),
     signals: unique(
       [...signals, ...chosen.flatMap((pack) => pack.signals)],
-      (signal) => JSON.stringify([signal.group, signal.zone, signal.pattern, signal.near, signal.only, signal.flags]),
+      (signal) => JSON.stringify([signal.group, signal.zone, signal.pattern, signal.near, signal.file, signal.only, signal.flags]),
     ),
   };
 }
