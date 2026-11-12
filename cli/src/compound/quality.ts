@@ -127,7 +127,7 @@ export function fingerprint(axis: Axis, area: string): string {
 /**
  * The PR a later commit reverted, from the sha, PR number or title its message names
  */
-function revertedPr(message: string, repo: string, prs: MergedPr[]): MergedPr | null {
+export function revertedPr(message: string, repo: string, prs: MergedPr[]): MergedPr | null {
   return (
     prs.find((pr) => pr.mergeSha !== null && message.includes(pr.mergeSha)) ??
     prs.find((pr) => message.includes(`Reverts ${repo}#${pr.number}`)) ??
@@ -142,7 +142,7 @@ function revertedPr(message: string, repo: string, prs: MergedPr[]): MergedPr | 
  * Each file the fix touched points at the last PR before it that touched the same file, within
  * the window. The PR most files point at wins, and the later one breaks a tie.
  */
-function fixedPr(commit: RepoData["commits"][number], prs: MergedPr[], windowMs: number): MergedPr | null {
+export function fixedPr(commit: RepoData["commits"][number], prs: MergedPr[], windowMs: number): MergedPr | null {
   const at = Date.parse(commit.at);
   const before = prs.filter((pr) => pr.mergeSha !== commit.sha && Date.parse(pr.mergedAt) < at && at - Date.parse(pr.mergedAt) <= windowMs);
   const votes = new Map<MergedPr, number>();

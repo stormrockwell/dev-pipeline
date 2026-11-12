@@ -38,11 +38,14 @@ function pr(number: number): MergedPr {
     number,
     title: `feat(checkout): change ${number}`,
     author: "dana",
+    opened: null,
     mergedAt: `2026-11-0${number}T10:00:00Z`,
     mergeSha: `m${number}`,
     base: "main",
     files: [{ path: CHECKOUT, zones: ["input"] }],
     comments: [{ author: "riley", kind: "human", body: QUOTE, path: CHECKOUT, zones: ["input"], at: `2026-11-0${number}T09:00:00Z` }],
+    approvals: [],
+    gate: null,
     record: { version: 2, pipeline: "0.1.0", tiers: ["T2"], zones: [], skipped: [{ gate: "quick security review", reason: "the acme reviewer was away" }], findings: { opened: 0, fixed: 0, accepted: 0 } },
   };
 }
@@ -51,7 +54,7 @@ function pr(number: number): MergedPr {
  * The quality report of the synthetic client, with three PRs behind the top class
  */
 function report(numbers = [1, 2, 3]): QualityReport {
-  const data: RepoData = { version: 1, repo: CLIENT, fetchedAt: "2026-11-10T00:00:00Z", since: "2026-11-01T00:00:00Z", prs: numbers.map(pr), commits: [] };
+  const data: RepoData = { version: 2, repo: CLIENT, fetchedAt: "2026-11-10T00:00:00Z", since: "2026-11-01T00:00:00Z", prs: numbers.map(pr), commits: [] };
   return quality([data], { windowDays: 14, top: 10 });
 }
 
