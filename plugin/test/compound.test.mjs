@@ -34,6 +34,20 @@ test("the compound skill runs both miners and hands each report to its analyst",
   assert.doesNotMatch(body, /—|–|\S - [a-z]/);
 });
 
+test("the compound skill asks which halves the setting covers and the hook offers it at startup only", () => {
+  const { body } = frontmatter("skills/compound/SKILL.md");
+  assert.match(body, /pipeline compound due`/);
+  assert.match(body, /ends `covers efficiency\.`/);
+  assert.ok(body.indexOf("pipeline compound due") < body.indexOf("pipeline compound quality"), "the skill reads the setting first");
+  const { hooks } = JSON.parse(read("hooks/hooks.json"));
+  const reminders = hooks.SessionStart.filter((entry) => entry.hooks.some((hook) => hook.command === "pipeline compound due --hook"));
+  assert.equal(reminders.length, 1);
+  assert.equal(reminders[0].matcher, "startup");
+  const [hook] = reminders[0].hooks;
+  assert.ok(hook.timeout > 0 && hook.timeout <= 10, "the reminder runs at every start, so it is bounded");
+  assert.notEqual(hook.async, true, "the reminder's output reaches the session only when it is not async");
+});
+
 test("the compound skill previews each issue, asks, and files only the lessons the developer names", () => {
   const { body } = frontmatter("skills/compound/SKILL.md");
   assert.match(body, /pipeline compound file --class <fingerprint> --lesson "<Lesson>" --becomes "<Becomes>" --dry-run/);
