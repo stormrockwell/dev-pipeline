@@ -64,10 +64,13 @@ export function humanReviewSection(zones: ZoneFiles, guides: { task: string; tex
 }
 
 /**
- * Puts the body together: the draft's sections, the Risk section with the generated Human review
- * line, the review list for zone files, the Auditors list, the AI line and the hidden gate record
+ * Puts the body together
+ *
+ * The parts in order are the draft's sections, the Risk section with the generated Human review
+ * line, the review list for zone files, the Auditors list with the collapsed stats table, the AI
+ * line and the hidden gate record.
  */
-export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string, guides: { task: string; text: string }[] = [], callouts: string[] = []): string {
+export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: string[], hidden: string, guides: { task: string; text: string }[] = [], callouts: string[] = [], stats: string | null = null): string {
   const parts: string[] = [];
   let risk = false;
   for (const section of draft.sections) {
@@ -81,7 +84,7 @@ export function assembleBody(draft: Draft, zones: ZoneFiles, auditorLines: strin
     parts.push(`## ${section.heading}\n\n${section.body}`);
   }
   if (!risk) parts.push(`## Risk\n\n${[humanReviewLine(zones), ...callouts].join("\n")}`);
-  parts.push(`## Auditors\n\n${auditorLines.join("\n")}`);
+  parts.push(`## Auditors\n\n${[auditorLines.join("\n"), stats].filter(Boolean).join("\n\n")}`);
   parts.push("Co-Authored using AI");
   parts.push(hidden.trim());
   return `${parts.join("\n\n")}\n`;

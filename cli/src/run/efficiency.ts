@@ -186,11 +186,25 @@ function retries(streams: Stream[], roots: Roots): EfficiencyReport["retries"] {
 }
 
 /**
+ * Failed calls across the logs, with how many were retried, recovered, or passed on an identical rerun
+ */
+export function retryTotals(logs: RunLog[], roots: Roots): { failed: number; retried: number; recovered: number; unchanged: number } {
+  const totals = { failed: 0, retried: 0, recovered: 0, unchanged: 0 };
+  for (const row of retries(streamsOf(logs), roots)) {
+    totals.failed += row.failed;
+    totals.retried += row.retried;
+    totals.recovered += row.recovered;
+    totals.unchanged += row.unchanged;
+  }
+  return totals;
+}
+
+/**
  * Review rounds per task from the ledgers, with whether the task hit the round cap
  *
  * A task hit the cap when it ran past it, or when its last allowed round still opened findings.
  */
-function reviews(ledgers: Ledger[]): EfficiencyReport["reviews"] {
+export function reviews(ledgers: Ledger[]): EfficiencyReport["reviews"] {
   const rows: EfficiencyReport["reviews"] = [];
   for (const { work, entries } of ledgers) {
     const tasks = new Map<string, Map<number, Extract<Entry, { kind: "round" }>>>();
@@ -232,7 +246,7 @@ function sentBack(logs: RunLog[]): EfficiencyReport["sentBack"] {
 /**
  * The routes each session named, from the transcript its run log links to
  */
-function linkedRoutes(log: RunLog): string[] {
+export function linkedRoutes(log: RunLog): string[] {
   const session = log.events.find((event) => event.kind === "session" && event.transcript !== null);
   return transcriptRoutes(session?.kind === "session" ? session.transcript : null).map((found) => found.route);
 }
@@ -240,7 +254,7 @@ function linkedRoutes(log: RunLog): string[] {
 /**
  * Sessions whose route changed after the first was named, as when a developer redirects one
  */
-function misroutes(logs: RunLog[], routesOf: (log: RunLog) => string[]): EfficiencyReport["misroutes"] {
+export function misroutes(logs: RunLog[], routesOf: (log: RunLog) => string[]): EfficiencyReport["misroutes"] {
   return logs.flatMap((log) => {
     const routes = routesOf(log).filter((route, index, all) => route !== all[index - 1]);
     return routes.length > 1 ? [{ session: log.session, routes }] : [];

@@ -42,6 +42,7 @@ const OWNERS = {
   "plugin/agents/docs.md": ["finish"],
   "plugin/skills/compound/": ["compound"],
   "plugin/agents/efficiency-analyst.md": ["compound"],
+  "plugin/agents/quality-analyst.md": ["compound"],
 };
 
 const EVERYTHING = ["plugin/evals/run.mjs", "plugin/evals/affected.mjs", "plugin/evals/shared-graders/", "tools/eval-bin/", "cli/src/main.ts", "cli/src/command.ts", "cli/package.json", "cli/package-lock.json"];

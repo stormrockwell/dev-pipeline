@@ -89,7 +89,17 @@ export function mergeRound(input: MergeInput): Merged {
     }
   });
 
-  return { head: input.head, accepted, backlog, duplicates, contests, fixed, opened };
+  const byReviewer: NonNullable<Merged["byReviewer"]> = {};
+  const add = (finding: Finding, field: "opened" | "fixed") => {
+    const key = `${finding.reviewer} ${finding.tag}`;
+    const row = byReviewer[key] ?? { opened: 0, fixed: 0 };
+    row[field] += 1;
+    byReviewer[key] = row;
+  };
+  for (const finding of kept) if (!priorIds.has(finding.id)) add(finding, "opened");
+  for (const finding of input.open) if (fixed.includes(finding.id)) add(finding, "fixed");
+
+  return { head: input.head, accepted, backlog, duplicates, contests, fixed, opened, byReviewer };
 }
 
 /**
