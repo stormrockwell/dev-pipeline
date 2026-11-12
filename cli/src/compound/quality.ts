@@ -32,6 +32,8 @@ export interface MissedClass {
   signals: Record<SignalKind, number>;
   hints: string[];
   examples: { repo: string; pr: number; kind: SignalKind; text: string; path: string | null }[];
+  // Every PR behind the class as `owner/name#number`, kept local so a later filing can tell new evidence from old.
+  refs: string[];
 }
 
 /**
@@ -232,6 +234,7 @@ export function quality(repos: RepoData[], options: QualityOptions): QualityRepo
         signals: { human: 0, fix: 0, revert: 0, skip: 0 },
         hints: [],
         examples: [],
+        refs: [],
         prSet: new Set<string>(),
         repoSet: new Set<string>(),
         hintPrs: new Map<string, Set<string>>(),
@@ -256,6 +259,7 @@ export function quality(repos: RepoData[], options: QualityOptions): QualityRepo
       ...entry,
       prs: prSet.size,
       repos: repoSet.size,
+      refs: [...prSet].sort(),
       hints: [...hintPrs].sort(([a, x], [b, y]) => y.size - x.size || a.localeCompare(b)).map(([text, prs]) => `${text} on ${prs.size} PR${prs.size === 1 ? "" : "s"}`),
       // A person's words first, then reverts, fixes and skips.
       examples: [...examples].sort((a, b) => WEIGHTS[b.kind] - WEIGHTS[a.kind] || (a.kind === b.kind ? 0 : a.kind === "human" ? -1 : 1)).slice(0, 3),
