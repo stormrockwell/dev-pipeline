@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { excludeLocally } from "../task/git.ts";
-import { appendEvents, logPath, primaryCheckout, RUNS_DIR, type RunEvent } from "./log.ts";
+import { appendEvents, clip, describeInput, logPath, PLUGIN_SKILL, primaryCheckout, RUNS_DIR, type RunEvent } from "./log.ts";
 import { transcriptUsage } from "./transcript.ts";
 
 /**
@@ -22,44 +22,6 @@ export interface HookInput {
   tool_input?: Record<string, unknown>;
   error?: string;
   duration_ms?: number;
-}
-
-// Skills the plugin ships, whose firing starts a stage of the change route.
-const PLUGIN_SKILL = /^dev-pipeline:([\w-]+)$/;
-
-function clip(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
-/**
- * The part of a tool call's input worth keeping: the command, path, pattern or skill, never file contents
- */
-export function describeInput(tool: string, input: Record<string, unknown> = {}): string {
-  const field = (name: string) => (typeof input[name] === "string" ? (input[name] as string) : "");
-  switch (tool) {
-    case "Bash":
-      return clip(field("command"), 400);
-    case "Read":
-    case "Write":
-    case "Edit":
-      return field("file_path");
-    case "NotebookEdit":
-      return field("notebook_path");
-    case "Glob":
-    case "Grep":
-      return [field("pattern"), field("path")].filter(Boolean).join(" in ");
-    case "Skill":
-      return field("skill");
-    case "Agent":
-    case "Task":
-      return [field("subagent_type"), field("model"), field("description")].filter(Boolean).join(" ");
-    case "WebFetch":
-      return field("url");
-    case "WebSearch":
-      return clip(field("query"), 200);
-    default:
-      return "";
-  }
 }
 
 /**

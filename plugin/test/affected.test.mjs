@@ -6,12 +6,13 @@ import { fileURLToPath } from "node:url";
 import { affectedTags } from "../evals/affected.mjs";
 
 const plugin = join(dirname(fileURLToPath(import.meta.url)), "..");
-const all = ["build", "finish", "performance", "review", "routes", "routing", "security", "work-order"];
+const all = ["build", "compound", "finish", "performance", "review", "routes", "routing", "security", "work-order"];
 
 test("a skill or agent change selects only the cases that run it", () => {
   assert.deepEqual(affectedTags(["plugin/skills/review-loop/SKILL.md"]), ["performance", "review"]);
   assert.deepEqual(affectedTags(["plugin/agents/performance-reviewer.md"]), ["performance", "review"]);
   assert.deepEqual(affectedTags(["plugin/agents/docs.md"]), ["finish"]);
+  assert.deepEqual(affectedTags(["plugin/agents/efficiency-analyst.md"]), ["compound"]);
   assert.deepEqual(affectedTags(["plugin/agents/security-hunter.md"]), ["review", "security"]);
   assert.deepEqual(affectedTags(["plugin/agents/security-verifier.md"]), ["review", "security"]);
   assert.deepEqual(affectedTags(["plugin/skills/quick-change/SKILL.md"]), ["routes", "routing"]);
@@ -40,7 +41,6 @@ test("every skill, agent and hook file has an owner, so none skips its evals", (
     ...readdirSync(join(plugin, "hooks")).map((name) => `plugin/hooks/${name}`),
   ];
   for (const file of files) {
-    if (file === "plugin/skills/compound/SKILL.md") continue;
     assert.notDeepEqual(affectedTags([file]), [], `${file} has no owner in plugin/evals/affected.mjs`);
   }
 });

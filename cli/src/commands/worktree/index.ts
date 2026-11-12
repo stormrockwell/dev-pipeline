@@ -5,9 +5,10 @@ import { defaultLockTimeoutMs, defaultTimeoutMs, openRepo } from "./context.ts";
 import { createWorktree } from "./create.ts";
 import { mergeWorktree } from "./merge.ts";
 import { listRecords } from "./store.ts";
+import { githubMerged, renderSweep, sweepWorktrees } from "./sweep.ts";
 import { teardownWorktree } from "./teardown.ts";
 
-const usage = `Usage: pipeline worktree <create|merge|teardown|list> [options]
+const usage = `Usage: pipeline worktree <create|merge|teardown|list|sweep> [options]
 
 Prepare and tear down isolated worktrees for parallel tasks.
 
@@ -18,6 +19,9 @@ Prepare and tear down isolated worktrees for parallel tasks.
   teardown <name>   Drop the database, free the ports and remove the worktree. Refuses while it
                     has uncommitted or unpushed work.
   list              Show the worktrees and what each one holds.
+  sweep             Remove every other worktree whose pull request merged at its branch's tip
+                    and that holds no uncommitted work, then delete its branch. It asks gh, and
+                    leaves a worktree that create made to teardown.
 
 Options:
   --base <ref>       create: where the branch starts. Defaults to the integration checkout's HEAD.
@@ -25,6 +29,8 @@ Options:
   --path <dir>       create: worktree directory. Defaults to <repo>-wt/<name> beside the repo.
   --install          create: run npm ci or composer install when there is nothing to clone.
   --into <branch>    merge: integration branch. Defaults to the primary checkout's branch.
+  --pull             sweep: fast-forward the primary checkout first.
+  --dry-run          sweep: say what it would remove and change nothing.
   --timeout <secs>   Hard limit for every external process. Defaults to ${defaultTimeoutMs / 1000}.
   --lock-timeout <secs>  How long to wait for another worktree command. Defaults to ${defaultLockTimeoutMs / 1000}.
   --json             Print machine-readable output.
@@ -54,14 +60,16 @@ async function run(argv: string[]): Promise<number> {
       timeout: { type: "string" },
       "lock-timeout": { type: "string" },
       json: { type: "boolean" },
+      pull: { type: "boolean" },
+      "dry-run": { type: "boolean" },
     },
   });
   const [action, name] = positionals;
-  if (!action || !["create", "merge", "teardown", "list"].includes(action)) {
+  if (!action || !["create", "merge", "teardown", "list", "sweep"].includes(action)) {
     console.error(usage);
     return 1;
   }
-  if (action !== "list" && !name) {
+  if (action !== "list" && action !== "sweep" && !name) {
     console.error(`pipeline worktree ${action}: a worktree name is required.`);
     return 1;
   }
@@ -80,6 +88,12 @@ async function run(argv: string[]): Promise<number> {
         ? "No worktrees."
         : records.map((r) => `${r.name}  ${r.branch}  ports ${r.ports.base}-${r.ports.end}  db ${r.database.name}  ${r.path}`).join("\n"),
     );
+    return 0;
+  }
+
+  if (action === "sweep") {
+    const result = await sweepWorktrees(ctx, githubMerged(ctx.primary, ctx.timeoutMs), { pull: values.pull, dryRun: values["dry-run"] });
+    print(result, renderSweep(result));
     return 0;
   }
 
@@ -112,7 +126,7 @@ async function run(argv: string[]): Promise<number> {
 
 const command: Command = {
   name: "worktree",
-  summary: "Create, merge and tear down isolated worktrees for parallel tasks.",
+  summary: "Create, merge and tear down isolated worktrees for parallel tasks, and sweep away merged ones.",
   usage,
   run,
 };

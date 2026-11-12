@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: compound-proposes-a-script
+tags: [compound]
+context:
+  scaffold_script: scaffold.sh
