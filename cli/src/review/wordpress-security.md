@@ -79,7 +79,7 @@ In WordPress, the lower-trust principals are a logged-out visitor, a subscriber 
 ## Third-party scripts
 
 - **Signal:** `wp_enqueue_script`, `wp_register_script`, `wp_enqueue_style` or an echoed `<script>`, `<link>` or `<iframe>` whose source is another origin, above all a source over `http://`.
-- **Invariant:** code from another origin loads over `https`, and a versioned file carries an `integrity` hash with `crossorigin`, added through `wp_script_add_data` or the `script_loader_tag` filter. A plain `http` source is a finding by itself. Whoever controls that host, its DNS or any network hop to it rewrites the script and runs code as every visitor, logged-in administrators included, and that path is not the one to the site. Mixed content blocking in the browser is not a control the site holds.
+- **Invariant:** code from another origin loads over `https`. A plain `http` source is a finding by itself. Whoever controls that host, its DNS or any network hop to it rewrites the script and runs code as every visitor, logged-in administrators included, and that path is not the one to the site. Mixed content blocking in the browser is not a control the site holds. A pinned, versioned file should also carry an `integrity` hash with `crossorigin`, added through `wp_script_add_data` or the `script_loader_tag` filter, but its absence alone is not a finding, because vendor loaders such as Stripe.js and Tag Manager change in place and cannot carry one.
 - **Test:** the rendered tag has an `https` source, and a pinned file has an `integrity` attribute.
 
 ## IDOR on post ids
