@@ -20,8 +20,8 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function relativePath(path: string, roots: Roots): string {
   let out = path;
   if (roots.repo !== null) out = out.replace(new RegExp(`^${escape(roots.repo)}(?:-wt/[^/]+)?/`), "");
-  out = out.replace(/^(?:.*\/)?\.pipeline\/work\/[^/]+\/worktrees\/[^/]+\//, "");
-  out = out.replace(/(^|\/)\.pipeline\/work\/[^/]+\//, "$1.pipeline/work/*/");
+  out = out.replace(/^(?:.*\/)?\.pipeline\/work\/[^/]+\/worktrees\/[^/]+[/]/, "");
+  out = out.replace(/(^|\/)\.pipeline\/work\/[^/]+[/]/, "$1.pipeline/work/*/");
   out = out.replace(/^\/(?:private\/)?(?:tmp|var\/folders)\/.*\/([^/]+)$/, "<tmp>/$1");
   const home = roots.home ?? homedir();
   if (home !== "" && (out === home || out.startsWith(`${home}/`))) out = `~${out.slice(home.length)}`;
