@@ -559,7 +559,17 @@ The docs agent writes changelog entries from conventional commits, syncs version
 
 ### Compounder
 
-The compounder is the most important role, because it improves the pipeline itself. A weekly run, or `/compound` on demand, asks two questions of every recent run: what slipped through, and what slowed the pipeline down. It runs on a developer's machine through Claude Code, never in CI.
+The compounder is the most important role, because it improves the pipeline itself. A developer runs `/compound`, and it asks two questions of every recent run: what slipped through, and what slowed the pipeline down. It runs on a developer's machine through Claude Code, never in CI or on a schedule. The efficiency half reads run logs and transcripts that exist only on that machine, and a human watches every run that can open issues.
+
+Nothing starts it automatically. A SessionStart hook reminds the developer instead, using the date `/compound` saves after each run. The hook reads only local files, so startup stays fast. The reminder is a line the developer sees and context the model sees, so Claude can start the run when the developer says yes. Each developer picks a setting in `~/.pipeline/config.yml`:
+
+| Setting | Reminder | Covers |
+|---|---|---|
+| `weekly`, the default | 7 days after the last run, once new run logs exist | the developer's own run logs |
+| `lead` | 7 days after the last run | the developer's run logs and the team's merged PRs |
+| `manual` | none | whatever the developer asks for |
+
+The pipeline's project lead takes `lead`, so the team's merged PRs are mined once a week instead of once per developer. Any developer can still run either half on demand.
 
 #### The PR record
 
@@ -626,7 +636,7 @@ Each lesson goes where it applies:
 | A mechanical rule any WordPress or JavaScript project would want | the standards repo |
 | A project's own paths, conventions or scale | that project's notes file, `.pipeline/profile.yml`, `sensitive.yml` or lint config |
 
-A project lesson takes a lint rule or hook over a line in the notes file, because agents can ignore prose. A pipeline lesson first opens an issue carrying a hidden fingerprint of its lesson class. A repeat from any repo or developer raises the count on that issue instead of opening another, and a class seen three times becomes a PR. Issues and PRs never quote client code, name a client or carry a client path, and the eval case in a PR is synthetic. A private pipeline repo's issues also link the source PRs. A public one leaves the links in the local compounder report, because a link names the client's repo. The pipeline's project lead triages the issues.
+A project lesson takes a lint rule or hook over a line in the notes file, because agents can ignore prose. A pipeline lesson first opens an issue carrying a hidden fingerprint of its lesson class. A repeat from any repo or developer raises the count on that issue instead of opening another, and a class seen three times becomes a PR. Each source PR or run counts once, so two developers mining the same PRs never double a count. Issues and PRs never quote client code, name a client or carry a client path, and the eval case in a PR is synthetic. A private pipeline repo's issues also link the source PRs. A public one leaves the links in the local compounder report, because a link names the client's repo. The pipeline's project lead triages the issues.
 
 A quality proposal carries an eval case that reproduces the failure. The case fails before the change and passes after, and the full suite shows no regression. An efficiency proposal carries a before and after measurement on the same eval cases. Tokens, turns or wall-clock time must fall while planted-defect recall and clean-control precision stay where they were. A human approves the PR, and nothing modifies itself.
 
@@ -899,7 +909,7 @@ Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR 
 
 **Phase 3, security and design.** Build the WordPress companion, the adversarial verifier, required security tests, the review guide, the planted vulnerability suite and the design reviewer. The phase ends when full review catches at least 90% of planted vulnerabilities and raises false alarms on at most 10% of clean controls.
 
-**Phase 4, the compounder.** Build the PR record with its collapsed stats, the weekly analysis, fingerprinted issues, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs to the pipeline or standards repo merge.
+**Phase 4, the compounder.** Build the PR record with its collapsed stats, the `/compound` analysis and its session-start reminder, fingerprinted issues, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs to the pipeline or standards repo merge.
 
 **Phase 5, scale.** Add parallel implementers, CI-side agent review and scheduled deep audits. Add the post-merge layer: a staging deploy with a smoke test, beta release channels for distributed plugins, and a documented rollback (squash merges make a revert one commit). Move T0 and T1 to zero human approvals once their revert rates stay flat over 100 merged PRs per tier. CI-side review runs Claude Code in GitHub Actions with a plan OAuth token, which draws on the same plan limits. Anthropic's Code Review product stays a candidate if the team's plan includes it.
 

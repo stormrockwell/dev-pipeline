@@ -108,9 +108,9 @@ Tasks 3.4, 3.5 and 3.6 share nothing and run in parallel.
 
 | ID | Task | Executor | Needs | Done when |
 |---|---|---|---|---|
-| 4.1 | Quality half: the PR record with its collapsed stats, human comments, `fix:` commits and skips across repos | Sonnet | 2.7 | a weekly report lists the top missed classes |
+| 4.1 | Quality half: the PR record with its collapsed stats, human comments, `fix:` commits and skips across repos | Sonnet | 2.7 | a `/compound` report lists the top missed classes |
 | 4.2 | Efficiency half: stage times, loops, misroutes and repeated tool-call sequences | Haiku for the sequence miner, Sonnet for the analysis | 2.7 | the first repeated sequence becomes a script |
-| 4.3 | Proposal flow: lessons routed to the pipeline, standards or project repo, fingerprinted issues that become PRs carrying eval cases or before and after measurements, on a weekly schedule | Opus | 4.1, 4.2 | two compounder PRs merged in the pipeline or standards repo |
+| 4.3 | Proposal flow: lessons routed to the pipeline, standards or project repo, fingerprinted issues that become PRs carrying eval cases or before and after measurements, and the session-start reminder with its `weekly`, `lead` and `manual` settings | Opus | 4.1, 4.2 | two compounder PRs merged in the pipeline or standards repo |
 | 4.4 | Metrics page for quality, human attention and efficiency | Haiku | 4.1 | the page shows data from every pilot repo |
 
 **Exit.** Two compounder PRs to the pipeline or standards repo have merged, each with its eval or measurement.
