@@ -70,6 +70,18 @@ In WordPress, the lower-trust principals are a logged-out visitor, a subscriber 
 - **Invariant:** redirects use `wp_safe_redirect` with `wp_validate_redirect`, so they stay on allowed hosts, and the call is followed by `exit`.
 - **Test:** `redirect_to=https://evil.example` lands on the site's fallback URL.
 
+## Predictable tokens
+
+- **Signal:** a reset, invite, sign-in, unsubscribe, download or API token, a nonce of the plugin's own, or a session key built from `rand`, `mt_rand`, `uniqid`, `microtime`, `time`, `str_shuffle`, a hash of a user id or email, or any other value an attacker knows or can enumerate.
+- **Invariant:** every secret value comes from a cryptographic source, such as `random_bytes`, `random_int` or `wp_generate_password( 32, false )`. It is stored as a hash, compared with `hash_equals`, used once and expires. The attacker learns a weak generator from tokens issued to their own account, then triggers one for a victim, and the result is whatever the token unlocks, even when the code that redeems it is outside the diff.
+- **Test:** the code that makes the token calls only a cryptographic source, and a used or expired token is refused.
+
+## Third-party scripts
+
+- **Signal:** `wp_enqueue_script`, `wp_register_script`, `wp_enqueue_style` or an echoed `<script>`, `<link>` or `<iframe>` whose source is another origin, above all a source over `http://`.
+- **Invariant:** code from another origin loads over `https`, and a versioned file carries an `integrity` hash with `crossorigin`, added through `wp_script_add_data` or the `script_loader_tag` filter. A plain `http` source is a finding by itself. Whoever controls that host, its DNS or any network hop to it rewrites the script and runs code as every visitor, logged-in administrators included, and that path is not the one to the site. Mixed content blocking in the browser is not a control the site holds.
+- **Test:** the rendered tag has an `https` source, and a pinned file has an `integrity` attribute.
+
 ## IDOR on post ids
 
 - **Signal:** a `post_id`, `order_id`, `user_id` or attachment id from the request passed to `get_post`, `wp_update_post`, `update_post_meta`, `wp_delete_post` or a query.
