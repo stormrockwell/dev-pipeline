@@ -559,7 +559,22 @@ The docs agent writes changelog entries from conventional commits, syncs version
 
 ### Compounder
 
-The compounder is the most important role, because it improves the pipeline itself. A weekly run, or `/compound` on demand, asks two questions of every recent run: what slipped through, and what slowed the pipeline down.
+The compounder is the most important role, because it improves the pipeline itself. A weekly run, or `/compound` on demand, asks two questions of every recent run: what slipped through, and what slowed the pipeline down. It runs on a developer's machine through Claude Code, never in CI.
+
+#### The PR record
+
+Evidence stays where it is made, so the compounder needs no central store. The finish step writes each PR's record into its body as an HTML comment, `<!-- pipeline:gate-record ... -->`, which GitHub does not render. A collapsed `<details>` table generated from the same JSON shows a reader the cost and review loops in one click, and the body's word ceiling skips it. Run logs stay in each developer's `.pipeline/runs`, because tool-call traces are too large and too private to share, and the record carries their summary. The record holds:
+
+- the pipeline version and the model behind each role, so a pipeline change can be measured
+- tokens and API-priced cost per stage and role, and the PR's total
+- review rounds per task, findings opened and closed per round by reviewer and severity, reopened findings and cap hits
+- the tier and zones the classifier chose and anything that raised them later, BLOCKED and NEEDS_CONTEXT reports with their causes, and redirects between routes
+- wall-clock per stage and time waiting on a human, split into the work order and approval
+- human decisions, meaning work order edits, dismissed or overruled findings with reasons, `Ask:` answers and skipped gates with reasons
+- tests added, the TDD red result and the mutation score
+- retried commands, and tests that failed and then passed with no code change
+
+GitHub already holds human review comments, time to approval, reverts and later `fix:` commits, so the compounder reads those through `gh api`. Anyone with write access can edit a PR body, so the record is evidence for trends, and branch protection and required checks are what enforce the gates.
 
 #### What slipped through
 
@@ -603,7 +618,17 @@ This half works from run telemetry. Every run writes an event log to `.pipeline/
 Scripts replace mechanics, and judgment stays with models. A step is a candidate for a function when the same inputs always produce the same correct output. Choosing a severity, a tier or a fix never is.
 #### Shipping a change
 
-Every proposal is a PR to the pipeline or the standards repo. A quality proposal carries an eval case that reproduces the failure. The case fails before the change and passes after, and the full suite shows no regression. An efficiency proposal carries a before and after measurement on the same eval cases. Tokens, turns or wall-clock time must fall while planted-defect recall and clean-control precision stay where they were. A human approves the PR, and nothing modifies itself.
+Each lesson goes where it applies:
+
+| Lesson | Destination |
+|---|---|
+| A pipeline fault, such as a missed class, a loop, a misroute or a sequence agents repeat by hand | the pipeline repo |
+| A mechanical rule any WordPress or JavaScript project would want | the standards repo |
+| A project's own paths, conventions or scale | that project's notes file, `.pipeline/profile.yml`, `sensitive.yml` or lint config |
+
+A project lesson takes a lint rule or hook over a line in the notes file, because agents can ignore prose. A pipeline lesson first opens an issue carrying a hidden fingerprint of its lesson class. A repeat from any repo or developer raises the count on that issue instead of opening another, and a class seen three times becomes a PR. Issues and PRs never quote client code, name a client or carry a client path, and the eval case in a PR is synthetic. A private pipeline repo's issues also link the source PRs. A public one leaves the links in the local compounder report, because a link names the client's repo. The pipeline's project lead triages the issues.
+
+A quality proposal carries an eval case that reproduces the failure. The case fails before the change and passes after, and the full suite shows no regression. An efficiency proposal carries a before and after measurement on the same eval cases. Tokens, turns or wall-clock time must fall while planted-defect recall and clean-control precision stay where they were. A human approves the PR, and nothing modifies itself.
 
 `claude plugin eval` runs the benchmark outside any working session. The seed suite covers these groups:
 
@@ -874,7 +899,7 @@ Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR 
 
 **Phase 3, security and design.** Build the WordPress companion, the adversarial verifier, required security tests, the review guide, the planted vulnerability suite and the design reviewer. The phase ends when full review catches at least 90% of planted vulnerabilities and raises false alarms on at most 10% of clean controls.
 
-**Phase 4, the compounder.** Build the hidden JSON gate records in PRs, the weekly analysis, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs merge.
+**Phase 4, the compounder.** Build the PR record with its collapsed stats, the weekly analysis, fingerprinted issues, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs to the pipeline or standards repo merge.
 
 **Phase 5, scale.** Add parallel implementers, CI-side agent review and scheduled deep audits. Add the post-merge layer: a staging deploy with a smoke test, beta release channels for distributed plugins, and a documented rollback (squash merges make a revert one commit). Move T0 and T1 to zero human approvals once their revert rates stay flat over 100 merged PRs per tier. CI-side review runs Claude Code in GitHub Actions with a plan OAuth token, which draws on the same plan limits. Anthropic's Code Review product stays a candidate if the team's plan includes it.
 
@@ -961,7 +986,7 @@ Four scenarios walk the pipeline end to end. Each lists the request, the route t
 2. **Decided.** Any developer other than the PR author approves a human review zone, so there is no zone team or approver role. `risk-gate` enforces one peer approval, or two on designated paths.
 3. **Decided.** Agents commit and push feature branches. The orchestrator opens each PR as a draft in the finish step, after reviews pass and the developer agrees to push, because a PR that joins several tasks has no single implementer. Implementers and reviewers never open PRs. Only humans merge.
 4. Which environment profile is the default for new developers, native or container?
-5. Where does compounding data live, in hidden JSON in PR bodies (no infrastructure) or in a central repo?
+5. **Decided.** Compounding data lives in each PR as hidden JSON, with a collapsed stats table generated from it, and run logs stay on each developer's machine, so there is no central store. Lessons go to the pipeline repo, the standards repo or the project, and pipeline lessons gather as fingerprinted issues that never quote client code or, in a public repo, link a client PR. Only pipeline and standards PRs count toward the Phase 4 exit, because it proves the pipeline improves itself.
 6. Does agent review run in CI from the start? It would run Claude Code in GitHub Actions with a plan OAuth token, drawing on the same plan limits as local work.
 7. **Decided.** Repos without a strategy get trunk-based development with releases. The pipeline repo itself cuts no releases while it is built, only once it is ready to ship.
 8. **Decided.** Designs link to code through Figma's MCP server, which reads frames, node geometry, variables and screenshots, so the pipeline keeps no Figma token or fetch layer of its own. The design reviewer is deferred.
