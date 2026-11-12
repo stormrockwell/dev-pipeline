@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
@@ -20,6 +20,9 @@ afterAll(removeTemps);
 function hooksDir(repo: string): string {
   return join(repo, ".git", "hooks");
 }
+
+// Points core.hooksPath at /dev/null, as Claude Code's sandbox does.
+const devNullHooks = { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/dev/null" };
 
 function installed(): string {
   const repo = makeRepo();
@@ -58,6 +61,35 @@ describe("hooks install", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("prepare");
     expect(stdout).toContain("pipeline hooks install");
+  });
+
+  it("writes nothing and says why when git sets the hooks path to /dev/null", () => {
+    const repo = makeRepo();
+    const result = pipeline(repo, ["hooks", "install"], { env: devNullHooks });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("hooks not installed, because the git hooks path is /dev/null, which is not a directory");
+    expect(result.stderr).toContain('Run "pipeline hooks install" again');
+    expect(existsSync(join(hooksDir(repo), "pre-commit"))).toBe(false);
+  });
+
+  it("writes nothing and says why when the hooks directory is read only", () => {
+    const repo = makeRepo();
+    mkdirSync(hooksDir(repo), { recursive: true });
+    chmodSync(hooksDir(repo), 0o555);
+    try {
+      const result = pipeline(repo, ["hooks", "install"]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/hooks not installed, because git cannot write to .*hooks here \(EACCES\)/);
+    } finally {
+      chmodSync(hooksDir(repo), 0o755);
+    }
+  });
+
+  it("creates the hooks directory in a repo made from an empty template", () => {
+    const repo = tempDir();
+    expect(git(repo, "init", "-q", "--template=", "-b", "main").status).toBe(0);
+    expect(pipeline(repo, ["hooks", "install"]).status).toBe(0);
+    expect(readFileSync(join(hooksDir(repo), "pre-commit"), "utf8")).toContain("secrets --staged");
   });
 
   it("exits 2 for an unknown subcommand", () => {
