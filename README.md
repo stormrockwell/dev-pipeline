@@ -47,6 +47,8 @@ node --test plugin/test/*.test.mjs
 
 `pipeline a11y` scans pages with axe-core in a headless Chromium. `npm ci` installs Playwright and axe-core as optional dependencies, and the browser is a separate download, so run `cd cli && npx playwright-core install chromium` once. Without them the rest of the CLI works and `pipeline a11y` prints the install line and exits 1. The vitest browser cases skip themselves when the browser is missing.
 
+At session start the plugin reminds you to run `/compound` once a week. Set `compound: lead` in `~/.pipeline/config.yml` if you are the pipeline's project lead, so your reminder also covers the team's merged PRs, or `compound: manual` to turn it off. The default is `weekly`.
+
 `.claude/settings.json` is committed, so the permission denials, `gh pr merge` among them, come with the clone.
 
 ### Reference clones

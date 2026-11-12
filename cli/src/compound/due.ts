@@ -82,15 +82,16 @@ function logsSince(repo: string, from: number | null): number {
  * Decides whether to remind the developer, from local files only
  *
  * Weekly reads the efficiency half's time because it covers only the developer's own run logs.
- * Lead reads the later of the two, so either half run on demand resets the week.
+ * Lead reads the older of the two, and a half that never ran counts as no run, so an
+ * efficiency run alone cannot hide a week of unmined merged PRs.
  */
 export function evaluate(setting: Setting, repo: string, now: Date = new Date()): Due {
   const covers: Half[] = setting === "lead" ? ["quality", "efficiency"] : setting === "weekly" ? ["efficiency"] : ["quality", "efficiency"];
   if (setting === "manual") return { due: false, line: "Not due. The setting is manual, so /compound never reminds.", covers };
 
   const marker = readMarker(repo);
-  const times = (setting === "lead" ? [marker.quality, marker.efficiency] : [marker.efficiency]).filter((at): at is string => at !== undefined).map(Date.parse);
-  const last = times.length === 0 ? null : Math.max(...times);
+  const halves = setting === "lead" ? [marker.quality, marker.efficiency] : [marker.efficiency];
+  const last = halves.some((at) => at === undefined) ? null : Math.min(...halves.map((at) => Date.parse(at!)));
   const days = last === null ? null : Math.floor((now.getTime() - last) / DAY);
   const ago = days === null ? "No /compound run yet" : `Last /compound run was ${days} ${days === 1 ? "day" : "days"} ago`;
 

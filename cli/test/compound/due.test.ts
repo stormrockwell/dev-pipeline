@@ -94,11 +94,17 @@ describe("pipeline compound due", () => {
     expect(due(repo, home).stdout).toBe("No /compound run yet. Run /compound? Setting lead covers quality and efficiency.\n");
 
     marker(repo, { quality: 10, efficiency: 8 });
-    expect(due(repo, home).stdout).toContain("Last /compound run was 8 days ago. Run /compound?");
+    expect(due(repo, home).stdout).toContain("Last /compound run was 10 days ago. Run /compound?");
     const output = JSON.parse(due(repo, home, "--hook").stdout);
     expect(output.hookSpecificOutput.additionalContext).toMatch(/covers the quality and efficiency halves\./);
 
     marker(repo, { quality: 10, efficiency: 2 });
+    expect(due(repo, home).stdout).toContain("Last /compound run was 10 days ago. Run /compound?");
+
+    marker(repo, { efficiency: 1 });
+    expect(due(repo, home).stdout).toContain("No /compound run yet");
+
+    marker(repo, { quality: 3, efficiency: 2 });
     expect(due(repo, home).stdout).toContain("Not due");
   });
 
