@@ -10,10 +10,12 @@ import { efficiency, type Ledger, renderEfficiency } from "../../run/efficiency.
 import { listLogs, primaryCheckout, readLog, RUNS_DIR, type RunLog } from "../../run/log.ts";
 import { transcriptLog } from "../../run/transcript.ts";
 import { excludeLocally } from "../../task/git.ts";
+import { runMetrics } from "./metrics.ts";
 import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
 
 const usage = `Usage: pipeline compound efficiency [--transcripts <dir>] [--since <date>] [--min-streams <n>] [--top <n>] [--out <file>] [--json]
        pipeline compound quality [--repo <owner/name>]... [--since <date>] [--window <days>] [--top <n>] [--offline] [--out <file>] [--json]
+       pipeline compound metrics [--repo <owner/name>]... [--since <date>] [--window <days>] [--offline] [--out <file.html>] [--json]
 
 efficiency reads what slowed the pipeline down from the run logs in ${RUNS_DIR}/ and the ledgers in
 .pipeline/work/*/ledger.jsonl: each stage's working time, waits on a person, the slowest steps,
@@ -27,18 +29,22 @@ in each body, human review comments told apart from agent comments and the autho
 clusters the signals into missed classes by the reviewer axis that should have caught them and the
 zone or review rule of the code, and ranks them. Each fetch is kept in ${CACHE_DIR}/.
 
+metrics reads the same fetch and writes one static HTML page of quality, human attention and
+efficiency, per repo and overall. A number with no source in the PRs reads "no data".
+
 Options:
   --transcripts <dir>  efficiency: read the Claude Code transcripts in <dir>, with their subagents,
                        in place of the run logs. Claude Code keeps a project's under ~/.claude/projects/.
-  --since <date>       Only activity on or after this date, as YYYY-MM-DD. quality defaults to 30
-                       days ago, efficiency to everything.
+  --since <date>       Only activity on or after this date, as YYYY-MM-DD. quality and metrics
+                       default to 30 days ago, efficiency to everything.
   --min-streams <n>    efficiency: how many streams a sequence or read must recur in. Defaults to 2.
-  --repo <owner/name>  quality: a GitHub repo to read, repeatable. Defaults to this checkout's origin.
-  --window <days>      quality: how long after a merge a fix still counts against the PR. Defaults to 14.
-  --offline            quality: read the last fetch from ${CACHE_DIR}/ in place of GitHub.
+  --repo <owner/name>  quality, metrics: a GitHub repo to read, repeatable. Defaults to this checkout's origin.
+  --window <days>      quality, metrics: how long after a merge a fix still counts against the PR. Defaults to 14.
+  --offline            quality, metrics: read the last fetch from ${CACHE_DIR}/ in place of GitHub.
   --top <n>            Rows per list. Defaults to 10.
-  --out <file>         Also write the report as JSON to <file>, for the half's analyst.
-  --json               Print the report as JSON.
+  --out <file>         Also write the report as JSON to <file>, for the half's analyst. metrics
+                       writes its page there, by default .pipeline/compound/metrics.html.
+  --json               Print the report as JSON. metrics prints its numbers in place of the path line.
 
 Exit codes: 0 on success, 2 for bad usage, nothing to read, or gh unable to read a repo.`;
 
@@ -230,7 +236,8 @@ async function run(argv: string[]): Promise<number> {
   const [half, ...rest] = argv;
   if (half === "efficiency") return runEfficiency(rest);
   if (half === "quality") return runQuality(rest);
-  return fail(`name the half to run: "pipeline compound quality" or "pipeline compound efficiency". Run "pipeline compound --help".`);
+  if (half === "metrics") return runMetrics(rest);
+  return fail(`name what to run: "pipeline compound quality", "pipeline compound efficiency" or "pipeline compound metrics". Run "pipeline compound --help".`);
 }
 
 const command: Command = {

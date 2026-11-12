@@ -6,7 +6,7 @@ import { scanFile } from "../commands/scan-zones/scan.ts";
 import type { RemovedLine, ZoneConfig } from "../commands/scan-zones/types.ts";
 
 export const CACHE_DIR = ".pipeline/compound/github";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const PAGE = 100;
 // GitHub serves at most 3000 files of a PR, which is 30 pages.
 const MAX_PAGES = 30;
@@ -51,16 +51,28 @@ export interface RecordSummary {
   findings: { opened: number; fixed: number; accepted: number };
 }
 
+/**
+ * An approval a reviewer other than the author gave a PR
+ */
+export interface Approval {
+  by: string;
+  at: string;
+}
+
 export interface MergedPr {
   number: number;
   title: string;
   author: string;
+  opened: string | null;
   mergedAt: string;
   mergeSha: string | null;
   base: string;
   files: Touch[];
   comments: Comment[];
+  approvals: Approval[];
   record: RecordSummary | null;
+  // The whole record, for the metrics page, which reads the fields the summary leaves out.
+  gate: GateRecord | null;
 }
 
 /**
@@ -236,6 +248,7 @@ interface ApiPr {
   number: number;
   title: string;
   user: User | null;
+  created_at: string;
   merged_at: string | null;
   merge_commit_sha: string | null;
   updated_at: string;
@@ -245,6 +258,7 @@ interface ApiPr {
 
 interface ApiComment {
   user: User | null;
+  state?: string;
   body: string | null;
   path?: string;
   diff_hunk?: string;
@@ -287,17 +301,23 @@ async function readPr(call: Gh, repo: string, pr: ApiPr, config: ZoneConfig): Pr
       at: comment.created_at ?? comment.submitted_at ?? pr.merged_at!,
     });
   }
+  const approvals: Approval[] = reviews
+    .filter((review) => review.state === "APPROVED" && review.user?.type !== "Bot" && !(review.user?.login ?? "").endsWith("[bot]") && review.user?.login !== author)
+    .map((review) => ({ by: review.user?.login ?? "", at: review.submitted_at ?? pr.merged_at! }));
   const record = parseHiddenComment(pr.body ?? "");
   return {
     number: pr.number,
     title: pr.title,
     author,
+    opened: pr.created_at ?? null,
     mergedAt: pr.merged_at!,
     mergeSha: pr.merge_commit_sha,
     base: pr.base.ref,
     files: files.map((file) => ({ path: file.filename, zones: zonesOf(config, file.filename, file.patch ?? null) })),
     comments,
+    approvals,
     record: record ? summarizeRecord(record) : null,
+    gate: record,
   };
 }
 
