@@ -32,8 +32,8 @@ Every rule names one of ten zones. These are the names of the `zone:*` labels in
 
 | Zone | Covers |
 |---|---|
-| `auth` | Login, sessions, cookies, JWT, OAuth, password checks |
-| `authz` | Capability checks, REST permission callbacks, roles, `nopriv` handlers, Express auth middleware |
+| `auth` | Login, sessions, cookies, JWT, OAuth, password checks, webhook routes and signatures |
+| `authz` | Capability checks, REST permission callbacks, roles, `nopriv` and `woocommerce_api_` handlers, Express auth middleware |
 | `csrf` | Nonce creation and verification, CSRF middleware, CORS and SameSite settings |
 | `input` | Request data reaching a sink: superglobals, queries, deserialization, shell, dynamic includes, uploads, outbound requests, redirects, browser sinks, and data writes from request data |
 | `crypto` | Hashing, HMAC, ciphers, random bytes, key derivation |
@@ -139,6 +139,19 @@ The `node` pack also covers WebCrypto, which Cloudflare Workers and browsers use
 Helpers that belong to one repo are not in the pack. A Worker's `isAuthorized( req, env )` or `isSignatureValid` is that repo's own authorization logic, so the repo names it in its `sensitive.yml`, for example `authz` signals under `js:` with the helper names, or a path rule such as `cloudflare/**/src/**`.
 
 Escaping and sanitizing calls (`esc_html`, `wp_kses`, `sanitize_*`, `DOMPurify`) are `only: removed` signals. Adding an escape is the safe direction, and removing one in a template is a zone signal as the strategy says.
+
+### Webhooks
+
+A webhook has no logged-in user, so the signature is its authentication, and both packs carry webhook signals in the `auth` zone:
+
+- A route string with a webhook path segment, such as `'/webhook'` or `"webhooks/stripe"`. A label such as `'Webhook'` has no slash and does not count.
+- A signature header name, such as `Stripe-Signature`, `X-Hub-Signature-256` or `X-Shopify-Hmac-Sha256`, and a `$_SERVER['HTTP_..._SIGNATURE']` read.
+- A verification helper or SDK call, such as `constructEvent`, `verify_webhook_signature` or `isValidWebhook`, and a name for the webhook's secret, such as `acme_webhook_secret`.
+- In PHP, `hash_equals`, the constant time comparison a signature check ends in. `hash_hmac` stays a `crypto` signal, and the signature comparison described above for Node also runs on PHP, so `$signature == $expected` is a `crypto` signal too.
+
+The unauthenticated WordPress entry points that receive webhooks, `admin_post_nopriv_` and `woocommerce_api_`, are `authz` signals beside `wp_ajax_nopriv_`. In the `node` pack, a Next.js route file under a folder or file named for webhooks, such as `app/api/webhooks/stripe/route.ts` or `pages/api/stripe-webhook.ts`, is an `auth` path.
+
+Every webhook signal also counts on removed lines, so deleting a `hash_equals` check or a signature header read is a removed signal and leads the review guide. A label, an option holding an outbound webhook URL and a component that lists deliveries stay quiet.
 
 ## Process spawning
 

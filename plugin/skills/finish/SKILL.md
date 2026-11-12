@@ -9,7 +9,9 @@ Finish is steps 7 to 9 of the change route. Its input is the work order at `.pip
 
 Each Bash call is one plain `pipeline`, `git` or `gh` command, with no `;`, `&&`, pipes or `$(...)`.
 
-You open the PR as the side that built the work, and only after the developer says yes. Nobody in the pipeline merges.
+You open the PR as the side that built the work. Nobody in the pipeline merges.
+
+A security fix in a distributed project also follows `${CLAUDE_PLUGIN_ROOT}/skills/finish/quiet-fix.md`.
 
 ## Each PR
 

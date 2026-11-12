@@ -21,6 +21,8 @@ Paperwork scales with the work:
 
 Zone work, such as auth, permissions, nonces, request input, SQL, uploads, secrets, personal data or destructive data changes, goes in its own task, and that task carries all of the component's security logic. When the logic is scattered, the first task is a prefactor that consolidates it into one module. A task that cannot stand alone, such as a one-line hook registration, sets `joins: <id>` to ride in that task's PR.
 
+Tests mock an outside API at the HTTP boundary with recorded fixtures. A sandbox contract test is opt-in and skips without its key.
+
 Write `.pipeline/work/<slug>/work-order.md`. `pipeline schedule` keeps the folder git-ignored.
 
 ```markdown
