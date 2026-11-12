@@ -147,4 +147,4 @@ Tasks 3.4, 3.5 and 3.6 share nothing and run in parallel.
 - `pipeline doctor` prints "not built yet" and exits 2, so `pipeline check` is the only setup check.
 - Docs sync tests do not run in CI. The standards repo needs failing fixtures. Proposal 3 is on hold. Stylelint 16 migration. The ConditionalAlternateSyntax for-loop gap. setup-php always runs in the floor job.
 - For the user: decide whether to install Open Code Review. The standards reviewer pins `@alibaba-group/open-code-review@1.13.3` and falls back to its vendored rules without it.
-- For the user: mark the rows in `docs/spikes/0.6-zone-scan.md`, pick a license before sharing, and note that Media on Autopilot has a stale composer.lock with 3 dev advisories, a gitleaks test literal and no ESLint config.
+- For the user: mark the Media on Autopilot commit rows in `docs/spikes/0.6-zone-scan.md`, pick a license before sharing, and note that Media on Autopilot has a stale composer.lock with 3 dev advisories, a gitleaks test literal and no ESLint config.
