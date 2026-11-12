@@ -9,22 +9,6 @@ import { primaryCheckout } from "../../run/log.ts";
 import { excludeLocally } from "../../task/git.ts";
 import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
 
-export const metricsUsage = `Usage: pipeline compound metrics [--repo <owner/name>]... [--since <date>] [--window <days>] [--offline] [--out <file.html>] [--json]
-
-metrics reads each repo's merged PRs through \`gh api\`, the same fetch and cache as \`compound quality\`,
-and writes one static HTML page of quality, human attention and efficiency, per repo and overall.
-A number with no source in the PRs reads "no data".
-
-Options:
-  --repo <owner/name>  A GitHub repo to read, repeatable. Defaults to this checkout's origin.
-  --since <date>       Only PRs merged on or after this date, as YYYY-MM-DD. Defaults to 30 days ago.
-  --window <days>      How long after a merge a fix still counts against the PR. Defaults to 14.
-  --offline            Read the last fetch of each repo from .pipeline/compound/github/ in place of GitHub.
-  --out <file.html>    Where to write the page. Defaults to .pipeline/compound/metrics.html in this checkout.
-  --json               Print the computed numbers as JSON in place of the path line.
-
-Exit codes: 0 on success, 2 for bad usage, nothing to read, or gh unable to read a repo.`;
-
 /**
  * Prints a usage error and returns its exit code
  */
