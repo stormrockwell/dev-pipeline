@@ -119,6 +119,23 @@ export const gh: Gh = (path) =>
   });
 
 /**
+ * Calls `gh api` with a POST of a JSON body and parses the JSON it returns
+ */
+export const ghPost = (path: string, body: unknown): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    const child = execFile("gh", ["api", "--method", "POST", path, "--input", "-"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error && (error as NodeJS.ErrnoException).code === "ENOENT") return reject(new GhError("gh is not installed, and filing goes through it."));
+      if (error) return reject(new GhError(`gh api --method POST ${path} failed: ${(stderr || stdout || error.message).trim()}`));
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new GhError(`gh api --method POST ${path} printed no JSON.`));
+      }
+    });
+    child.stdin?.end(JSON.stringify(body));
+  });
+
+/**
  * Runs a task per item, a few at a time, keeping the items' order
  */
 async function pool<T, R>(items: T[], task: (item: T) => Promise<R>): Promise<R[]> {
@@ -137,7 +154,7 @@ async function pool<T, R>(items: T[], task: (item: T) => Promise<R>): Promise<R[
 /**
  * Every item of a listing, page by page, until a short page or `stop` says the rest is too old
  */
-async function pages<T>(call: Gh, path: string, stop: (page: T[]) => boolean = () => false): Promise<T[]> {
+export async function pages<T>(call: Gh, path: string, stop: (page: T[]) => boolean = () => false): Promise<T[]> {
   const all: T[] = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const items = (await call(`${path}${path.includes("?") ? "&" : "?"}per_page=${PAGE}&page=${page}`)) as T[];

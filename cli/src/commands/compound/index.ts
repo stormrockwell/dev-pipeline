@@ -9,6 +9,7 @@ import { readLedger } from "../../ledger/ledger.ts";
 import { efficiency, type Ledger, renderEfficiency } from "../../run/efficiency.ts";
 import { listLogs, primaryCheckout, readLog, RUNS_DIR, type RunLog } from "../../run/log.ts";
 import { transcriptLog } from "../../run/transcript.ts";
+import { fileUsage, runFile } from "./file.ts";
 import { excludeLocally } from "../../task/git.ts";
 import { runMetrics } from "./metrics.ts";
 import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
@@ -16,6 +17,7 @@ import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
 const usage = `Usage: pipeline compound efficiency [--transcripts <dir>] [--since <date>] [--min-streams <n>] [--top <n>] [--out <file>] [--json]
        pipeline compound quality [--repo <owner/name>]... [--since <date>] [--window <days>] [--top <n>] [--offline] [--out <file>] [--json]
        pipeline compound metrics [--repo <owner/name>]... [--since <date>] [--window <days>] [--offline] [--out <file.html>] [--json]
+${fileUsage}
 
 efficiency reads what slowed the pipeline down from the run logs in ${RUNS_DIR}/ and the ledgers in
 .pipeline/work/*/ledger.jsonl: each stage's working time, waits on a person, the slowest steps,
@@ -46,7 +48,7 @@ Options:
                        writes its page there, by default .pipeline/compound/metrics.html.
   --json               Print the report as JSON. metrics prints its numbers in place of the path line.
 
-Exit codes: 0 on success, 2 for bad usage, nothing to read, or gh unable to read a repo.`;
+Exit codes: 0 on success, 2 for bad usage, nothing to read, text refused as private, or gh unable to read or write a repo.`;
 
 /**
  * Prints a usage error and returns its exit code
@@ -237,12 +239,13 @@ async function run(argv: string[]): Promise<number> {
   if (half === "efficiency") return runEfficiency(rest);
   if (half === "quality") return runQuality(rest);
   if (half === "metrics") return runMetrics(rest);
-  return fail(`name what to run: "pipeline compound quality", "pipeline compound efficiency" or "pipeline compound metrics". Run "pipeline compound --help".`);
+  if (half === "file") return runFile(rest);
+  return fail(`name what to run: "pipeline compound quality", "pipeline compound efficiency" or "pipeline compound metrics", or "pipeline compound file" to file a lesson. Run "pipeline compound --help".`);
 }
 
 const command: Command = {
   name: "compound",
-  summary: "Mine merged PRs for what slipped through, and run logs for what slowed the pipeline down.",
+  summary: "Mine merged PRs for what slipped through and run logs for what slowed the pipeline down, and file the lessons.",
   usage,
   run,
 };

@@ -30,7 +30,7 @@ Read the examples to choose. A miss one check would catch every time is mechanic
 | the standards repo | a mechanical rule any WordPress or JavaScript project would want |
 | the project | the project's own paths, conventions or scale, in its notes file, `.pipeline/profile.yml`, `sensitive.yml` or lint config |
 
-A project lesson takes a lint rule or hook over a line in the notes file, because agents can ignore prose. A lesson for the pipeline or standards repo names no client, repo, path or code from the examples, and describes the class in general words. Name no repo anywhere in your reply.
+A project lesson takes a lint rule or hook over a line in the notes file, because agents can ignore prose. A lesson for the pipeline or standards repo names no client, repo, path or code from the examples, and describes the class in general words. Name no repo anywhere in your reply. Its Becomes goes into a public issue, so write it as one plain sentence.
 
 A class seen on one PR is a note, not a lesson. A `fix:` commit with no other signal is weak evidence, since the fix may answer a new requirement, so say so when a class rests on fixes alone. You read only the report and change no files.
 
@@ -38,6 +38,6 @@ A class seen on one PR is a note, not a lesson. A `fix:` commit with no other si
 
 Give at most five lessons, the highest score first, each in this shape:
 
-1. **The class, its fingerprint, and its numbers from the report.** Lesson: the table's row. Becomes: what to build or edit, and the reviewer, rule or file it changes. Destination: the pipeline repo, the standards repo or the project. Evidence: what the examples show, in general words.
+1. **The class, its fingerprint, and its numbers from the report.** Lesson: the row's Lesson word for word. Becomes: what to build or edit, and the reviewer, rule or file it changes. Destination: the pipeline repo, the standards repo or the project. Evidence: what the examples show, in general words.
 
 Then one `Notes:` line for classes too thin to act on. When nothing clears the bar, reply `Nothing to propose.` and the notes.

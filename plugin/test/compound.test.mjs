@@ -30,8 +30,29 @@ test("the compound skill runs both miners and hands each report to its analyst",
   assert.match(body, /dev-pipeline:quality-analyst/);
   assert.match(body, /dev-pipeline:efficiency-analyst/);
   assert.match(body, /`--offline` to the quality command only/);
-  assert.ok(words(body) <= 250, `compound is ${words(body)} words`);
+  assert.ok(words(body) <= 600, `compound is ${words(body)} words`);
   assert.doesNotMatch(body, /—|–|\S - [a-z]/);
+});
+
+test("the compound skill previews each issue, asks, and files only the lessons the developer names", () => {
+  const { body } = frontmatter("skills/compound/SKILL.md");
+  assert.match(body, /pipeline compound file --class <fingerprint> --lesson "<Lesson>" --becomes "<Becomes>" --dry-run/);
+  assert.match(body, /pipeline compound file --finding "<Finding>" --target <Target> --becomes "<Change>" --dry-run/);
+  assert.match(body, /`--to standards`/);
+  assert.match(body, /lint rule or hook ahead of a line in the notes file/);
+  assert.match(body, /asking which numbers to ship, and stop/);
+  assert.match(body, /without `--dry-run`/);
+  assert.match(body, /ready for a PR/);
+  const preview = body.indexOf("--dry-run");
+  const ask = body.indexOf("asking which numbers to ship");
+  const send = body.indexOf("without `--dry-run`");
+  assert.ok(preview < ask && ask < send, "the skill previews, then asks, then files");
+});
+
+test("the efficiency analyst names the fields the filing command takes", () => {
+  const { body } = frontmatter("agents/efficiency-analyst.md");
+  for (const field of ["Finding:", "Change:", "Target:", "Destination:"]) assert.match(body, new RegExp(field), field);
+  assert.match(body, /public issue/);
 });
 
 test("the efficiency analyst runs on sonnet, read-only, and proposes scripts only for mechanics", () => {
@@ -62,6 +83,7 @@ test("the quality analyst runs on sonnet, read-only, and routes each lesson with
   for (const destination of ["the pipeline repo", "the standards repo", "the project"]) assert.match(body, new RegExp(`\\| ${destination} \\|`), destination);
   assert.match(body, /never estimate/);
   assert.match(body, /names no client, repo, path or code/);
+  assert.match(body, /public issue/);
   assert.match(body, /fingerprint/);
   assert.ok(words(body) <= 600, `the analyst is ${words(body)} words`);
   assert.doesNotMatch(body, /—|–|\S - [a-z]/);
