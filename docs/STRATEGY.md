@@ -559,7 +559,7 @@ The docs agent writes changelog entries from conventional commits, syncs version
 
 ### Compounder
 
-The compounder is the most important role, because it improves the pipeline itself. A weekly run, or `/compound` on demand, asks two questions of every recent run: what slipped through, and what slowed the pipeline down. It runs on a developer's machine through Claude Code, never in CI.
+The compounder is the most important role, because it improves the pipeline itself. A developer runs `/compound` when they want it, and it asks two questions of every recent run: what slipped through, and what slowed the pipeline down. It runs on a developer's machine through Claude Code, never in CI.
 
 #### The PR record
 
@@ -899,7 +899,7 @@ Superpowers, Pocock's skills and the Cloudflare skill are MIT licensed, and OCR 
 
 **Phase 3, security and design.** Build the WordPress companion, the adversarial verifier, required security tests, the review guide, the planted vulnerability suite and the design reviewer. The phase ends when full review catches at least 90% of planted vulnerabilities and raises false alarms on at most 10% of clean controls.
 
-**Phase 4, the compounder.** Build the PR record with its collapsed stats, the weekly analysis, fingerprinted issues, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs to the pipeline or standards repo merge.
+**Phase 4, the compounder.** Build the PR record with its collapsed stats, the `/compound` analysis, fingerprinted issues, proposals with eval cases and the metrics. The phase ends when the first two compounder PRs to the pipeline or standards repo merge.
 
 **Phase 5, scale.** Add parallel implementers, CI-side agent review and scheduled deep audits. Add the post-merge layer: a staging deploy with a smoke test, beta release channels for distributed plugins, and a documented rollback (squash merges make a revert one commit). Move T0 and T1 to zero human approvals once their revert rates stay flat over 100 merged PRs per tier. CI-side review runs Claude Code in GitHub Actions with a plan OAuth token, which draws on the same plan limits. Anthropic's Code Review product stays a candidate if the team's plan includes it.
 
