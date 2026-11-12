@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, rmSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -6,6 +6,7 @@ import type { Command } from "../../command.ts";
 import { detectProfile, type Detection } from "./detect.ts";
 import { existingFacts, existingFiles } from "./existing.ts";
 import { writeFiles, type PlannedFile, type WriteResult } from "./files.ts";
+import { installHooks } from "../hooks/index.ts";
 import { githubLines, remoteRepo } from "./github.ts";
 import { terminalPrompt } from "./prompt.ts";
 import {
@@ -26,7 +27,8 @@ Sets a project up for the pipeline. Init has two modes.
             .pipeline/sensitive.yml with the packs that fit. Nothing else changes.
   new       Scaffolds a project from templates/init: the test suite, the linters from the standards
             fork, the CI caller workflow, the PR template, the profile, and the git hooks. It runs
-            git init on main when the directory is not a repo yet.
+            git init on main when the directory is not a repo yet. Where git cannot write .git or its
+            hooks, as in a sandbox, init skips those steps and says so.
 
 The mode defaults to new for a directory with no project files and to existing otherwise.
 
@@ -94,29 +96,66 @@ function reportWrites(results: WriteResult[], dryRun: boolean): string[] {
   });
 }
 
-function runStep(directory: string, label: string, command: string, args: string[]): boolean {
-  const result = spawnSync(command, args, { cwd: directory, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+// Git's wording for EPERM and EACCES under LC_ALL=C, which a sandbox guarding .git/config or .git/hooks returns.
+const REFUSED = /Operation not permitted|Permission denied/;
+
+/**
+ * Run git init on main, or say why the environment refused it
+ *
+ * An empty template keeps git from copying sample hooks into .git/hooks. The .git folder a refused init leaves
+ * behind is removed, so a later run starts clean and git does not mistake it for a repository.
+ */
+function gitInit(directory: string): "done" | "failed" | { skipped: string } {
+  const result = spawnSync("git", ["init", "-q", "--template=", "-b", "main"], {
+    cwd: directory,
+    encoding: "utf8",
+    env: { ...process.env, LC_ALL: "C" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   if (result.status === 0) {
-    console.log(label);
-    return true;
+    console.log("initialised a git repo on main");
+    return "done";
   }
-  console.error(`pipeline init: ${label} failed. ${(result.stderr || result.stdout || "").trim()}`);
-  return false;
+  const output = (result.stderr || result.stdout || "").trim();
+  const refused = output.match(REFUSED);
+  if (refused) {
+    rmSync(join(directory, ".git"), { recursive: true, force: true });
+    return { skipped: `git cannot write ${join(directory, ".git")} here (${refused[0]})` };
+  }
+  console.error(`pipeline init: git init failed. ${output}`);
+  return "failed";
 }
 
-// Starts the repo on main and installs the secret hooks, which the new project needs before its first commit.
+/**
+ * Start the repo on main and install the secret hooks, which the new project needs before its first commit
+ *
+ * Where the environment keeps git out of .git, init skips the step with a note and still succeeds, because the
+ * scaffold is complete and the step can run later outside that environment.
+ */
 function prepareRepo(directory: string, dryRun: boolean): boolean {
   if (dryRun) {
     if (!existsSync(join(directory, ".git"))) console.log("would run git init -b main");
     console.log("would run pipeline hooks install");
     return true;
   }
-  let ok = true;
   if (!existsSync(join(directory, ".git"))) {
-    ok = runStep(directory, "initialised a git repo on main", "git", ["init", "-q", "-b", "main"]) && ok;
+    const init = gitInit(directory);
+    if (init === "failed") return false;
+    if (init !== "done") {
+      console.log(`skipped git init and the git hooks, because ${init.skipped}. Run git init -b main, then pipeline hooks install, in ${directory} where git can write .git.`);
+      return true;
+    }
   }
-  ok = runStep(directory, "installed the git hooks", process.execPath, [resolve(process.argv[1] ?? "pipeline"), "hooks", "install"]) && ok;
-  return ok;
+  const result = installHooks(directory, resolve(process.argv[1] ?? "pipeline"));
+  if (result === null) {
+    console.error("pipeline init: installing the git hooks failed. git does not see a repository there.");
+    return false;
+  }
+  if (result.status === "skipped") {
+    console.log(`skipped the git hooks, because ${result.reason}. Run pipeline hooks install in ${directory} where git can write hooks.`);
+    return true;
+  }
+  return result.status === "installed";
 }
 
 function newSteps(answers: Answers): string[] {

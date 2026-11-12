@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -15,7 +15,9 @@ Manages the git hooks that run the secret scan before anything leaves the machin
             Running install again updates the pipeline's own hooks in place.
   status    Report what is installed. Exits 0 when both hooks are in place, 1 otherwise.
 
-Hooks live in the directory that git reports for hooks, so core.hooksPath is honoured.
+Hooks live in the directory that git reports for hooks, so core.hooksPath is honoured. When that
+path is not a writable directory, as in a sandbox that sets it to /dev/null, install writes nothing,
+says why and exits 1.
 
 Fresh clones need the hooks too. Have the package manager install them, for example:
 
@@ -50,27 +52,61 @@ function inspect(dir: string, name: HookName): HookReport {
   return { name, state: isOurs(path) ? "installed" : "other hook", path, chained };
 }
 
-function install(dir: string, bin: string): number {
-  let failed = false;
-  for (const name of hookNames) {
-    const path = join(dir, name);
-    const kept = `${path}.local`;
-    if (existsSync(path) && !isOurs(path)) {
-      if (existsSync(kept)) {
-        console.error(
-          `pipeline hooks: ${name} already exists and so does ${name}.local, so nothing was changed. Merge them by hand, then run install again.`,
-        );
-        failed = true;
-        continue;
-      }
-      renameSync(path, kept);
-      console.log(`kept the existing ${name} as ${name}.local, which runs after the scan`);
-    }
-    writeFileSync(path, scriptFor(name, bin));
-    chmodSync(path, 0o755);
-    console.log(`installed ${name}`);
+// Errors that mean this environment keeps hooks out, which no retry from the same shell fixes.
+const UNWRITABLE = new Set(["EACCES", "ENOTDIR", "EPERM", "EROFS"]);
+
+/**
+ * Hook install result
+ *
+ * Skipped means the hooks directory cannot hold hooks here, and reason says why.
+ */
+export type InstallResult = { status: "installed" } | { status: "failed" } | { status: "skipped"; reason: string };
+
+/**
+ * Write both hooks into a hooks directory
+ */
+function install(dir: string, bin: string): InstallResult {
+  if (statSync(dir, { throwIfNoEntry: false })?.isDirectory() === false) {
+    return { status: "skipped", reason: `the git hooks path is ${dir}, which is not a directory` };
   }
-  return failed ? 1 : 0;
+  let failed = false;
+  try {
+    // A repo made from an empty template has no hooks directory yet.
+    mkdirSync(dir, { recursive: true });
+    for (const name of hookNames) {
+      const path = join(dir, name);
+      const kept = `${path}.local`;
+      if (existsSync(path) && !isOurs(path)) {
+        if (existsSync(kept)) {
+          console.error(
+            `pipeline hooks: ${name} already exists and so does ${name}.local, so nothing was changed. Merge them by hand, then run install again.`,
+          );
+          failed = true;
+          continue;
+        }
+        renameSync(path, kept);
+        console.log(`kept the existing ${name} as ${name}.local, which runs after the scan`);
+      }
+      writeFileSync(path, scriptFor(name, bin));
+      chmodSync(path, 0o755);
+      console.log(`installed ${name}`);
+    }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === undefined || !UNWRITABLE.has(code)) throw error;
+    return { status: "skipped", reason: `git cannot write to ${dir} here (${code})` };
+  }
+  return failed ? { status: "failed" } : { status: "installed" };
+}
+
+/**
+ * Install the hooks for the repo that holds cwd
+ *
+ * Init calls this in process, so it can tell a skipped install from a failed one.
+ */
+export function installHooks(cwd: string, bin: string): InstallResult | null {
+  const dir = hooksDirectory(cwd);
+  return dir ? install(dir, bin) : null;
 }
 
 function status(dir: string, json: boolean): number {
@@ -106,7 +142,12 @@ async function run(argv: string[]): Promise<number> {
     console.error("pipeline hooks: this is not a git repository.");
     return 1;
   }
-  return subcommand === "install" ? install(dir, resolve(process.argv[1] ?? "pipeline")) : status(dir, parsed.values.json === true);
+  if (subcommand === "status") return status(dir, parsed.values.json === true);
+  const result = install(dir, resolve(process.argv[1] ?? "pipeline"));
+  if (result.status === "skipped") {
+    console.error(`pipeline hooks: hooks not installed, because ${result.reason}. Run "pipeline hooks install" again where git can write hooks.`);
+  }
+  return result.status === "installed" ? 0 : 1;
 }
 
 const command: Command = {
