@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import type { Command } from "../../command.ts";
 import { cachePath, CACHE_DIR, fetchRepo, gh, GhError, readCache, repoOfRemote, type RepoData, writeCache } from "../../compound/github.ts";
 import { quality, renderQuality } from "../../compound/quality.ts";
+import { COMPOUND_DIR, evaluate, hookOutput, readSetting, recordRun, SETTINGS, type Setting } from "../../compound/due.ts";
 import { readLedger } from "../../ledger/ledger.ts";
 import { efficiency, type Ledger, renderEfficiency } from "../../run/efficiency.ts";
 import { listLogs, primaryCheckout, readLog, RUNS_DIR, type RunLog } from "../../run/log.ts";
@@ -17,6 +18,7 @@ import { builtinConfig, loadConfig } from "../scan-zones/config.ts";
 const usage = `Usage: pipeline compound efficiency [--transcripts <dir>] [--since <date>] [--min-streams <n>] [--top <n>] [--out <file>] [--json]
        pipeline compound quality [--repo <owner/name>]... [--since <date>] [--window <days>] [--top <n>] [--offline] [--out <file>] [--json]
        pipeline compound metrics [--repo <owner/name>]... [--since <date>] [--window <days>] [--offline] [--out <file.html>] [--json]
+       pipeline compound due [--hook]
 ${fileUsage}
 
 efficiency reads what slowed the pipeline down from the run logs in ${RUNS_DIR}/ and the ledgers in
@@ -34,6 +36,12 @@ zone or review rule of the code, and ranks them. Each fetch is kept in ${CACHE_D
 metrics reads the same fetch and writes one static HTML page of quality, human attention and
 efficiency, per repo and overall. A number with no source in the PRs reads "no data".
 
+due says whether /compound is due, from the setting in ~/.pipeline/config.yml (compound: ${SETTINGS.join(", ")},
+weekly by default) and the time each half last ran, which quality and efficiency record in
+${COMPOUND_DIR}/last-run.json. It reads only local files. weekly is due 7 days after the last run once new run
+logs exist and covers the efficiency half. lead is due 7 days after the last run and covers both halves.
+manual is never due.
+
 Options:
   --transcripts <dir>  efficiency: read the Claude Code transcripts in <dir>, with their subagents,
                        in place of the run logs. Claude Code keeps a project's under ~/.claude/projects/.
@@ -46,6 +54,8 @@ Options:
   --top <n>            Rows per list. Defaults to 10.
   --out <file>         Also write the report as JSON to <file>, for the half's analyst. metrics
                        writes its page there, by default .pipeline/compound/metrics.html.
+  --hook               due: print SessionStart hook JSON when due and nothing otherwise. Any error prints
+                       nothing and exits 0.
   --json               Print the report as JSON. metrics prints its numbers in place of the path line.
 
 Exit codes: 0 on success, 2 for bad usage, nothing to read, text refused as private, or gh unable to read or write a repo.`;
@@ -149,6 +159,7 @@ async function runEfficiency(argv: string[]): Promise<number> {
 
   const report = efficiency(logs, repo === null ? [] : ledgers(repo), { roots: { repo }, minStreams, top });
   if (values.out !== undefined) writeReport(repo, values.out, report);
+  if (repo !== null) recordRun(repo, "efficiency");
   console.log(values.json ? JSON.stringify(report, null, 2) : renderEfficiency(report));
   return 0;
 }
@@ -227,8 +238,44 @@ async function runQuality(argv: string[]): Promise<number> {
 
   const report = quality(repos, { windowDays, top });
   if (values.out !== undefined) writeReport(checkout, values.out, report);
+  if (checkout !== null) recordRun(checkout, "quality");
   console.log(values.json ? JSON.stringify(report, null, 2) : renderQuality(report));
   return 0;
+}
+
+/**
+ * Runs `pipeline compound due`
+ *
+ * With --hook it runs at every session start, so any error ends in silence and exit 0.
+ */
+async function runDue(argv: string[]): Promise<number> {
+  let parsed;
+  try {
+    parsed = parseArgs({ args: argv, options: { hook: { type: "boolean" } } });
+  } catch (error) {
+    return fail(`${error instanceof Error ? error.message : String(error)}. Run "pipeline compound --help".`);
+  }
+  const hook = parsed.values.hook === true;
+  try {
+    let setting: Setting;
+    try {
+      setting = readSetting();
+    } catch (error) {
+      if (!hook) return fail((error as Error).message);
+      setting = "weekly";
+    }
+    const repo = primaryCheckout(resolve(process.cwd()));
+    if (repo === null) return hook ? 0 : fail(`${process.cwd()} is not inside a git repo.`);
+    const due = evaluate(setting, repo);
+    if (hook) {
+      if (due.due) console.log(hookOutput(due, setting));
+      return 0;
+    }
+    console.log(`${due.line} Setting ${setting} covers ${due.covers.join(" and ")}.`);
+    return 0;
+  } catch (error) {
+    return hook ? 0 : fail((error as Error).message);
+  }
 }
 
 /**
@@ -240,7 +287,8 @@ async function run(argv: string[]): Promise<number> {
   if (half === "quality") return runQuality(rest);
   if (half === "metrics") return runMetrics(rest);
   if (half === "file") return runFile(rest);
-  return fail(`name what to run: "pipeline compound quality", "pipeline compound efficiency" or "pipeline compound metrics", or "pipeline compound file" to file a lesson. Run "pipeline compound --help".`);
+  if (half === "due") return runDue(rest);
+  return fail(`name what to run: "pipeline compound quality", "pipeline compound efficiency" or "pipeline compound metrics", "pipeline compound file" to file a lesson, or "pipeline compound due". Run "pipeline compound --help".`);
 }
 
 const command: Command = {
