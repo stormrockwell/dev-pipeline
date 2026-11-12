@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { describeInput, toEvents } from "../../src/run/hook.ts";
-import type { RunEvent, RunLog } from "../../src/run/log.ts";
+import { toEvents } from "../../src/run/hook.ts";
+import { describeInput, type RunEvent, type RunLog } from "../../src/run/log.ts";
 import { summarize } from "../../src/run/summary.ts";
 import { transcriptUsage } from "../../src/run/transcript.ts";
 import { git, makeRepo, pipeline, removeTemps, tempDir, write } from "../helpers/repo.ts";

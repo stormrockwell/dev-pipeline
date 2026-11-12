@@ -32,7 +32,7 @@ const time = (event: RunEvent) => Date.parse(event.at);
  * A wait runs from the main session stopping to the next prompt, and an AskUserQuestion call is a
  * wait for as long as the tool ran.
  */
-function waits(events: RunEvent[]): [number, number][] {
+export function waits(events: RunEvent[]): [number, number][] {
   const spans: [number, number][] = [];
   let stopped: number | null = null;
   for (const event of events) {
@@ -53,7 +53,7 @@ function overlap([a, b]: [number, number], [c, d]: [number, number]): number {
 /**
  * Each stage's working time: from its skill firing to the next stage or the session's last event, less the waits inside it
  */
-function stages(events: RunEvent[], spans: [number, number][]): { name: string; ms: number }[] {
+export function stages(events: RunEvent[], spans: [number, number][]): { name: string; ms: number }[] {
   const starts = events.filter((event) => event.kind === "stage" && event.agent === undefined);
   const end = events.length > 0 ? time(events.at(-1)!) : 0;
   return starts.map((start, index) => {

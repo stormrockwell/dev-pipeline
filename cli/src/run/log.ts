@@ -128,3 +128,44 @@ export function workIn(text: string): { work: string | null; task: string | null
   const match = WORK.exec(text);
   return { work: match?.[1] ?? null, task: match?.[2] ?? null };
 }
+
+// Skills the plugin ships, whose firing starts a stage of the change route.
+export const PLUGIN_SKILL = /^dev-pipeline:([\w-]+)$/;
+
+/**
+ * Text cut to a length, marked where it was cut
+ */
+export function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/**
+ * The part of a tool call's input worth keeping: the command, path, pattern or skill, never file contents
+ */
+export function describeInput(tool: string, input: Record<string, unknown> = {}): string {
+  const field = (name: string) => (typeof input[name] === "string" ? (input[name] as string) : "");
+  switch (tool) {
+    case "Bash":
+      return clip(field("command"), 400);
+    case "Read":
+    case "Write":
+    case "Edit":
+      return field("file_path");
+    case "NotebookEdit":
+      return field("notebook_path");
+    case "Glob":
+    case "Grep":
+      return [field("pattern"), field("path")].filter(Boolean).join(" in ");
+    case "Skill":
+      return field("skill");
+    case "Agent":
+    case "Task":
+      return [field("subagent_type"), field("model"), field("description")].filter(Boolean).join(" ");
+    case "WebFetch":
+      return field("url");
+    case "WebSearch":
+      return clip(field("query"), 200);
+    default:
+      return "";
+  }
+}
