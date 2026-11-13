@@ -205,35 +205,48 @@ const result = spawnSync("php", ["test/export.test.php"], { stdio: "inherit" });
 process.exit(result.status ?? 1);
 `;
 
-const phpTest = (body: string) => `<?php
+const phpTest = (body: string, load = "require __DIR__ . '/../src/Export.php';") => `<?php
 require __DIR__ . '/../src/wp-stubs.php';
-require __DIR__ . '/../src/Export.php';
+${load}
 ${body}
 function check( $got, $want ) { if ( $got !== $want ) { fwrite( STDERR, "expected $want, got $got\\n" ); exit( 1 ); } }
 `;
 
-const bitingPhp = phpTest(`
+const bitingBody = `
 $GLOBALS['caps'] = array( 'manage_options' );
 check( handle_export( 'bad' ), 'bad nonce' );
 check( handle_export( 'good' ), 'exported' );
 $GLOBALS['caps'] = array();
 check( handle_export( 'good' ), 'denied' );
-`);
+`;
+
+const bitingPhp = phpTest(bitingBody);
 
 const tautologicalPhp = phpTest(`
 $GLOBALS['caps'] = array( 'manage_options' );
 check( handle_export( 'good' ), 'exported' );
 `);
 
-function phpRepo(testBody: string): string {
-  const repo = makeRepo({ gitignore: ".env\nnode_modules/\n.pipeline/work/\n" });
+// Composer's autoloader and its bin proxies find the project from their own __DIR__, which PHP resolves through a symlink.
+const composerAutoload = "<?php\nrequire_once __DIR__ . '/composer/autoload_real.php';\n";
+const composerReal = "<?php\nrequire_once dirname( __DIR__, 2 ) . '/src/Export.php';\n";
+const composerBin = "<?php\nrequire_once __DIR__ . '/../autoload.php';\nrequire $argv[1];\n";
+const vendorRunner = phpRunner.replace('["test/export.test.php"]', '["vendor/bin/run-tests", "test/export.test.php"]');
+
+function phpRepo(testBody: string, options: { vendor?: boolean } = {}): string {
+  const repo = makeRepo({ gitignore: ".env\nnode_modules/\nvendor/\n.pipeline/work/\n" });
+  if (options.vendor) {
+    write(repo, "vendor/autoload.php", composerAutoload);
+    write(repo, "vendor/composer/autoload_real.php", composerReal);
+    write(repo, "vendor/bin/run-tests", composerBin);
+  }
   stage(repo, "src/wp-stubs.php", phpStubs);
   commit(repo, "chore: add stubs");
   write(repo, order, workOrder("T3", "[authz, csrf]"));
   expect(pipeline(repo, ["schedule", order]).status).toBe(0);
   expect(pipeline(repo, ["brief", order, "1", "--test", "node test/run-php.mjs"]).status).toBe(0);
   write(repo, "src/Export.php", exportHandler);
-  write(repo, "test/run-php.mjs", phpRunner);
+  write(repo, "test/run-php.mjs", options.vendor ? vendorRunner : phpRunner);
   write(repo, "test/export.test.php", testBody);
   git(repo, "add", "-A");
   commit(repo, "feat: export");
@@ -257,6 +270,15 @@ describe.skipIf(phpDir === undefined)("pipeline mutate on WordPress checks", () 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("SURVIVED  src/Export.php:3  wp_verify_nonce()  replace the call with 1");
     expect(result.stdout).toContain("SURVIVED  src/Export.php:6  current_user_can()  replace the call with true");
+  });
+
+  it("mutates the scratch copy's classes when Composer autoloads them from an ignored vendor folder", () => {
+    const repo = phpRepo(phpTest(bitingBody, ""), { vendor: true });
+    const result = pipeline(repo, ["mutate"], { env: phpEnv });
+    expect(result.stdout).toContain("KILLED  src/Export.php:3  wp_verify_nonce()  replace the call with 1");
+    expect(result.stdout).toContain("KILLED  src/Export.php:6  current_user_can()  replace the call with true");
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(repo, "vendor/composer/autoload_real.php"), "utf8")).toBe(composerReal);
   });
 });
 
