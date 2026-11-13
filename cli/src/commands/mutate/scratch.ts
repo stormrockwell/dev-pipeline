@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -14,11 +14,32 @@ function listing(cwd: string, args: string[]): string[] {
   return result.stdout.split("\0").filter(Boolean);
 }
 
+// The loader and the bin proxies of a Composer vendor folder find the project through their own __DIR__.
+const COMPOSER_LOADERS = new Set(["autoload.php", "bin", "composer"]);
+
+/**
+ * Links one ignored entry into the scratch copy
+ *
+ * PHP resolves __DIR__ through symlinks, so a linked Composer vendor folder would autoload the
+ * worktree's classes instead of the mutated ones. Its loader and bin proxies are copied and its packages linked.
+ */
+function linkIgnored(from: string, to: string): void {
+  if (!existsSync(join(from, "composer", "autoload_real.php"))) {
+    symlinkSync(from, to);
+    return;
+  }
+  mkdirSync(to);
+  for (const name of readdirSync(from)) {
+    if (COMPOSER_LOADERS.has(name)) cpSync(join(from, name), join(to, name), { recursive: true, preserveTimestamps: true });
+    else symlinkSync(join(from, name), join(to, name));
+  }
+}
+
 /**
  * Copies the files git would commit into a fresh temp directory and links the ignored ones back
  *
  * Ignored entries such as node_modules, vendor and an env file are linked instead of copied, because
- * they are large and a mutated run needs them to start. The task record folder stays behind, so a
+ * they are large and a mutated run needs them to start, except for a Composer vendor folder's loaders. The task record folder stays behind, so a
  * mutated run cannot write into the task's evidence.
  */
 export function makeScratch(worktree: string): string {
@@ -39,7 +60,7 @@ export function makeScratch(worktree: string): string {
       if (path === RECORD_ROOT || path.startsWith(`${RECORD_ROOT}/`)) continue;
       const to = join(scratch, path);
       mkdirSync(dirname(to), { recursive: true });
-      symlinkSync(join(worktree, path), to);
+      linkIgnored(join(worktree, path), to);
     }
   } catch (error) {
     rmSync(scratch, { recursive: true, force: true });
