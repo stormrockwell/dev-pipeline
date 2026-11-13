@@ -29,6 +29,8 @@ export interface Signal {
   zone: Zone;
   // The signal counts only when this pattern also matches in the same function or hunk.
   near?: string;
+  // The signal counts only when this pattern also matches somewhere in the file.
+  file?: string;
   // The signal counts only on removed lines, because adding the same text is the safe direction.
   only?: "removed";
   flags?: string;

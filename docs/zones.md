@@ -109,6 +109,7 @@ Each signal is a map with these keys.
 | `pattern` | yes | A JavaScript regular expression, tested against one line. |
 | `zone` | yes | One of the ten zones. |
 | `near` | no | A second regular expression. The signal counts only when it also matches in the same function. |
+| `file` | no | A second regular expression. The signal counts only when it also matches on any line of the file. |
 | `only` | no | `removed` makes the signal count only on removed lines, which suits a protective call such as `esc_html`. |
 | `flags` | no | Any of `i`, `m` and `s`. |
 
@@ -194,7 +195,9 @@ The heuristic checks for co-occurrence, not data flow, so it errs in both direct
 - Request data that arrives through a parameter is missed. A helper `save( $value )` that writes its argument is not flagged, and the caller that passes `$_POST['x']` is not flagged either unless it also contains a write.
 - Request data kept in a property, or read in one method and written in another, is missed.
 - A closure inside a handler is its own function, so request data read in the outer function is not seen from the closure.
-- Input from other channels is missed: `$_COOKIE`, `$_SERVER`, `$_FILES`, `php://input`, WordPress ability or MCP tool input, webhooks, queue messages and CLI arguments. A repo adds its own channel with a `near` pattern, such as `near: '\$input\b'` for an abilities API.
+- Input from other channels is missed: `$_COOKIE`, `$_SERVER`, `$_FILES`, `php://input`, MCP tool input, webhooks, queue messages and CLI arguments. A repo adds its own channel with a `near` pattern, such as `near: '\$_COOKIE\b'`.
+- Ability input is found by file, not by flow. The WordPress pack flags a data write, an outbound request or an upload that has a variable argument, in a file that registers an ability, sets an `execute_callback`, or defines `execute( $params )` or `execute( $input )`. It cannot tell which variable holds caller data, so a write of a value the ability computed itself is flagged too, and an ability class that does not use those shapes is missed. A removed line is never checked against `file`, and a diff scan needs the full file content to see the ability.
+- A line signal sees one line, so it cannot see a filter that changes a capability floor, the list of exposed abilities, ability meta that hides a route, a callback wired by name or array, or a missing per-object check. The reviewer's zone call covers those.
 - A write through a wrapper or a custom repository class is missed, because only the listed functions and methods match.
 - A mention in a comment matches like code. The scan does not strip comments, because the suppression signals live in them.
 - Matching braces on a line basis can pick the wrong range in files with unusual formatting, such as several functions on one line. The 20 line window still applies outside any range found.
